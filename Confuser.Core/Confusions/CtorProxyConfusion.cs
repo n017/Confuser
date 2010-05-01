@@ -7,6 +7,7 @@ using Mono.Cecil.Cil;
 using System.Security.Cryptography;
 using System.IO;
 using System.Globalization;
+using System.IO.Compression;
 
 namespace Confuser.Core.Confusions
 {
@@ -365,7 +366,7 @@ namespace Confuser.Core.Confusions
                     for (int i = 0; i < 8; i++)
                         wtr.Write(asm.PublicKeyToken[i]);
                 }
-                wtr.Write((int)mtd.MetadataToken.ToUInt());
+                wtr.Write((int)mtd.MetadataToken.RID);
             }
             return Convert.ToBase64String(ret.ToArray());
         }
@@ -403,7 +404,7 @@ namespace Confuser.Core.Confusions
                 else
                     pkt = null;
 
-                tkn = rdr.ReadInt32();
+                tkn = rdr.ReadInt32() | 0x06000000;
             }
 
             var n = new System.Reflection.AssemblyName();

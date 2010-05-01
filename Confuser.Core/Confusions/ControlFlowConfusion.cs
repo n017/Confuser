@@ -122,6 +122,7 @@ namespace Confuser.Core.Confusions
 
             bdy.Simplify();
             bdy.Optimize();
+            cr.Log("<method name='" + bdy.Method.ToString() + "'/>");
         }
 
         private Dictionary<string, Instruction> GetIds(MethodBody bdy)
