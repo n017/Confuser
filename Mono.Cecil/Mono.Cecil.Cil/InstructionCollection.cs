@@ -110,27 +110,5 @@ namespace Mono.Cecil.Cil {
                 offset += this[i].GetSize();
             }
         }
-
-        internal void RecalculateOffsetsSL()
-        {
-            int offset = 0;
-            RecalculateOffsets();
-            foreach (Instruction inst in List)
-            {
-                if (inst.Operand == null) continue;
-                switch (inst.OpCode.OperandType)
-                {
-                    case OperandType.ShortInlineBrTarget:
-                        if ((inst.Operand as Instruction).Offset > sbyte.MaxValue)
-                            inst.OpCode = OpCodes.GetOpCode((Code)Enum.Parse(typeof(Code), inst.OpCode.Code.ToString().Replace("_S", "")));
-                        break;
-                    case OperandType.ShortInlineParam:
-                        if ((inst.Operand as ParameterReference).Sequence > sbyte.MaxValue)
-                            inst.OpCode = OpCodes.GetOpCode((Code)Enum.Parse(typeof(Code), inst.OpCode.Code.ToString().Replace("_S", "")));
-                        break;
-                }
-            }
-            RecalculateOffsets();
-        }
 	}
 }

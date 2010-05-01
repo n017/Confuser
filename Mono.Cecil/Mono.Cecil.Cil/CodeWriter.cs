@@ -107,8 +107,6 @@ namespace Mono.Cecil.Cil {
 
 			ComputeMaxStack (instructions);
 
-            instructions.RecalculateOffsetsSL();
-
 			foreach(Instruction instr in instructions) {
 
 				if (instr.OpCode.Size == 1)

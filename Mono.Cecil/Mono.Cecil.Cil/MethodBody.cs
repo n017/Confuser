@@ -591,12 +591,7 @@ namespace Mono.Cecil.Cil {
 
 		void ComputeOffsets ()
 		{
-			int offset = 0;
-
-			foreach (Instruction instr in m_instructions) {
-				instr.Offset = offset;
-				offset += instr.GetSize ();
-			}
+            m_instructions.RecalculateOffsets();
 		}
 
 		static void Modify (Instruction i, OpCode op, object operand)

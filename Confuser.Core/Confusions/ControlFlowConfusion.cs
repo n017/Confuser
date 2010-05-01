@@ -60,6 +60,7 @@ namespace Confuser.Core.Confusions
         {
             if (!mtd.HasBody) return;
             MethodBody bdy = mtd.Body;
+            bdy.Simplify();
             Dictionary<string, Instruction> Ids = GetIds(bdy);
             List<Instruction[]> blks = new List<Instruction[]>();
             string[] lvs = GetLvs(Ids);
@@ -116,12 +117,8 @@ namespace Confuser.Core.Confusions
                     eh.FilterEnd = eh.FilterEnd.Next;
             }
 
-            foreach (Instruction inst in bdy.Instructions)
-                if (inst.Operand is Instruction && !bdy.Instructions.Contains(inst.Operand as Instruction))
-                    throw new Exception();
-
-            bdy.Simplify();
             bdy.Optimize();
+
             cr.Log("<method name='" + bdy.Method.ToString() + "'/>");
         }
 
