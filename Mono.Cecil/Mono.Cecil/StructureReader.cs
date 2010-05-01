@@ -204,7 +204,7 @@ namespace Mono.Cecil {
 		public override void VisitModuleDefinitionCollection (ModuleDefinitionCollection modules)
 		{
 			ModuleTable mt = m_tableReader.GetModuleTable ();
-			if (mt == null || mt.Rows.Count != 1)
+			if (mt == null)
 				throw new ReflectionException ("Can not read main module");
 
 			ModuleRow mr = mt [0];
