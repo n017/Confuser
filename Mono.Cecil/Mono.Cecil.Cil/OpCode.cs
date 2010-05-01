@@ -40,7 +40,10 @@ namespace Mono.Cecil.Cil {
 		public string Name {
 			get {
 				int index = (Size == 1) ? Op2 : (Op2 + 256);
-				return OpCodeNames.names [index];
+                if (OpCodeNames.names[index] == null)
+                    return "unused" + Op2.ToString("X");
+                else
+                    return OpCodeNames.names[index];
 			}
 		}
 
