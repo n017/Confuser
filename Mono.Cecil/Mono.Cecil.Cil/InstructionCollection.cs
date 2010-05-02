@@ -38,7 +38,7 @@ namespace Mono.Cecil.Cil {
 
 	public sealed class InstructionCollection : CollectionBase, ICodeVisitable {
 
-		MethodBody m_container;
+        ManagedMethodBody m_container;
 		public readonly Instruction Outside = new Instruction (int.MaxValue, OpCodes.Nop);
 
 		public Instruction this [int index] {
@@ -46,11 +46,11 @@ namespace Mono.Cecil.Cil {
 			set { List [index] = value; }
 		}
 
-		public MethodBody Container {
+		public ManagedMethodBody Container {
 			get { return m_container; }
 		}
 
-		public InstructionCollection (MethodBody container)
+		public InstructionCollection (ManagedMethodBody container)
 		{
 			m_container = container;
 		}
@@ -58,7 +58,7 @@ namespace Mono.Cecil.Cil {
 		internal void Add (Instruction value)
 		{
 			List.Add (value);
-            RecalculateOffsets();//Hack
+            RecalculateOffsets();
         }
 
         internal void AddInternal(Instruction value)
@@ -79,13 +79,13 @@ namespace Mono.Cecil.Cil {
 		internal void Insert (int index, Instruction value)
 		{
             List.Insert(index, value);
-            RecalculateOffsets();//Hack
+            RecalculateOffsets();
 		}
 
 		internal void Remove (Instruction value)
 		{
             List.Remove(value);
-            RecalculateOffsets();//Hack
+            RecalculateOffsets();
 		}
 
 		protected override void OnValidate (object o)

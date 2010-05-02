@@ -130,6 +130,7 @@
     <Compile Include="Mono.Cecil.Cil\ISymbolWriter.cs" />
     <Compile Include="Mono.Cecil.Cil\IVariableDefinitionProvider.cs" />
     <Compile Include="Mono.Cecil.Cil\MethodBody.cs" />
+    <Compile Include="Mono.Cecil.Cil\ManagedMethodBody.cs" />
     <Compile Include="Mono.Cecil.Cil\MethodDataSection.cs" />
     <Compile Include="Mono.Cecil.Cil\MethodHeader.cs" />
     <Compile Include="Mono.Cecil.Cil\OpCode.cs" />
@@ -142,6 +143,7 @@
     <Compile Include="Mono.Cecil.Cil\SequencePoint.cs" />
     <Compile Include="Mono.Cecil.Cil\StackBehaviour.cs" />
     <Compile Include="Mono.Cecil.Cil\SymbolStoreHelper.cs" />
+    <Compile Include="Mono.Cecil.Cil\UnmanagedMethodBody.cs" />
     <Compile Include="Mono.Cecil.Cil\VariableDefinition.cs" />
     <Compile Include="Mono.Cecil.Cil\VariableDefinitionCollection.cs" />
     <Compile Include="Mono.Cecil.Cil\VariableReference.cs" />
@@ -403,6 +405,8 @@
   </ItemGroup>
   <ItemGroup>
     <Reference Include="System" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include="Microsoft.Net.Client.3.5">

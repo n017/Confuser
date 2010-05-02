@@ -78,7 +78,7 @@ namespace Confuser.Core
 
                 //global cctor which used in many confusion
                 MethodDefinition cctor = new MethodDefinition(".cctor", MethodAttributes.Private | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.RTSpecialName | MethodAttributes.Static, asm.MainModule.Import(typeof(void)));
-                cctor.Body.CilWorker.Emit(OpCodes.Ret);
+                (cctor.Body as ManagedMethodBody).CilWorker.Emit(OpCodes.Ret);
                 asm.MainModule.Types["<Module>"].Constructors.Add(cctor);
 
                 asm.MainModule.Image.DebugHeader = null;
@@ -141,9 +141,10 @@ namespace Confuser.Core
             TypeDefinition att = new TypeDefinition("ConfusedByAttribute", "", TypeAttributes.Class | TypeAttributes.NotPublic, asm.MainModule.Import(typeof(Attribute)));
             MethodDefinition ctor = new MethodDefinition(".ctor", MethodAttributes.RTSpecialName | MethodAttributes.SpecialName | MethodAttributes.Public, asm.MainModule.Import(typeof(void)));
             ctor.Parameters.Add(new ParameterDefinition(asm.MainModule.Import(typeof(string))));
-            ctor.Body.CilWorker.Emit(OpCodes.Ldarg_0);
-            ctor.Body.CilWorker.Emit(OpCodes.Call, asm.MainModule.Import(typeof(Attribute).GetConstructor(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance, null, Type.EmptyTypes, null)));
-            ctor.Body.CilWorker.Emit(OpCodes.Ret);
+            ManagedMethodBody bdy = ctor.Body as ManagedMethodBody;
+            bdy.CilWorker.Emit(OpCodes.Ldarg_0);
+            bdy.CilWorker.Emit(OpCodes.Call, asm.MainModule.Import(typeof(Attribute).GetConstructor(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance, null, Type.EmptyTypes, null)));
+            bdy.CilWorker.Emit(OpCodes.Ret);
             att.Constructors.Add(ctor);
             asm.MainModule.Types.Add(att);
 

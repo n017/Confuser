@@ -36,9 +36,10 @@ namespace Confuser.Core.Confusions
         private void ProcessMethod(Confuser cr, MethodDefinition mtd)
         {
             if (!mtd.HasBody) return;
-            CilWorker wkr = mtd.Body.CilWorker;
+            ManagedMethodBody bdy = mtd.Body as ManagedMethodBody;
+            CilWorker wkr = bdy.CilWorker;
 
-            Instruction original = mtd.Body.Instructions[0];
+            Instruction original = bdy.Instructions[0];
             Instruction jmp = wkr.Create(OpCodes.Br_S, original);
 
             Instruction stackundering = wkr.Create(OpCodes.Pop);

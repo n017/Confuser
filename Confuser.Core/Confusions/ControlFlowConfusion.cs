@@ -59,7 +59,7 @@ namespace Confuser.Core.Confusions
         private void ProcessMethod(Confuser cr, MethodDefinition mtd)
         {
             if (!mtd.HasBody) return;
-            MethodBody bdy = mtd.Body;
+            ManagedMethodBody bdy = mtd.Body as ManagedMethodBody;
             bdy.Simplify();
             Dictionary<string, Instruction> Ids = GetIds(bdy);
             List<Instruction[]> blks = new List<Instruction[]>();
@@ -122,7 +122,7 @@ namespace Confuser.Core.Confusions
             cr.Log("<method name='" + bdy.Method.ToString() + "'/>");
         }
 
-        private Dictionary<string, Instruction> GetIds(MethodBody bdy)
+        private Dictionary<string, Instruction> GetIds(ManagedMethodBody bdy)
         {
             Dictionary<string, Instruction> ret = new Dictionary<string, Instruction>();
             foreach (Instruction inst in bdy.Instructions)
@@ -202,7 +202,7 @@ namespace Confuser.Core.Confusions
             }
             return ret.ToArray();
         }
-        private void SetLvHandler(string lvv, MethodBody bdy, Instruction[][] blks)
+        private void SetLvHandler(string lvv, ManagedMethodBody bdy, Instruction[][] blks)
         {
             int lv = int.Parse(lvv.Substring(lvv.IndexOf('_') + 1));
             int now = 0;
@@ -259,7 +259,7 @@ namespace Confuser.Core.Confusions
                 ret.Add(blk.ToArray());
             return ret.ToArray();
         }
-        private void ProcessInstructions(MethodBody bdy, ref Instruction[][] blks)
+        private void ProcessInstructions(ManagedMethodBody bdy, ref Instruction[][] blks)
         {
             List<Instruction[]> ret = new List<Instruction[]>();
             Instruction retBlk = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];

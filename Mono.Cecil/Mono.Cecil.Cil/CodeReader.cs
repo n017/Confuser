@@ -50,9 +50,9 @@ namespace Mono.Cecil.Cil {
 		}
 
 		public override void VisitMethodBody (MethodBody body)
-		{
-			MethodDefinition meth = body.Method;
-			MethodBody methBody = body;
+        {
+            ManagedMethodBody methBody = body as ManagedMethodBody;
+            MethodDefinition meth = methBody.Method;
 			BinaryReader br = m_reflectReader.Module.ImageReader.MetadataReader.GetDataReader (meth.RVA);
 
 			// lets read the method
@@ -70,7 +70,7 @@ namespace Mono.Cecil.Cil {
 				methBody.MaxStack = br.ReadUInt16 ();
 				methBody.CodeSize = br.ReadInt32 ();
 				methBody.LocalVarToken = br.ReadInt32 ();
-				body.InitLocals = (fatflags & (int) MethodHeader.InitLocals) != 0;
+				methBody.InitLocals = (fatflags & (int) MethodHeader.InitLocals) != 0;
 				if (methBody.LocalVarToken != 0)
 					VisitVariableDefinitionCollection (methBody.Variables);
 				ReadCilBody (methBody, br);
@@ -85,7 +85,7 @@ namespace Mono.Cecil.Cil {
 			return (uint) token & 0x00ffffff;
 		}
 
-		public static ParameterDefinition GetParameter (MethodBody body, int index)
+		public static ParameterDefinition GetParameter (ManagedMethodBody body, int index)
 		{
 			if (body.Method.HasThis) {
 				if (index == 0)
@@ -96,12 +96,12 @@ namespace Mono.Cecil.Cil {
 			return body.Method.Parameters [index];
 		}
 
-		public static VariableDefinition GetVariable (MethodBody body, int index)
+		public static VariableDefinition GetVariable (ManagedMethodBody body, int index)
 		{
 			return body.Variables [index];
 		}
 
-		void ReadCilBody (MethodBody body, BinaryReader br)
+		void ReadCilBody (ManagedMethodBody body, BinaryReader br)
 		{
 			long start = br.BaseStream.Position;
 			m_instructions.Clear();
@@ -243,7 +243,7 @@ namespace Mono.Cecil.Cil {
             code.RecalculateOffsets();
 		}
 
-		Instruction GetInstruction (MethodBody body, int offset)
+		Instruction GetInstruction (ManagedMethodBody body, int offset)
 		{
 			Instruction instruction = m_instructions [offset] as Instruction;
 			if (instruction != null)
@@ -252,7 +252,7 @@ namespace Mono.Cecil.Cil {
 			return body.Instructions.Outside;
 		}
 
-		void ReadSection (MethodBody body, BinaryReader br)
+		void ReadSection (ManagedMethodBody body, BinaryReader br)
 		{
 			br.BaseStream.Position += 3;
 			br.BaseStream.Position &= ~3;
@@ -293,7 +293,7 @@ namespace Mono.Cecil.Cil {
 				ReadSection (body, br);
 		}
 
-		void ReadExceptionHandlerEnd (ExceptionHandler eh, BinaryReader br, MethodBody body)
+		void ReadExceptionHandlerEnd (ExceptionHandler eh, BinaryReader br, ManagedMethodBody body)
 		{
 			switch (eh.Type) {
 			case ExceptionHandlerType.Catch :
@@ -331,7 +331,7 @@ namespace Mono.Cecil.Cil {
 
 		public override void VisitVariableDefinitionCollection (VariableDefinitionCollection variables)
 		{
-			MethodBody body = variables.Container as MethodBody;
+            ManagedMethodBody body = variables.Container as ManagedMethodBody;
 			if (body == null || body.LocalVarToken == 0)
 				return;
 

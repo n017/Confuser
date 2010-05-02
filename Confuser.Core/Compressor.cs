@@ -37,14 +37,14 @@ namespace Confuser.Core
 
             AssemblyDefinition ldrC = AssemblyFactory.GetAssembly(typeof(ConfusingLoader).Assembly.Location);
             TypeDefinition t = ldr.MainModule.Inject(ldrC.MainModule.Types["Confuser.Core.Compressor/ConfusingLoader"]);
-            foreach (Instruction inst in t.Methods.GetMethod("Main")[0].Body.Instructions)
+            foreach (Instruction inst in (t.Methods.GetMethod("Main")[0].Body as ManagedMethodBody).Instructions)
             {
                 if ((inst.Operand is MethodReference) && (inst.Operand as MethodReference).Name == "Decrypt")
                     inst.Operand = t.Methods.GetMethod("Decrypt")[0];
                 else if ((inst.Operand is FieldReference) && (inst.Operand as FieldReference).Name == "Res")
                     inst.Operand = t.Fields.GetField("Res");
             }
-            foreach (Instruction inst in t.Constructors[0].Body.Instructions)
+            foreach (Instruction inst in (t.Constructors[0].Body as ManagedMethodBody).Instructions)
             {
                 if ((inst.Operand is FieldReference) && (inst.Operand as FieldReference).Name == "Res")
                     inst.Operand = t.Fields.GetField("Res");

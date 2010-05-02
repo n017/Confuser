@@ -107,15 +107,18 @@ namespace Confuser.Core.Confusions
             cr.SubLv();
             cr.Log("</params>");
 
-            cr.Log("<vars>");
-            cr.AddLv();
-            foreach (VariableDefinition var in mtd.Body.Variables)
+            if (mtd.HasBody)
             {
-                cr.Log("<var name='" + var.Name + "' />");
-                var.Name = GetNewName(var.Name);
+                cr.Log("<vars>");
+                cr.AddLv();
+                foreach (VariableDefinition var in (mtd.Body as ManagedMethodBody).Variables)
+                {
+                    cr.Log("<var name='" + var.Name + "' />");
+                    var.Name = GetNewName(var.Name);
+                }
+                cr.SubLv();
+                cr.Log("</vars>");
             }
-            cr.SubLv();
-            cr.Log("</vars>");
 
             cr.SubLv();
             cr.Log("</method>");

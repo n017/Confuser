@@ -66,7 +66,7 @@ namespace Confuser.Core.Confusions
                     wtr.Write(b);
             }
 
-            foreach (Instruction inst in strer.Body.Instructions)
+            foreach (Instruction inst in (strer.Body as ManagedMethodBody).Instructions)
             {
                 if ((inst.Operand as string) == "PADDINGPADDINGPADDING")
                     inst.Operand = res.Name;
@@ -108,8 +108,9 @@ namespace Confuser.Core.Confusions
         {
             if (mtd == strer || !mtd.HasBody) return;
 
-            InstructionCollection insts = mtd.Body.Instructions;
-            CilWorker wkr = mtd.Body.CilWorker;
+            ManagedMethodBody bdy = mtd.Body as ManagedMethodBody;
+            InstructionCollection insts = bdy.Instructions;
+            CilWorker wkr = bdy.CilWorker;
             for (int i = 0; i < insts.Count; i++)
             {
                 if (insts[i].OpCode.Code == Code.Ldstr)

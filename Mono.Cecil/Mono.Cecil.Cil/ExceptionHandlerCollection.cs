@@ -38,18 +38,18 @@ namespace Mono.Cecil.Cil {
 
 	public sealed class ExceptionHandlerCollection : CollectionBase, ICodeVisitable {
 
-		MethodBody m_container;
+		ManagedMethodBody m_container;
 
 		public ExceptionHandler this [int index] {
 			get { return List [index] as ExceptionHandler; }
 			set { List [index] = value; }
 		}
 
-		public MethodBody Container {
+		public ManagedMethodBody Container {
 			get { return m_container; }
 		}
 
-		public ExceptionHandlerCollection (MethodBody container)
+		public ExceptionHandlerCollection (ManagedMethodBody container)
 		{
 			m_container = container;
 		}

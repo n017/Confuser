@@ -85,7 +85,7 @@ namespace Mono.Cecil {
 				if (!method.HasBody)
 					continue;
 
-				MethodBody body = new MethodBody (method);
+                ManagedMethodBody body = new ManagedMethodBody(method);
 				body.CilWorker.Emit (OpCodes.Ret);
 
 				method.Body = body;

@@ -101,8 +101,9 @@ namespace Confuser.Core.Confusions
         {
             if (!mtd.HasBody || mtd.DeclaringType.FullName == "<Module>") return;
 
-            InstructionCollection insts = mtd.Body.Instructions;
-            CilWorker wkr = mtd.Body.CilWorker;
+            ManagedMethodBody bdy = mtd.Body as ManagedMethodBody;
+            InstructionCollection insts = bdy.Instructions;
+            CilWorker wkr = bdy.CilWorker;
             for (int i = 0; i < insts.Count; i++)
             {
                 if (insts[i].OpCode.Code == Code.Newobj &&
@@ -186,7 +187,7 @@ namespace Confuser.Core.Confusions
                         bdge.Parameters.Add(new ParameterDefinition(GetNameO(txt.mtdRef.Parameters[i]), i + 1, txt.mtdRef.Parameters[i].Attributes, txt.mtdRef.Parameters[i].ParameterType));
                     }
                     {
-                        CilWorker wkr = bdge.Body.CilWorker;
+                        CilWorker wkr = (bdge.Body as ManagedMethodBody).CilWorker;
                         wkr.Emit(OpCodes.Ldsfld, txt.fld);
                         for (int i = 0; i < bdge.Parameters.Count; i++)
                         {
@@ -211,17 +212,17 @@ namespace Confuser.Core.Confusions
         }
         private void CreateCtors(Confuser cr, ModuleDefinition Mod)
         {
+            MethodDefinition cctor = Mod.Types["<Module>"].Constructors[0];
+            CilWorker wkr = (cctor.Body as ManagedMethodBody).CilWorker;
+
             foreach (Context txt in txts)
             {
                 string id = GetId(txt.mtdRef.Resolve());
                 ////////////////Cctor
-                MethodDefinition cctor = Mod.Types["<Module>"].Constructors[0];
-                {
-                    CilWorker wkr = cctor.Body.CilWorker;
-                    wkr.Emit(OpCodes.Ldstr, id);
-                    wkr.Emit(OpCodes.Ldtoken, txt.fld);
-                    wkr.Emit(OpCodes.Call, proxy);
-                }
+                wkr.Emit(OpCodes.Ldstr, id);
+                wkr.Emit(OpCodes.Ldtoken, txt.fld);
+                wkr.Emit(OpCodes.Call, proxy);
+
                 cr.Log("<dat id='" + id + "'/>");
             }
         }
@@ -229,12 +230,13 @@ namespace Confuser.Core.Confusions
         private void InitModuleCctor(ModuleDefinition mod)
         {
             MethodDefinition cctor = mod.Types["<Module>"].Constructors[0];
-            cctor.Body.Instructions.RemoveAt(cctor.Body.Instructions.Count - 1);
+            ManagedMethodBody bdy = cctor.Body as ManagedMethodBody;
+            bdy.Instructions.RemoveAt(bdy.Instructions.Count - 1);
         }
         private void FinalizeModuleCctor(ModuleDefinition mod)
         {
             MethodDefinition cctor = mod.Types["<Module>"].Constructors[0];
-            cctor.Body.CilWorker.Emit(OpCodes.Ret);
+            (cctor.Body as ManagedMethodBody).CilWorker.Emit(OpCodes.Ret);
         }
 
         string GetNameO(MethodReference mbr)

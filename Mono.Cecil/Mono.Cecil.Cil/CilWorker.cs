@@ -33,16 +33,16 @@ namespace Mono.Cecil.Cil {
 
 	public sealed class CilWorker {
 
-		MethodBody m_mbody;
+        ManagedMethodBody m_mbody;
 		InstructionCollection m_instrs;
 
-		internal CilWorker (MethodBody body)
+		internal CilWorker (ManagedMethodBody body)
 		{
 			m_mbody = body;
 			m_instrs = m_mbody.Instructions;
 		}
 
-		public MethodBody GetBody ()
+        public ManagedMethodBody GetBody()
 		{
 			return m_mbody;
 		}

@@ -533,6 +533,11 @@ namespace Mono.Cecil.Metadata {
 
 		public override void TerminateMetadataRoot (MetadataRoot root)
 		{
+            if (root.Streams.TablesHeap[MethodTable.RId] != null)
+                foreach (MethodRow r in root.Streams.TablesHeap[MethodTable.RId].Rows)
+                    if ((r.ImplFlags & MethodImplAttributes.Native) != 0 && (r.ImplFlags & MethodImplAttributes.Unmanaged) != 0)
+                        root.GetImage().CLIHeader.Flags &= ~RuntimeImage.ILOnly;
+
 			m_mdSize = (uint) (m_binaryWriter.BaseStream.Position - m_mdStart);
 			m_imporTableStart = (uint) m_binaryWriter.BaseStream.Position;
 			m_binaryWriter.Write (new byte [0x60]); // imports

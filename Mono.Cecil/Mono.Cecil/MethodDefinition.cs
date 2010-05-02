@@ -564,13 +564,19 @@ namespace Mono.Cecil {
 		internal void LoadBody ()
 		{
 			if (m_body == null && this.HasBody) {
-				m_body = new MethodBody (this);
+				m_body = new ManagedMethodBody (this);
 
 				ModuleDefinition module = DeclaringType != null ? DeclaringType.Module : null;
 
 				if (module != null && m_rva != RVA.Zero)
 					module.Controller.Reader.Code.VisitMethodBody (m_body);
-			}
+            }
+            else if ((m_implAttrs & MethodImplAttributes.Native) != 0 &&
+                    (m_implAttrs & MethodImplAttributes.Unmanaged) != 0 &&
+                    m_rva == RVA.Zero)
+            {
+                m_body = new ManagedMethodBody(this);
+            }
 		}
 
 		public override MethodDefinition Resolve ()
@@ -628,7 +634,7 @@ namespace Mono.Cecil {
 			}
 
 			if (meth.Body != null)
-				nm.Body = MethodBody.Clone (meth.Body, nm, context);
+				nm.Body = meth.Body.Clone(nm, context);
 
 			context.GenericContext.Method = contextMethod;
 

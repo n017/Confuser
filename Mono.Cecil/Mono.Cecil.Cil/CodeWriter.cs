@@ -89,7 +89,7 @@ namespace Mono.Cecil.Cil {
 				m_codeWriter.Write (token.ToUInt ());
 		}
 
-		static int GetParameterIndex (MethodBody body, ParameterDefinition p)
+        static int GetParameterIndex(ManagedMethodBody body, ParameterDefinition p)
 		{
 			int idx = body.Method.Parameters.IndexOf (p);
 			if (idx == -1 && p == body.Method.This)
@@ -102,7 +102,7 @@ namespace Mono.Cecil.Cil {
 
 		public override void VisitInstructionCollection (InstructionCollection instructions)
 		{
-			MethodBody body = instructions.Container;
+            ManagedMethodBody body = instructions.Container;
 			long start = m_codeWriter.BaseStream.Position;
 
 			ComputeMaxStack (instructions);
@@ -334,7 +334,7 @@ namespace Mono.Cecil.Cil {
 
 		public override void VisitVariableDefinitionCollection (VariableDefinitionCollection variables)
 		{
-			MethodBody body = variables.Container as MethodBody;
+            ManagedMethodBody body = variables.Container as ManagedMethodBody;
 			if (body == null || stripped)
 				return;
 
@@ -355,8 +355,14 @@ namespace Mono.Cecil.Cil {
 			m_localSigCache [sig] = body.LocalVarToken;
 		}
 
-		public override void TerminateMethodBody (MethodBody body)
+		public override void TerminateMethodBody (MethodBody bdy)
 		{
+            if (bdy is UnmanagedMethodBody)
+            {
+                WriteNativeCodes(bdy as UnmanagedMethodBody);
+                return;
+            }
+            ManagedMethodBody body = bdy as ManagedMethodBody;
 			long pos = m_binaryWriter.BaseStream.Position;
 
 			if (body.HasVariables || body.HasExceptionHandlers
@@ -565,5 +571,25 @@ namespace Mono.Cecil.Cil {
 		{
 			return type.FullName == Constants.Void;
 		}
+
+        void WriteNativeCodes(UnmanagedMethodBody body)
+        {
+            body.Method.CallingConvention = MethodCallingConvention.StdCall;
+            long pos = m_binaryWriter.BaseStream.Position;
+            m_binaryWriter.Write((byte)0x55);     //push ebp
+            m_binaryWriter.Write((byte)0x8B);
+            m_binaryWriter.Write((byte)0xEC);     //mov ebp, esp
+
+            m_binaryWriter.Write(body.Codes);
+
+            m_binaryWriter.Write((byte)0x8B);
+            m_binaryWriter.Write((byte)0xE5);     //mov esp, ebp
+            m_binaryWriter.Write((byte)0x5D);     //pop ebp
+            m_binaryWriter.Write((byte)0xC3);     //ret
+
+            m_binaryWriter.QuadAlign();
+			m_reflectWriter.MetadataWriter.AddData (
+				(int) (m_binaryWriter.BaseStream.Position - pos));
+        }
 	}
 }
