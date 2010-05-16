@@ -12,7 +12,7 @@ using System.IO.Compression;
 
 namespace Confuser.Core.Confusions
 {
-    class MtdProxyConfusion : StructureConfusion
+    public class MtdProxyConfusion : StructureConfusion
     {
         public override Priority Priority
         {
@@ -85,10 +85,6 @@ namespace Confuser.Core.Confusions
         List<Context> txts;
         private void ProcessMethods(Confuser cr, TypeDefinition def, ModuleDefinition mod, Processer d)
         {
-            foreach (TypeDefinition t in def.NestedTypes)
-            {
-                ProcessMethods(cr, t, mod, d);
-            }
             foreach (MethodDefinition mtd in def.Constructors)
             {
                 ProcessMethod(cr, mtd, mod, d);

@@ -39,7 +39,7 @@ namespace Confuser
         private void button1_Click(object sender, EventArgs e)
         {
             Confuser.Core.Confuser cr = new Confuser.Core.Confuser();
-            wtr = new StreamWriter(textBox3.Text + ".log", false, Encoding.Unicode);
+            wtr = new StreamWriter(File.Create(textBox3.Text + ".log"), Encoding.Unicode);
             cr.Logging += new LoggingEventHandler(logfile);
             cr.ScreenLogging += new LoggingEventHandler(log);
             cr.Finish += new EventHandler(fin);

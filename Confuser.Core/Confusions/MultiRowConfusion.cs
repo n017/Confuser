@@ -8,7 +8,7 @@ using Mono.Cecil;
 
 namespace Confuser.Core.Confusions
 {
-    class MultiRowConfusion : AdvancedConfusion
+    public class MultiRowConfusion : AdvancedConfusion
     {
         public override void PreConfuse(Confuser cr, ConfusingWriter wtr)
         {

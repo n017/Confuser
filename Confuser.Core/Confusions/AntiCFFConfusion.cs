@@ -6,7 +6,7 @@ using Mono.Cecil.Metadata;
 
 namespace Confuser.Core.Confusions
 {
-    class AntiCFFConfusion:AdvancedConfusion
+    public class AntiCFFConfusion:AdvancedConfusion
     {
         public override void PreConfuse(Confuser cr, ConfusingWriter wtr)
         {

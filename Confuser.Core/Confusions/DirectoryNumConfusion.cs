@@ -5,7 +5,7 @@ using System.Text;
 
 namespace Confuser.Core.Confusions
 {
-    class DirectoryNumConfusion : AdvancedConfusion
+    public class DirectoryNumConfusion : AdvancedConfusion
     {
         public override void PreConfuse(Confuser cr, ConfusingWriter wtr)
         {

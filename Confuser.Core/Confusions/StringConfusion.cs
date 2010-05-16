@@ -91,10 +91,6 @@ namespace Confuser.Core.Confusions
 
         private void ProcessMethods(Confuser cr, TypeDefinition def)
         {
-            foreach (TypeDefinition t in def.NestedTypes)
-            {
-                ProcessMethods(cr, t);
-            }
             foreach (MethodDefinition mtd in def.Constructors)
             {
                 ProcessMethod(cr, mtd);
@@ -109,6 +105,7 @@ namespace Confuser.Core.Confusions
             if (mtd == strer || !mtd.HasBody) return;
 
             ManagedMethodBody bdy = mtd.Body as ManagedMethodBody;
+            bdy.Simplify();
             InstructionCollection insts = bdy.Instructions;
             CilWorker wkr = bdy.CilWorker;
             for (int i = 0; i < insts.Count; i++)
@@ -130,10 +127,11 @@ namespace Confuser.Core.Confusions
                     cr.Log("<string value='" + val + "'/>");
 
                     Instruction now = insts[i];
-                    wkr.InsertBefore(now, wkr.Create(OpCodes.Ldc_I4, id));
-                    wkr.Replace(now, wkr.Create(OpCodes.Call, strer));
+                    wkr.InsertAfter(now, wkr.Create(OpCodes.Call, strer));
+                    wkr.Replace(now, wkr.Create(OpCodes.Ldc_I4, id));
                 }
             }
+            bdy.Optimize();
         }
 
         private static byte[] Encrypt(string str, uint mdToken)

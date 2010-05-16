@@ -7,7 +7,7 @@ using Mono.Cecil.Binary;
 
 namespace Confuser.Core.Confusions
 {
-    class MdStreamConfusion : AdvancedConfusion
+    public class MdStreamConfusion : AdvancedConfusion
     {
         public override Priority Priority
         {

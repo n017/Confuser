@@ -7,7 +7,7 @@ using Mono.Cecil.Cil;
 
 namespace Confuser.Core.Confusions
 {
-    class StackUnfConfusion : StructureConfusion
+    public class StackUnfConfusion : StructureConfusion
     {
         Random rad = new Random();
 
@@ -20,10 +20,6 @@ namespace Confuser.Core.Confusions
         }
         private void ProcessMethods(Confuser cr, TypeDefinition def)
         {
-            foreach (TypeDefinition t in def.NestedTypes)
-            {
-                ProcessMethods(cr, t);
-            }
             foreach (MethodDefinition mtd in def.Constructors)
             {
                 ProcessMethod(cr, mtd);

@@ -7,7 +7,7 @@ using System.Runtime.CompilerServices;
 
 namespace Confuser.Core.Confusions
 {
-    class AntiILDasmConfusion : StructureConfusion
+    public class AntiILDasmConfusion : StructureConfusion
     {
         public override void PreConfuse(Confuser cr, AssemblyDefinition asm)
         {

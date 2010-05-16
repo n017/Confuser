@@ -6,7 +6,7 @@ using Mono.Cecil;
 
 namespace Confuser.Core.Confusions
 {
-    class BindRevConfusion : StructureConfusion
+    public class BindRevConfusion : StructureConfusion
     {
         public override Priority Priority
         {
@@ -48,10 +48,6 @@ namespace Confuser.Core.Confusions
 
         private void ConfuseType(Confuser cr, TypeDefinition def)
         {
-            foreach (TypeDefinition t in def.NestedTypes)
-            {
-                ConfuseType(cr, t);
-            }
             if (def.IsEnum)
             {
                 int idx=0;

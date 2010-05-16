@@ -7,7 +7,7 @@ using Mono.Cecil.Cil;
 
 namespace Confuser.Core.Confusions
 {
-    class ControlFlowConfusion : StructureConfusion
+    public class ControlFlowConfusion : StructureConfusion
     {
         public override Priority Priority
         {
@@ -34,6 +34,50 @@ namespace Confuser.Core.Confusions
             throw new InvalidOperationException();
         }
 
+        private enum LevelType
+        {
+            Try,
+            TryStart,
+            TryEnd,
+            Handler,
+            HandlerStart,
+            HandlerEnd,
+            Filter,
+            FilterStart,
+            FilterEnd,
+            None
+        }
+        private struct Level
+        {
+            public ExceptionHandler Handler;
+            public LevelType Type;
+
+            public static bool operator ==(Level a, Level b)
+            {
+                return a.Handler == b.Handler && a.Type == b.Type;
+            }
+
+            public static bool operator !=(Level a, Level b)
+            {
+                return a.Handler != b.Handler || a.Type != b.Type;
+            }
+
+            public override int GetHashCode()
+            {
+                return Handler == null ? (int)Type : Handler.GetHashCode() * (int)Type;
+            }
+
+            public override bool Equals(object obj)
+            {
+                return (obj is Level) && ((Level)obj).Handler == this.Handler && ((Level)obj).Type == this.Type;
+            }
+
+            public override string ToString()
+            {
+                return (Handler == null ? "00000000" : Handler.GetHashCode().ToString("X8")) + "_" + Type.ToString();
+            }
+        }
+
         Random rad;
         public override void DoConfuse(Confuser cr, AssemblyDefinition asm)
         {
@@ -43,10 +87,6 @@ namespace Confuser.Core.Confusions
         }
         private void ProcessMethods(Confuser cr, TypeDefinition def)
         {
-            foreach (TypeDefinition t in def.NestedTypes)
-            {
-                ProcessMethods(cr, t);
-            }
             foreach (MethodDefinition mtd in def.Constructors)
             {
                 ProcessMethod(cr, mtd);
@@ -56,65 +96,62 @@ namespace Confuser.Core.Confusions
                 ProcessMethod(cr, mtd);
             }
         }
-        private void ProcessMethod(Confuser cr, MethodDefinition mtd)
+        private void ProcessMethod(Confuser cr, MethodDefinition mtd)   
         {
             if (!mtd.HasBody) return;
             ManagedMethodBody bdy = mtd.Body as ManagedMethodBody;
             bdy.Simplify();
-            Dictionary<string, Instruction> Ids = GetIds(bdy);
+            Dictionary<Instruction, Level> Ids = GetIds(bdy);
+            Level[] lvs = GetLvs(Ids);
             List<Instruction[]> blks = new List<Instruction[]>();
-            string[] lvs = GetLvs(Ids);
-            foreach (string lv in lvs)
-                blks.Add(GetInstructionWithSameLv(lv, Ids));
+            foreach (Level lv in lvs)
+                blks.Add(GetInstructionsByLv(lv, Ids));
 
             bdy.Instructions.Clear();
             CilWorker wkr = bdy.CilWorker;
-            List<Instruction> endJmp = new List<Instruction>();
-            List<Instruction> blkHdr = new List<Instruction>();
+            Dictionary<Instruction, Instruction> HdrTbl = new Dictionary<Instruction, Instruction>();
             for (int i = 0; i < blks.Count; i++)
             {
                 Instruction[] blk = blks[i];
                 Instruction[][] iblks = SplitInstructions(blk);
                 ProcessInstructions(bdy, ref iblks);
-                //Reorder(ref iblks);
+                Reorder(ref iblks);
 
-                if (iblks[iblks.Length - 1][0].OpCode.FlowControl == FlowControl.Branch)
-                    endJmp.Add(iblks[iblks.Length - 1][0]);
-
-                blkHdr.Add(iblks[0][0]);
+                HdrTbl.Add(blk[0], iblks[0][0]);
 
                 foreach (Instruction[] iblk in iblks)
                 {
-                    foreach (Instruction inst in iblk)
+                    wkr.Append(iblk[0]);
+                    for (int ii = 1; ii < iblk.Length; ii++)
                     {
-                        wkr.Append(inst);
+                        Instruction tmp;
+                        if (iblk[ii].Operand is Instruction)
+                        {
+                            if (HdrTbl.TryGetValue(iblk[ii].Operand as Instruction, out tmp))
+                                iblk[ii].Operand = tmp;
+                        }
+                        else if (iblk[ii].Operand is Instruction[])
+                        {
+                            Instruction[] op = iblk[ii].Operand as Instruction[];
+                            for (int iii = 0; iii < op.Length; iii++)
+                                if (HdrTbl.TryGetValue(op[iii], out tmp))
+                                    op[iii] = tmp;
+                            iblk[ii].Operand = op;
+                        }
+                        wkr.Append(iblk[ii]);
                     }
                 }
                 SetLvHandler(lvs[i], bdy, iblks);
             }
 
-            foreach (Instruction inst in endJmp)
-            {
-                bool ok = false;
-                for (int i = 0; i < blkHdr.Count; i++)
-                    if (inst.Operand == blks[i][0])
-                    {
-                        inst.Operand = blkHdr[i];
-                        ok = true;
-                        break;
-                    }
-                if (!ok)
-                    throw new InvalidOperationException();
-            }
-
             foreach (ExceptionHandler eh in bdy.ExceptionHandlers)
             {
-                if (eh.TryEnd != null)
-                    eh.TryEnd = eh.TryEnd.Next;
-                if (eh.HandlerEnd != null)
-                    eh.HandlerEnd = eh.HandlerEnd.Next;
-                if (eh.FilterEnd != null)
+                eh.TryEnd = eh.TryEnd.Next;
+                eh.HandlerEnd = eh.HandlerEnd.Next;
+                if ((eh.Type & ExceptionHandlerType.Filter) == ExceptionHandlerType.Filter)
+                {
                     eh.FilterEnd = eh.FilterEnd.Next;
+                }
             }
 
             bdy.Optimize();
@@ -122,116 +159,130 @@ namespace Confuser.Core.Confusions
             cr.Log("<method name='" + bdy.Method.ToString() + "'/>");
         }
 
-        private Dictionary<string, Instruction> GetIds(ManagedMethodBody bdy)
+        private Dictionary<Instruction, Level> GetIds(ManagedMethodBody bdy)
         {
-            Dictionary<string, Instruction> ret = new Dictionary<string, Instruction>();
+            SortedDictionary<int, Level> lvs = new SortedDictionary<int, Level>();
+            int p = -1;
+            foreach (ExceptionHandler eh in bdy.ExceptionHandlers)
+            {
+                lvs.Add(eh.TryStart.Offset, new Level() { Handler = eh, Type = LevelType.TryStart });
+                lvs.Add(eh.TryEnd.Previous.Offset, new Level() { Handler = eh, Type = LevelType.TryEnd });
+                lvs.Add(eh.HandlerStart.Offset, new Level() { Handler = eh, Type = LevelType.HandlerStart });
+                lvs.Add(eh.HandlerEnd.Previous.Offset, new Level() { Handler = eh, Type = LevelType.HandlerEnd });
+                p = eh.HandlerEnd.Previous.Offset;
+                if ((eh.Type & ExceptionHandlerType.Filter) == ExceptionHandlerType.Filter)
+                {
+                    lvs.Add(eh.FilterStart.Offset, new Level() { Handler = eh, Type = LevelType.FilterStart });
+                    lvs.Add(eh.FilterEnd.Previous.Offset, new Level() { Handler = eh, Type = LevelType.FilterEnd });
+                    p = eh.FilterEnd.Previous.Offset;
+                }
+            } 
+            if (!lvs.ContainsKey(0))
+                lvs.Add(0, new Level() { Handler = null, Type = LevelType.None });
+
+            List<int> ks = lvs.Keys.ToList();
+            for (int i = 0; i < ks.Count; i++)
+            {
+                if (lvs[ks[i]].Handler != null)
+                {
+                    int oo = (lvs[ks[i]].Handler.Type & ExceptionHandlerType.Filter) == ExceptionHandlerType.Filter ? lvs[ks[i]].Handler.FilterEnd.Offset : lvs[ks[i]].Handler.HandlerEnd.Offset;
+                    if ((lvs[ks[i]].Type.ToString() == "FilterEnd" ||
+                        lvs[ks[i]].Type.ToString() == "HandlerEnd") &&
+                        !lvs.ContainsKey(oo))
+                    {
+                        lvs.Add(oo, new Level() { Handler = lvs[ks[i]].Handler, Type = LevelType.None });
+                        ks.Add(oo);
+                        ks.Sort();
+                    }
+                }
+                if (i != 0 &&
+                    lvs[ks[i - 1]].Type.ToString().EndsWith("Start") &&
+                    lvs[ks[i]].Type.ToString().EndsWith("End"))
+                {
+                    int o = ks[i - 1];
+                    Level lv = lvs[o];
+                    switch (lv.Type)
+                    {
+                        case LevelType.TryStart: lv.Type = LevelType.Try; break;
+                        case LevelType.HandlerStart: lv.Type = LevelType.Handler; break;
+                        case LevelType.FilterStart: lv.Type = LevelType.Filter; break;
+                    }
+                    lvs.Remove(o);
+                    lvs.Remove(ks[i]);
+                    lvs.Add(o, lv);
+                    ks.Remove(ks[i]);
+                    ks.Remove(o);
+                    i--;
+                }
+            }
+
+
+            Dictionary<Instruction, Level> ret = new Dictionary<Instruction, Level>();
+            int offset = 0;
             foreach (Instruction inst in bdy.Instructions)
             {
-                string id = inst.GetHashCode().ToString("X");
-                int i = 0;
-                bool behindEh = false;
-                for (int eh = 0; eh < bdy.ExceptionHandlers.Count; eh++)
-                {
-                    if (bdy.ExceptionHandlers[eh].TryStart.Offset <= inst.Offset)
-                    {
-                        i++;
-                    }
-                    if (bdy.ExceptionHandlers[eh].HandlerStart.Offset <= inst.Offset)
-                    {
-                        i++;
-                    }
-                    if (bdy.ExceptionHandlers[eh].Type == ExceptionHandlerType.Filter &&
-                        bdy.ExceptionHandlers[eh].FilterStart.Offset <= inst.Offset)
-                    {
-                        i++;
-                        if (eh == bdy.ExceptionHandlers.Count - 1) behindEh = true;
-                    }
-
-                    if (bdy.ExceptionHandlers[eh].TryStart.Offset <= inst.Offset &&
-                        bdy.ExceptionHandlers[eh].HandlerStart.Offset <= inst.Offset &&
-                        bdy.ExceptionHandlers[eh].TryEnd.Offset <= inst.Offset &&
-                        bdy.ExceptionHandlers[eh].HandlerEnd.Offset <= inst.Offset &&
-                        (bdy.ExceptionHandlers[eh].Type != ExceptionHandlerType.Filter ||
-                        bdy.ExceptionHandlers[eh].FilterStart.Offset <= inst.Offset) &&
-                        eh == bdy.ExceptionHandlers.Count - 1)
-                        behindEh = true;
-                } if (behindEh) i++;
-                id += "_" + i.ToString();
-                ret.Add(id, inst);
+                if (inst.Offset >= offset && lvs.ContainsKey(inst.Offset))
+                    offset = inst.Offset;
+                ret.Add(inst, lvs[offset]);
             }
             return ret;
         }
-        private Instruction[] GetInstructionWithSameLv(string str, Dictionary<string, Instruction> ids)
+        private Instruction[] GetInstructionsByLv(Level lv, Dictionary<Instruction, Level> ids)
         {
             List<Instruction> ret = new List<Instruction>();
-            int idx = 0;
-            foreach (char i in str)
-                if (i == '_')
-                    break;
-                else
-                    idx++;
-            string lv = str.Substring(idx);
-            foreach (KeyValuePair<string, Instruction> inst in ids)
-            {
-                idx = 0;
-                foreach (char i in inst.Key)
-                    if (i == '_')
-                        break;
-                    else
-                        idx++;
-                if (inst.Key.Substring(idx) == lv)
-                    ret.Add(inst.Value);
-            }
+            foreach (KeyValuePair<Instruction, Level> i in ids)
+                if (i.Value == lv)
+                    ret.Add(i.Key);
 
             return ret.ToArray();
         }
-        private string[] GetLvs(Dictionary<string, Instruction> ids)
+        private Level[] GetLvs(Dictionary<Instruction, Level> ids)
         {
-            List<string> ret = new List<string>();
-            foreach (KeyValuePair<string, Instruction> inst in ids)
-            {
-                int idx = 0;
-                foreach (char i in inst.Key)
-                    if (i == '_')
-                        break;
-                    else
-                        idx++;
-                string lv = inst.Key.Substring(idx);
+            List<Level> ret = new List<Level>();
+            foreach (Level lv in ids.Values)
                 if (!ret.Contains(lv))
                     ret.Add(lv);
-            }
             return ret.ToArray();
         }
-        private void SetLvHandler(string lvv, ManagedMethodBody bdy, Instruction[][] blks)
+        private void SetLvHandler(Level lv, ManagedMethodBody bdy, Instruction[][] blks)
         {
-            int lv = int.Parse(lvv.Substring(lvv.IndexOf('_') + 1));
-            int now = 0;
-            foreach (ExceptionHandler eh in bdy.ExceptionHandlers)
+            if (lv.Handler == null) return;
+            switch (lv.Type)
             {
-                if (eh.TryStart != null)
-                    now++;
-                if (now == lv)
-                {
-                    eh.TryStart = blks[0][0];
-                    eh.TryEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
-                    return;
-                }
-                if (eh.HandlerStart != null)
-                    now++;
-                if (now == lv)
-                {
-                    eh.HandlerStart = blks[0][0];
-                    eh.HandlerEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
-                    return;
-                }
-                if (eh.Type == ExceptionHandlerType.Filter && eh.FilterStart != null)
-                    now++;
-                if (now == lv)
-                {
-                    eh.FilterStart = blks[0][0];
-                    eh.FilterEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
-                    return;
-                }
+                case LevelType.TryStart:
+                    lv.Handler.TryStart = blks[0][0];
+                    break;
+                case LevelType.TryEnd:
+                    lv.Handler.TryEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
+                    break;
+                case LevelType.Try:
+                    lv.Handler.TryStart = blks[0][0];
+                    lv.Handler.TryEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
+                    break;
+                case LevelType.HandlerStart:
+                    lv.Handler.HandlerStart = blks[0][0];
+                    break;
+                case LevelType.HandlerEnd:
+                    lv.Handler.HandlerEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
+                    break;
+                case LevelType.Handler:
+                    lv.Handler.HandlerStart = blks[0][0];
+                    lv.Handler.HandlerEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
+                    break;
+                case LevelType.FilterStart:
+                    lv.Handler.FilterStart = blks[0][0];
+                    break;
+                case LevelType.FilterEnd:
+                    lv.Handler.FilterEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
+                    break;
+                case LevelType.Filter:
+                    lv.Handler.FilterStart = blks[0][0];
+                    lv.Handler.FilterEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
+                    break;
+                case LevelType.None:
+                    break;
+                default:
+                    throw new InvalidOperationException();
             }
         }
 
@@ -247,6 +298,7 @@ namespace Confuser.Core.Confusions
                     insts[i].OpCode.Name == "pop" ||
                     insts[i].OpCode.Name.StartsWith("ldloc")) &&
                     insts[i].OpCode.Name[0] != 'c' &&
+                    insts[i].OpCode.OpCodeType != OpCodeType.Prefix &&
                     insts[i].OpCode != OpCodes.Ldftn && insts[i].OpCode != OpCodes.Ldvirtftn &&
                     (i + 1 == insts.Length || (insts[i + 1].OpCode != OpCodes.Ldftn && insts[i + 1].OpCode != OpCodes.Ldvirtftn)) &&
                     (i - 1 == -1 || (insts[i - 1].OpCode != OpCodes.Ldftn && insts[i - 1].OpCode != OpCodes.Ldvirtftn)))
@@ -262,26 +314,18 @@ namespace Confuser.Core.Confusions
         private void ProcessInstructions(ManagedMethodBody bdy, ref Instruction[][] blks)
         {
             List<Instruction[]> ret = new List<Instruction[]>();
-            Instruction retBlk = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
-
-            if (blks.Length != 0) ret.Add(new Instruction[] { bdy.CilWorker.Create(OpCodes.Br, blks[0][0]) });
+            if (blks.Length != 1) ret.Add(new Instruction[] { bdy.CilWorker.Create(OpCodes.Br, blks[0][0]) });
             for (int i = 0; i < blks.Length; i++)
             {
                 Instruction[] blk = blks[i];
                 List<Instruction> newBlk = new List<Instruction>();
                 for (int ii = 0; ii < blk.Length; ii++)
-                {
-                    if (blk[ii].OpCode != OpCodes.Ret)
                         newBlk.Add(blk[ii]);
-                }
 
                 if (i + 1 < blks.Length)
                     AddJump(bdy.CilWorker, newBlk, blks[i + 1][0]);
-                else
-                    AddJump(bdy.CilWorker, newBlk, retBlk);
                 ret.Add(newBlk.ToArray());
             }
-            ret.Add(new Instruction[] { retBlk });
             blks = ret.ToArray();
         }
         private void Reorder(ref Instruction[][] insts)
@@ -323,15 +367,6 @@ namespace Confuser.Core.Confusions
                 case 1:
                 case 2:
                     insts.Add(wkr.Create(OpCodes.Br, target));
-                    //switch (rad.Next(0, 3))
-                    //{
-                    //    case 0:
-                    //        insts.Add(wkr.Create(OpCodes.Dup)); break;
-                    //    case 1:
-                    //        insts.Add(wkr.Create(OpCodes.Ldnull)); break;
-                    //    case 2:
-                    //        insts.Add(wkr.Create(OpCodes.Ldc_I4, rad.Next())); break;
-                    //}
                     break;
             }
         }

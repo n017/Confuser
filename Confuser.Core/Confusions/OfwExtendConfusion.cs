@@ -7,7 +7,7 @@ using Mono.Cecil;
 
 namespace Confuser.Core.Confusions
 {
-    class OfwExtendConfusion : AdvancedConfusion
+    public class OfwExtendConfusion : AdvancedConfusion
     {
         public override void PreConfuse(Confuser cr, ConfusingWriter wtr)
         {
