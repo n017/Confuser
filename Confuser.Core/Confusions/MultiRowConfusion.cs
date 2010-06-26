@@ -29,7 +29,7 @@ namespace Confuser.Core.Confusions
             modRow.Generation = 0;
             Guid g = Guid.NewGuid();
             modRow.Mvid = wtr.AddGuid(g);
-            modRow.Name = 0x7fff7fff;
+            modRow.Name = wtr.AddString(g.ToString());
             modTbl.Rows.Add(modRow);
             cr.Log("<mod/>");
 
@@ -41,7 +41,7 @@ namespace Confuser.Core.Confusions
             asmRow.HashAlgId = AssemblyHashAlgorithm.None;
             asmRow.MajorVersion = 0;
             asmRow.MinorVersion = 0;
-            asmRow.Name = 0x7fff7fff;
+            asmRow.Name = wtr.AddString(g.ToString());
             asmRow.PublicKey = 0;
             asmRow.RevisionNumber = 0;
             asmTbl.Rows.Add(asmRow);

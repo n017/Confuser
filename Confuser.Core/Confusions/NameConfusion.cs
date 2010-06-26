@@ -75,17 +75,11 @@ namespace Confuser.Core.Confusions
                     cr.Log("<property name='" + pty.Name + "'/>");
                     pty.Name = GetNewName(pty.Name);
                 }
-                foreach (TypeDefinition t in type.NestedTypes)
-                {
-                    cr.Log("<type name='" + t.Name + "'>");
-                    PerformType(cr, t);
-                    cr.Log("</type>");
-                }
                 foreach (EventDefinition evt in type.Events)
                 {
                     if (evt.IsSpecialName || evt.IsRuntimeSpecialName)
                         continue;
-                    cr.Log("<field name='" + evt.Name + "'/>");
+                    cr.Log("<event name='" + evt.Name + "'/>");
                     evt.Name = GetNewName(evt.Name);
                 }
             }

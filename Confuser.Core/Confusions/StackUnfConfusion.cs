@@ -51,9 +51,9 @@ namespace Confuser.Core.Confusions
                 default:
                     stackrecovering = wkr.Create(OpCodes.Ldc_I8, (long)rad.Next()); break;
             }
-            wkr.InsertBefore(original, stackundering);
-            wkr.InsertBefore(stackundering, stackrecovering);
-            wkr.InsertBefore(stackrecovering, jmp);
+            wkr.InsertBefore(original, stackrecovering);
+            wkr.InsertBefore(stackrecovering, stackundering);
+            wkr.InsertBefore(stackundering, jmp);
             cr.Log("<method name='" + mtd.ToString() + "'/>");
         }
 

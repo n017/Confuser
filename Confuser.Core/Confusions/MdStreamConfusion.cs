@@ -32,10 +32,10 @@ namespace Confuser.Core.Confusions
         public override void DoConfuse(Confuser cr, ConfusingWriter wtr)
         {
             MetadataStream str = new MetadataStream();
-            str.Header.Name = "#~\"Have Confused?\"~#";
+            str.Header.Name = "Confused!";
             str.Heap = new RawHeap(str) { Data = Encoding.UTF8.GetBytes("Confused by Confuser!") };
 
-            wtr.Image.MetadataRoot.Streams.Add(str);
+            wtr.Image.MetadataRoot.Streams.Insert(0, str);
             cr.Log("<stream name='" + str.Header.Name + "'/>");
         }
 

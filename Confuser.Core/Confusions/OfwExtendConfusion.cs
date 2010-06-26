@@ -39,7 +39,7 @@ namespace Confuser.Core.Confusions
                 t.FieldList = (uint)fldTbl.Rows.Count + 1;
                 t.MethodList = (uint)mtdTbl.Rows.Count + 1;
                 t.Namespace = i;
-                t.Name = 0x7fff7fff;
+                t.Name = 0;
                 typeTbl.Rows.Add(t);
                 cr.Log("<ns id='" + i.ToString("X") + "'/>");
             }

@@ -22,7 +22,7 @@ namespace Confuser.Core
                 File.WriteAllBytes(dst, asm);
                 return;
             }
-            AssemblyDefinition ldr = AssemblyFactory.DefineAssembly("ConfusingLoader", "ConfusingLoader", o.Runtime, o.Kind);
+            AssemblyDefinition ldr = AssemblyFactory.DefineAssembly("ConfusingLoader", "ConfusingLoader", o.Runtime, AssemblyKind.Windows);
             ldr.MainModule.Image.ResourceDirectoryRoot = o.MainModule.Image.ResourceDirectoryRoot;
             foreach (Mono.Cecil.Binary.Section sect in o.MainModule.Image.Sections)
                 if (sect.Name == ".rsrc")
