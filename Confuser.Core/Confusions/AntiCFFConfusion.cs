@@ -22,10 +22,10 @@ namespace Confuser.Core.Confusions
         {
             if (wtr.Tables[GenericParamTable.RId] != null)
                 foreach (GenericParamRow r in wtr.Tables[GenericParamTable.RId].Rows)
-                    r.Name = 0xffffffff;
+                    r.Name = 0x7fff7fff;
             if (wtr.Tables[ParamTable.RId] != null)
                 foreach (ParamRow r in wtr.Tables[ParamTable.RId].Rows)
-                    r.Name = 0xffffffff;
+                    r.Name = 0x7fff7fff;
         }
 
         public override Priority Priority

@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Collections.ObjectModel;
 using Mono.Cecil;
-using Mono.Cecil.Binary;
+using NetPE.Core;
 
 namespace Confuser.Core
 {
@@ -35,27 +35,27 @@ namespace Confuser.Core
             cr.ScreenLog("</confusion>");
         }
 
-        internal void ExecutePreConfusion(AdvancedConfusion cion, Confuser cr, ConfusingWriter wtr)
+        internal void ExecutePreConfusion(AdvancedConfusion cion, Confuser cr, PeFile file)
         {
             cr.ScreenLog("<pre name='" + cion.Name + "'>");
             cr.AddLv();
-            cion.PreConfuse(cr, wtr);
+            cion.PreConfuse(cr, file);
             cr.SubLv();
             cr.ScreenLog("</pre>");
         }
-        internal void ExecutePostConfusion(AdvancedConfusion cion, Confuser cr, ConfusingWriter wtr)
+        internal void ExecutePostConfusion(AdvancedConfusion cion, Confuser cr, PeFile file)
         {
             cr.ScreenLog("<post name='" + cion.Name + "'>");
             cr.AddLv();
-            cion.PostConfuse(cr, wtr);
+            cion.PostConfuse(cr, file);
             cr.SubLv();
             cr.ScreenLog("</post>");
         }
-        internal void ExecuteConfusion(AdvancedConfusion cion, Confuser cr, ConfusingWriter wtr)
+        internal void ExecuteConfusion(AdvancedConfusion cion, Confuser cr, PeFile file)
         {
             cr.ScreenLog("<confusion name='" + cion.Name + "'>");
             cr.AddLv();
-            cion.DoConfuse(cr, wtr);
+            cion.DoConfuse(cr, file);
             cr.SubLv();
             cr.ScreenLog("</confusion>");
         }
@@ -89,9 +89,9 @@ namespace Confuser.Core
     }
     public abstract class AdvancedConfusion : Confusion
     {
-        public abstract void PreConfuse(Confuser cr, ConfusingWriter wtr);
-        public abstract void DoConfuse(Confuser cr, ConfusingWriter wtr);
-        public abstract void PostConfuse(Confuser cr, ConfusingWriter wtr);
+        public abstract void PreConfuse(Confuser cr, PeFile file);
+        public abstract void DoConfuse(Confuser cr, PeFile file);
+        public abstract void PostConfuse(Confuser cr, PeFile file);
     }
     public abstract class Confusion
     {

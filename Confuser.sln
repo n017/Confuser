@@ -1,17 +1,17 @@
 Microsoft Visual Studio Solution File, Format Version 10.00
 # Visual Studio 2008
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Confuser", "Confuser\Confuser.csproj", "{680CB8F6-E3B8-443C-B61B-590361EA6E3D}"
-	ProjectSection(ProjectDependencies) = postProject
-		{D8F63DFF-5230-43E4-9AB2-DA6E721A1FAE} = {D8F63DFF-5230-43E4-9AB2-DA6E721A1FAE}
-	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Confuser.Core", "Confuser.Core\Confuser.Core.csproj", "{FAD246BD-65C2-4379-8B1F-59C1BA71B8E9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mono.Cecil", "Mono.Cecil\Mono.Cecil.csproj", "{D8F63DFF-5230-43E4-9AB2-DA6E721A1FAE}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "References", "References", "{C9A26F20-A9E8-4EF0-846C-892F7A88FBE5}"
+	ProjectSection(SolutionItems) = preProject
+		References\NetPE.Core.dll = References\NetPE.Core.dll
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(TeamFoundationVersionControl) = preSolution
-		SccNumberOfProjects = 4
+		SccNumberOfProjects = 3
 		SccEnterpriseProvider = {4CA58AB2-18FA-4F8D-95D4-32DDF27D184C}
 		SccTeamFoundationServer = https://tfs09.codeplex.com/
 		SccLocalPath0 = .
@@ -21,9 +21,6 @@ Global
 		SccProjectUniqueName2 = Confuser.Core\\Confuser.Core.csproj
 		SccProjectName2 = Confuser.Core
 		SccLocalPath2 = Confuser.Core
-		SccProjectUniqueName3 = Mono.Cecil\\Mono.Cecil.csproj
-		SccProjectName3 = Mono.Cecil
-		SccLocalPath3 = Mono.Cecil
 	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug - No System.dll|Any CPU = Debug - No System.dll|Any CPU
@@ -43,12 +40,6 @@ Global
 		{FAD246BD-65C2-4379-8B1F-59C1BA71B8E9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FAD246BD-65C2-4379-8B1F-59C1BA71B8E9}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{FAD246BD-65C2-4379-8B1F-59C1BA71B8E9}.Release|Any CPU.Build.0 = Release|Any CPU
-		{D8F63DFF-5230-43E4-9AB2-DA6E721A1FAE}.Debug - No System.dll|Any CPU.ActiveCfg = Debug - No System.dll|Any CPU
-		{D8F63DFF-5230-43E4-9AB2-DA6E721A1FAE}.Debug - No System.dll|Any CPU.Build.0 = Debug - No System.dll|Any CPU
-		{D8F63DFF-5230-43E4-9AB2-DA6E721A1FAE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{D8F63DFF-5230-43E4-9AB2-DA6E721A1FAE}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{D8F63DFF-5230-43E4-9AB2-DA6E721A1FAE}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{D8F63DFF-5230-43E4-9AB2-DA6E721A1FAE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
