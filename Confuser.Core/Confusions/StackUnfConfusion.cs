@@ -4,26 +4,16 @@ using System.Linq;
 using System.Text;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
+using Mono.Cecil.Rocks;
 
 namespace Confuser.Core.Confusions
 {
     public class StackUnfConfusion : StructureConfusion
     {
-        Random rad = new Random();
+        Random rad;
 
-        public override void DoConfuse(Confuser cr, AssemblyDefinition asm)
-        {
-            foreach (TypeDefinition def in asm.MainModule.Types)
-            {
-                ProcessMethods(cr, def);
-            }
-        }
         private void ProcessMethods(Confuser cr, TypeDefinition def)
         {
-            foreach (MethodDefinition mtd in def.Constructors)
-            {
-                ProcessMethod(cr, mtd);
-            }
             foreach (MethodDefinition mtd in def.Methods)
             {
                 ProcessMethod(cr, mtd);
@@ -32,8 +22,8 @@ namespace Confuser.Core.Confusions
         private void ProcessMethod(Confuser cr, MethodDefinition mtd)
         {
             if (!mtd.HasBody) return;
-            ManagedMethodBody bdy = mtd.Body as ManagedMethodBody;
-            CilWorker wkr = bdy.CilWorker;
+            MethodBody bdy = mtd.Body ;
+            ILProcessor wkr = bdy.GetILProcessor();
 
             Instruction original = bdy.Instructions[0];
             Instruction jmp = wkr.Create(OpCodes.Br_S, original);
@@ -61,9 +51,17 @@ namespace Confuser.Core.Confusions
         {
             throw new InvalidOperationException();
         }
-        public override void PostConfuse(Confuser cr, AssemblyDefinition asm)
+        public override void DoConfuse(Confuser cr, AssemblyDefinition asm)
         {
             throw new InvalidOperationException();
+        }
+        public override void PostConfuse(Confuser cr, AssemblyDefinition asm)
+        {
+            rad = new Random();
+            foreach (TypeDefinition def in asm.MainModule.GetAllTypes())
+            {
+                ProcessMethods(cr, def);
+            }
         }
 
         public override Priority Priority
@@ -78,7 +76,7 @@ namespace Confuser.Core.Confusions
 
         public override ProcessType Process
         {
-            get { return ProcessType.Real; }
+            get { return ProcessType.Post; }
         }
 
         public override bool StandardCompatible

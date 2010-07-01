@@ -28,9 +28,9 @@
 
 namespace Mono.Cecil.Metadata {
 
-	struct Row<T1, T2> {
-		internal T1 Col1;
-		internal T2 Col2;
+	public class Row<T1, T2> {
+		public T1 Col1;
+        public T2 Col2;
 
 		public Row (T1 col1, T2 col2)
 		{
@@ -39,10 +39,10 @@ namespace Mono.Cecil.Metadata {
 		}
 	}
 
-	struct Row<T1, T2, T3> {
-		internal T1 Col1;
-		internal T2 Col2;
-		internal T3 Col3;
+	public class Row<T1, T2, T3> {
+        public T1 Col1;
+        public T2 Col2;
+        public T3 Col3;
 
 		public Row (T1 col1, T2 col2, T3 col3)
 		{
@@ -52,11 +52,11 @@ namespace Mono.Cecil.Metadata {
 		}
 	}
 
-	struct Row<T1, T2, T3, T4> {
-		internal T1 Col1;
-		internal T2 Col2;
-		internal T3 Col3;
-		internal T4 Col4;
+	public class Row<T1, T2, T3, T4> {
+        public T1 Col1;
+        public T2 Col2;
+        public T3 Col3;
+        public T4 Col4;
 
 		public Row (T1 col1, T2 col2, T3 col3, T4 col4)
 		{
@@ -67,12 +67,12 @@ namespace Mono.Cecil.Metadata {
 		}
 	}
 
-	struct Row<T1, T2, T3, T4, T5> {
-		internal T1 Col1;
-		internal T2 Col2;
-		internal T3 Col3;
-		internal T4 Col4;
-		internal T5 Col5;
+	public class Row<T1, T2, T3, T4, T5> {
+        public T1 Col1;
+        public T2 Col2;
+        public T3 Col3;
+        public T4 Col4;
+        public T5 Col5;
 
 		public Row (T1 col1, T2 col2, T3 col3, T4 col4, T5 col5)
 		{
@@ -84,13 +84,13 @@ namespace Mono.Cecil.Metadata {
 		}
 	}
 
-	struct Row<T1, T2, T3, T4, T5, T6> {
-		internal T1 Col1;
-		internal T2 Col2;
-		internal T3 Col3;
-		internal T4 Col4;
-		internal T5 Col5;
-		internal T6 Col6;
+	public class Row<T1, T2, T3, T4, T5, T6> {
+        public T1 Col1;
+        public T2 Col2;
+        public T3 Col3;
+        public T4 Col4;
+        public T5 Col5;
+        public T6 Col6;
 
 		public Row (T1 col1, T2 col2, T3 col3, T4 col4, T5 col5, T6 col6)
 		{
@@ -103,16 +103,16 @@ namespace Mono.Cecil.Metadata {
 		}
 	}
 
-	struct Row<T1, T2, T3, T4, T5, T6, T7, T8, T9> {
-		internal T1 Col1;
-		internal T2 Col2;
-		internal T3 Col3;
-		internal T4 Col4;
-		internal T5 Col5;
-		internal T6 Col6;
-		internal T7 Col7;
-		internal T8 Col8;
-		internal T9 Col9;
+	public class Row<T1, T2, T3, T4, T5, T6, T7, T8, T9> {
+        public T1 Col1;
+        public T2 Col2;
+        public T3 Col3;
+        public T4 Col4;
+        public T5 Col5;
+        public T6 Col6;
+        public T7 Col7;
+        public T8 Col8;
+        public T9 Col9;
 
 		public Row (T1 col1, T2 col2, T3 col3, T4 col4, T5 col5, T6 col6, T7 col7, T8 col8, T9 col9)
 		{

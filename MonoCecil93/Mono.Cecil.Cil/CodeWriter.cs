@@ -110,7 +110,7 @@ namespace Mono.Cecil.Cil {
 		void WriteResolvedMethodBody (MethodDefinition method)
 		{
 			body = method.Body;
-			ComputeHeader ();
+			ComputeHeader (body);
 			if (RequiresFatHeader ())
 				WriteFatHeader ();
 			else
@@ -293,7 +293,7 @@ namespace Mono.Cecil.Cil {
 				|| body.MaxStackSize > 8;
 		}
 
-		void ComputeHeader ()
+		internal static void ComputeHeader (MethodBody body)
 		{
 			int offset = 0;
 			var instructions = body.instructions;
@@ -304,7 +304,7 @@ namespace Mono.Cecil.Cil {
 			Dictionary<Instruction, int> stack_sizes = null;
 
 			if (body.HasExceptionHandlers)
-				ComputeExceptionHandlerStackSize (ref stack_sizes);
+				ComputeExceptionHandlerStackSize (body, ref stack_sizes);
 
 			for (int i = 0; i < count; i++) {
 				var instruction = items [i];
@@ -315,10 +315,12 @@ namespace Mono.Cecil.Cil {
 			}
 
 			body.code_size = offset;
-			body.max_stack_size = max_stack;
+            if (!body.preserve_max_stack)
+			    body.max_stack_size = max_stack;
+            body.preserve_max_stack = false;
 		}
 
-		void ComputeExceptionHandlerStackSize (ref Dictionary<Instruction, int> stack_sizes)
+		static void ComputeExceptionHandlerStackSize (MethodBody body, ref Dictionary<Instruction, int> stack_sizes)
 		{
 			var exception_handlers = body.ExceptionHandlers;
 

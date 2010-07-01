@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -14,6 +14,10 @@
     <FileAlignment>512</FileAlignment>
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>mono.snk</AssemblyOriginatorKeyFile>
+    <SccProjectName>SAK</SccProjectName>
+    <SccLocalPath>SAK</SccLocalPath>
+    <SccAuxPath>SAK</SccAuxPath>
+    <SccProvider>SAK</SccProvider>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -59,6 +63,7 @@
     <Compile Include="Mono.Cecil.Metadata\Row.cs" />
     <Compile Include="Mono.Cecil.Metadata\StringHeap.cs" />
     <Compile Include="Mono.Cecil.Metadata\TableHeap.cs" />
+    <Compile Include="Mono.Cecil.Metadata\Tables.cs" />
     <Compile Include="Mono.Cecil.Metadata\TokenType.cs" />
     <Compile Include="Mono.Cecil.Metadata\UserStringHeap.cs" />
     <Compile Include="Mono.Cecil.Metadata\Utilities.cs" />
@@ -157,16 +162,21 @@
     <Compile Include="Mono.Cecil\VariantType.cs" />
     <Compile Include="Mono.Security.Cryptography\CryptoConvert.cs" />
     <Compile Include="Mono.Security.Cryptography\CryptoService.cs" />
-    <Compile Include="System.Runtime.CompilerServices\ExtensionAttribute.cs" />
     <Compile Include="Mono\Actions.cs" />
     <Compile Include="Mono\Empty.cs" />
     <Compile Include="Mono\Funcs.cs" />
+    <Compile Include="System.Runtime.CompilerServices\ExtensionAttribute.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="NOTES.txt" />
   </ItemGroup>
   <ItemGroup>
     <None Include="mono.snk" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Xml" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it.

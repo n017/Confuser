@@ -27,6 +27,7 @@
 //
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -79,8 +80,19 @@ namespace Mono.Cecil {
 
 	sealed class ModuleWriter {
 
-		public static void WriteModuleTo (ModuleDefinition module, Stream stream, WriterParameters parameters)
-		{
+        public static void WriteModuleTo (ModuleDefinition module, Stream stream, WriterParameters parameters)
+        {
+            var fq_name = stream.GetFullyQualifiedName();
+            var symbol_writer_provider = parameters.SymbolWriterProvider;
+            if (symbol_writer_provider == null && parameters.WriteSymbols)
+                symbol_writer_provider = SymbolProvider.GetPlatformWriterProvider();
+            var symbol_writer = GetSymbolWriter(module, fq_name, symbol_writer_provider);
+            WriteModuleTo(module, stream, parameters, new MetadataBuilder(module, fq_name,
+                symbol_writer_provider, symbol_writer));
+        }
+
+		public static void WriteModuleTo (ModuleDefinition module, Stream stream, WriterParameters parameters, MetadataBuilder metadata)
+        {
 			if ((module.Attributes & ModuleAttributes.ILOnly) == 0)
 				throw new ArgumentException ();
 
@@ -90,11 +102,6 @@ namespace Mono.Cecil {
 			module.MetadataSystem.Clear ();
 
 			var name = module.assembly != null ? module.assembly.Name : null;
-			var fq_name = stream.GetFullyQualifiedName ();
-			var symbol_writer_provider = parameters.SymbolWriterProvider;
-			if (symbol_writer_provider == null && parameters.WriteSymbols)
-				symbol_writer_provider = SymbolProvider.GetPlatformWriterProvider ();
-			var symbol_writer = GetSymbolWriter (module, fq_name, symbol_writer_provider);
 
 #if !SILVERLIGHT && !CF
 			if (parameters.StrongNameKeyPair != null && name != null)
@@ -103,9 +110,6 @@ namespace Mono.Cecil {
 
 			if (name != null && name.HasPublicKey)
 				module.Attributes |= ModuleAttributes.StrongNameSigned;
-
-			var metadata = new MetadataBuilder (module, fq_name,
-				symbol_writer_provider, symbol_writer);
 
 			BuildMetadata (module, metadata);
 
@@ -120,8 +124,8 @@ namespace Mono.Cecil {
 			if (parameters.StrongNameKeyPair != null)
 				CryptoService.StrongName (stream, writer, parameters.StrongNameKeyPair);
 #endif
-			if (symbol_writer != null)
-				symbol_writer.Dispose ();
+			if (metadata.symbol_writer != null)
+                metadata.symbol_writer.Dispose();
 		}
 
 		static void BuildMetadata (ModuleDefinition module, MetadataBuilder metadata)
@@ -146,577 +150,7 @@ namespace Mono.Cecil {
 		}
 	}
 
-	abstract class MetadataTable {
-
-		public abstract int Length { get; }
-
-		public bool IsLarge {
-			get { return Length > 65535; }
-		}
-
-		public abstract void Write (TableHeapBuffer buffer);
-		public abstract void Sort ();
-	}
-
-	abstract class MetadataTable<TRow> : MetadataTable where TRow : struct {
-
-		internal TRow [] rows = new TRow [2];
-		internal int length;
-
-		public override int Length {
-			get { return length; }
-		}
-
-		public int AddRow (TRow row)
-		{
-			if (rows.Length == length)
-				Grow ();
-
-			rows [length++] = row;
-			return length;
-		}
-
-		void Grow ()
-		{
-			var rows = new TRow [this.rows.Length * 2];
-			Array.Copy (this.rows, rows, this.rows.Length);
-			this.rows = rows;
-		}
-
-		public override void Sort ()
-		{
-		}
-	}
-
-	abstract class SortedTable<TRow> : MetadataTable<TRow>, IComparer<TRow> where TRow : struct {
-
-		public sealed override void Sort ()
-		{
-			Array.Sort (rows, 0, length, this);
-		}
-
-		protected int Compare (uint x, uint y)
-		{
-			return x == y ? 0 : x > y ? 1 : -1;
-		}
-
-		public abstract int Compare (TRow x, TRow y);
-	}
-
-	sealed class ModuleTable : MetadataTable<uint> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-            for (int i = 0; i < length; i++) {
-                buffer.WriteUInt16(0);		// Generation
-                buffer.WriteString(rows [i]);	// Name
-                buffer.WriteUInt16(1);		// Mvid
-                buffer.WriteUInt16(0);		// EncId
-                buffer.WriteUInt16(0);		// EncBaseId
-            }
-		}
-	}
-
-	sealed class TypeRefTable : MetadataTable<TypeRefRow> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++) {
-				buffer.WriteCodedRID (
-					rows [i].Col1, CodedIndex.ResolutionScope);	// Scope
-				buffer.WriteString (rows [i].Col2);			// Name
-				buffer.WriteString (rows [i].Col3);			// Namespace
-			}
-		}
-	}
-
-	sealed class TypeDefTable : MetadataTable<TypeDefRow> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++) {
-				buffer.WriteUInt32 ((uint) rows [i].Col1);	// Attributes
-				buffer.WriteString (rows [i].Col2);			// Name
-				buffer.WriteString (rows [i].Col3);			// Namespace
-				buffer.WriteCodedRID (
-					rows [i].Col4, CodedIndex.TypeDefOrRef);	// Extends
-				buffer.WriteRID (rows [i].Col5, Table.Field);	// FieldList
-				buffer.WriteRID (rows [i].Col6, Table.Method);	// MethodList
-			}
-		}
-	}
-
-	sealed class FieldTable : MetadataTable<FieldRow> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++) {
-				buffer.WriteUInt16 ((ushort) rows [i].Col1);	// Attributes
-				buffer.WriteString (rows [i].Col2);			// Name
-				buffer.WriteBlob (rows [i].Col3);			// Signature
-			}
-		}
-	}
-
-	sealed class MethodTable : MetadataTable<MethodRow> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++) {
-				buffer.WriteUInt32 (rows [i].Col1);		// RVA
-				buffer.WriteUInt16 ((ushort) rows [i].Col2);	// ImplFlags
-				buffer.WriteUInt16 ((ushort) rows [i].Col3);	// Flags
-				buffer.WriteString (rows [i].Col4);		// Name
-				buffer.WriteBlob (rows [i].Col5);		// Signature
-				buffer.WriteRID (rows [i].Col6, Table.Param);	// ParamList
-			}
-		}
-	}
-
-	sealed class ParamTable : MetadataTable<ParamRow> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++) {
-				buffer.WriteUInt16 ((ushort) rows [i].Col1);	// Attributes
-				buffer.WriteUInt16 (rows [i].Col2);		// Sequence
-				buffer.WriteString (rows [i].Col3);		// Name
-			}
-		}
-	}
-
-	sealed class InterfaceImplTable : MetadataTable<InterfaceImplRow> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++) {
-				buffer.WriteRID (rows [i].Col1, Table.TypeDef);		// Class
-				buffer.WriteCodedRID (rows [i].Col2, CodedIndex.TypeDefOrRef);	// Interface
-			}
-		}
-
-		/*public override int Compare (InterfaceImplRow x, InterfaceImplRow y)
-		{
-			return (int) (x.Col1 == y.Col1 ? y.Col2 - x.Col2 : x.Col1 - y.Col1);
-		}*/
-	}
-
-	sealed class MemberRefTable : MetadataTable<MemberRefRow> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++) {
-				buffer.WriteCodedRID (rows [i].Col1, CodedIndex.MemberRefParent);
-				buffer.WriteString (rows [i].Col2);
-				buffer.WriteBlob (rows [i].Col3);
-			}
-		}
-	}
-
-	sealed class ConstantTable : SortedTable<ConstantRow> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++) {
-				buffer.WriteUInt16 ((ushort) rows [i].Col1);
-				buffer.WriteCodedRID (rows [i].Col2, CodedIndex.HasConstant);
-				buffer.WriteBlob (rows [i].Col3);
-			}
-		}
-
-		public override int Compare (ConstantRow x, ConstantRow y)
-		{
-			return Compare (x.Col2, y.Col2);
-		}
-	}
-
-	sealed class CustomAttributeTable : SortedTable<CustomAttributeRow> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++) {
-				buffer.WriteCodedRID (rows [i].Col1, CodedIndex.HasCustomAttribute);	// Parent
-				buffer.WriteCodedRID (rows [i].Col2, CodedIndex.CustomAttributeType);	// Type
-				buffer.WriteBlob (rows [i].Col3);
-			}
-		}
-
-		public override int Compare (CustomAttributeRow x, CustomAttributeRow y)
-		{
-			return Compare (x.Col1, y.Col1);
-		}
-	}
-
-	sealed class FieldMarshalTable : SortedTable<FieldMarshalRow> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++) {
-				buffer.WriteCodedRID (rows [i].Col1, CodedIndex.HasFieldMarshal);
-				buffer.WriteBlob (rows [i].Col2);
-			}
-		}
-
-		public override int Compare (FieldMarshalRow x, FieldMarshalRow y)
-		{
-			return Compare (x.Col1, y.Col1);
-		}
-	}
-
-	sealed class DeclSecurityTable : SortedTable<DeclSecurityRow> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++) {
-				buffer.WriteUInt16 ((ushort) rows [i].Col1);
-				buffer.WriteCodedRID (rows [i].Col2, CodedIndex.HasDeclSecurity);
-				buffer.WriteBlob (rows [i].Col3);
-			}
-		}
-
-		public override int Compare (DeclSecurityRow x, DeclSecurityRow y)
-		{
-			return Compare (x.Col2, y.Col2);
-		}
-	}
-
-	sealed class ClassLayoutTable : SortedTable<ClassLayoutRow> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++) {
-				buffer.WriteUInt16 (rows [i].Col1);		// PackingSize
-				buffer.WriteUInt32 (rows [i].Col2);		// ClassSize
-				buffer.WriteRID (rows [i].Col3, Table.TypeDef);	// Parent
-			}
-		}
-
-		public override int Compare (ClassLayoutRow x, ClassLayoutRow y)
-		{
-			return Compare (x.Col3, y.Col3);
-		}
-	}
-
-	sealed class FieldLayoutTable : SortedTable<FieldLayoutRow> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++) {
-				buffer.WriteUInt32 (rows [i].Col1);		// Offset
-				buffer.WriteRID (rows [i].Col2, Table.Field);	// Parent
-			}
-		}
-
-		public override int Compare (FieldLayoutRow x, FieldLayoutRow y)
-		{
-			return Compare (x.Col2, y.Col2);
-		}
-	}
-
-	sealed class StandAloneSigTable : MetadataTable<uint> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++)
-				buffer.WriteBlob (rows [i]);
-		}
-	}
-
-	sealed class EventMapTable : MetadataTable<EventMapRow> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++) {
-				buffer.WriteRID (rows [i].Col1, Table.TypeDef);		// Parent
-				buffer.WriteRID (rows [i].Col2, Table.Event);		// EventList
-			}
-		}
-	}
-
-	sealed class EventTable : MetadataTable<EventRow> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++) {
-				buffer.WriteUInt16 ((ushort) rows [i].Col1);	// Flags
-				buffer.WriteString (rows [i].Col2);		// Name
-				buffer.WriteCodedRID (rows [i].Col3, CodedIndex.TypeDefOrRef);	// EventType
-			}
-		}
-	}
-
-	sealed class PropertyMapTable : MetadataTable<PropertyMapRow> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++) {
-				buffer.WriteRID (rows [i].Col1, Table.TypeDef);		// Parent
-				buffer.WriteRID (rows [i].Col2, Table.Property);	// PropertyList
-			}
-		}
-	}
-
-	sealed class PropertyTable : MetadataTable<PropertyRow> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++) {
-				buffer.WriteUInt16 ((ushort) rows [i].Col1);	// Flags
-				buffer.WriteString (rows [i].Col2);		// Name
-				buffer.WriteBlob (rows [i].Col3);		// Type
-			}
-		}
-	}
-
-	sealed class MethodSemanticsTable : SortedTable<MethodSemanticsRow> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++) {
-				buffer.WriteUInt16 ((ushort) rows [i].Col1);	// Flags
-				buffer.WriteRID (rows [i].Col2, Table.Method);	// Method
-				buffer.WriteCodedRID (rows [i].Col3, CodedIndex.HasSemantics);	// Association
-			}
-		}
-
-		public override int Compare (MethodSemanticsRow x, MethodSemanticsRow y)
-		{
-			return Compare (x.Col3, y.Col3);
-		}
-	}
-
-	sealed class MethodImplTable : MetadataTable<MethodImplRow> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++) {
-				buffer.WriteRID (rows [i].Col1, Table.TypeDef);	// Class
-				buffer.WriteCodedRID (rows [i].Col2, CodedIndex.MethodDefOrRef);	// MethodBody
-				buffer.WriteCodedRID (rows [i].Col3, CodedIndex.MethodDefOrRef);	// MethodDeclaration
-			}
-		}
-	}
-
-	sealed class ModuleRefTable : MetadataTable<uint> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++)
-				buffer.WriteString (rows [i]);	// Name
-		}
-	}
-
-	sealed class TypeSpecTable : MetadataTable<uint> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++)
-				buffer.WriteBlob (rows [i]);	// Signature
-		}
-	}
-
-	sealed class ImplMapTable : SortedTable<ImplMapRow> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++) {
-				buffer.WriteUInt16 ((ushort) rows [i].Col1);	// Flags
-				buffer.WriteCodedRID (rows [i].Col2, CodedIndex.MemberForwarded);	// MemberForwarded
-				buffer.WriteString (rows [i].Col3);		// ImportName
-				buffer.WriteRID (rows [i].Col4, Table.ModuleRef);	// ImportScope
-			}
-		}
-
-		public override int Compare (ImplMapRow x, ImplMapRow y)
-		{
-			return Compare (x.Col2, y.Col2);
-		}
-	}
-
-	sealed class FieldRVATable : SortedTable<FieldRVARow> {
-
-		internal int position;
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			position = buffer.position;
-			for (int i = 0; i < length; i++) {
-				buffer.WriteUInt32 (rows [i].Col1);		// RVA
-				buffer.WriteRID (rows [i].Col2, Table.Field);	// Field
-			}
-		}
-
-		public override int Compare (FieldRVARow x, FieldRVARow y)
-		{
-			return Compare (x.Col2, y.Col2);
-		}
-	}
-
-	sealed class AssemblyTable : MetadataTable<AssemblyRow> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++) {
-			    buffer.WriteUInt32 ((uint) rows [i].Col1);	// AssemblyHashAlgorithm
-			    buffer.WriteUInt16 (rows [i].Col2);			// MajorVersion
-			    buffer.WriteUInt16 (rows [i].Col3);			// MinorVersion
-			    buffer.WriteUInt16 (rows [i].Col4);			// Build
-			    buffer.WriteUInt16 (rows [i].Col5);			// Revision
-			    buffer.WriteUInt32 ((uint) rows [i].Col6);	// Flags
-			    buffer.WriteBlob (rows [i].Col7);			// PublicKey
-			    buffer.WriteString (rows [i].Col8);			// Name
-			    buffer.WriteString (rows [i].Col9);			// Culture
-            }
-		}
-	}
-
-	sealed class AssemblyRefTable : MetadataTable<AssemblyRefRow> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++) {
-				buffer.WriteUInt16 (rows [i].Col1);		// MajorVersion
-				buffer.WriteUInt16 (rows [i].Col2);		// MinorVersion
-				buffer.WriteUInt16 (rows [i].Col3);		// Build
-				buffer.WriteUInt16 (rows [i].Col4);		// Revision
-				buffer.WriteUInt32 ((uint) rows [i].Col5);	// Flags
-				buffer.WriteBlob (rows [i].Col6);		// PublicKeyOrToken
-				buffer.WriteString (rows [i].Col7);		// Name
-				buffer.WriteString (rows [i].Col8);		// Culture
-				buffer.WriteBlob (rows [i].Col9);		// Hash
-			}
-		}
-	}
-
-	sealed class FileTable : MetadataTable<FileRow> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++) {
-				buffer.WriteUInt32 ((uint) rows [i].Col1);
-				buffer.WriteString (rows [i].Col2);
-				buffer.WriteBlob (rows [i].Col3);
-			}
-		}
-	}
-
-	sealed class ExportedTypeTable : MetadataTable<ExportedTypeRow> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++) {
-				buffer.WriteUInt32 ((uint) rows [i].Col1);
-				buffer.WriteUInt32 (rows [i].Col2);
-				buffer.WriteString (rows [i].Col3);
-				buffer.WriteString (rows [i].Col4);
-				buffer.WriteCodedRID (rows [i].Col5, CodedIndex.Implementation);
-			}
-		}
-	}
-
-	sealed class ManifestResourceTable : MetadataTable<ManifestResourceRow> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++) {
-				buffer.WriteUInt32 (rows [i].Col1);
-				buffer.WriteUInt32 ((uint) rows [i].Col2);
-				buffer.WriteString (rows [i].Col3);
-				buffer.WriteCodedRID (rows [i].Col4, CodedIndex.Implementation);
-			}
-		}
-	}
-
-	sealed class NestedClassTable : SortedTable<NestedClassRow> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++) {
-				buffer.WriteRID (rows [i].Col1, Table.TypeDef);		// NestedClass
-				buffer.WriteRID (rows [i].Col2, Table.TypeDef);		// EnclosingClass
-			}
-		}
-
-		public override int Compare (NestedClassRow x, NestedClassRow y)
-		{
-			return Compare (x.Col1, y.Col1);
-		}
-	}
-
-	sealed class GenericParamTable : MetadataTable<GenericParamRow> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++) {
-				buffer.WriteUInt16 (rows [i].Col1);		// Number
-				buffer.WriteUInt16 ((ushort) rows [i].Col2);	// Flags
-				buffer.WriteCodedRID (rows [i].Col3, CodedIndex.TypeOrMethodDef);	// Owner
-				buffer.WriteString (rows [i].Col4);		// Name
-			}
-		}
-	}
-
-	sealed class MethodSpecTable : MetadataTable<MethodSpecRow> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++) {
-				buffer.WriteCodedRID (rows [i].Col1, CodedIndex.MethodDefOrRef);	// Method
-				buffer.WriteBlob (rows [i].Col2);	// Instantiation
-			}
-		}
-	}
-
-	sealed class GenericParamConstraintTable : MetadataTable<GenericParamConstraintRow> {
-
-		public override void Write (TableHeapBuffer buffer)
-		{
-			for (int i = 0; i < length; i++) {
-				buffer.WriteRID (rows [i].Col1, Table.GenericParam);	// Owner
-				buffer.WriteCodedRID (rows [i].Col2, CodedIndex.TypeDefOrRef);	// Constraint
-			}
-		}
-	}
-
-	sealed class RowEqualityComparer : IEqualityComparer<Row<string, string>>, IEqualityComparer<Row<uint, uint>>, IEqualityComparer<Row<uint, uint, uint>> {
-
-		public bool Equals (Row<string, string> x, Row<string, string> y)
-		{
-			return x.Col1 == y.Col1
-				&& x.Col2 == y.Col2;
-		}
-
-		public int GetHashCode (Row<string, string> obj)
-		{
-			string x = obj.Col1, y = obj.Col2;
-			return (x != null ? x.GetHashCode () : 0) ^ (y != null ? y.GetHashCode () : 0);
-		}
-
-		public bool Equals (Row<uint, uint> x, Row<uint, uint> y)
-		{
-			return x.Col1 == y.Col1
-				&& x.Col2 == y.Col2;
-		}
-
-		public int GetHashCode (Row<uint, uint> obj)
-		{
-			return (int) (obj.Col1 ^ obj.Col2);
-		}
-
-		public bool Equals (Row<uint, uint, uint> x, Row<uint, uint, uint> y)
-		{
-			return x.Col1 == y.Col1
-				&& x.Col2 == y.Col2
-				&& x.Col3 == y.Col3;
-		}
-
-		public int GetHashCode (Row<uint, uint, uint> obj)
-		{
-			return (int) (obj.Col1 ^ obj.Col2 ^ obj.Col3);
-		}
-	}
-
-	sealed class MetadataBuilder {
+	class MetadataBuilder {
 
 		readonly internal ModuleDefinition module;
 		readonly internal ISymbolWriterProvider symbol_writer_provider;
@@ -748,23 +182,23 @@ namespace Mono.Cecil {
 		RID property_rid = 1;
 		RID event_rid = 1;
 
-		readonly TypeRefTable type_ref_table;
-		readonly TypeDefTable type_def_table;
-		readonly FieldTable field_table;
-		readonly MethodTable method_table;
-		readonly ParamTable param_table;
-		readonly InterfaceImplTable iface_impl_table;
-		readonly MemberRefTable member_ref_table;
-		readonly ConstantTable constant_table;
-		readonly CustomAttributeTable custom_attribute_table;
-		readonly DeclSecurityTable declsec_table;
-		readonly StandAloneSigTable standalone_sig_table;
-		readonly EventMapTable event_map_table;
-		readonly EventTable event_table;
-		readonly PropertyMapTable property_map_table;
-		readonly PropertyTable property_table;
-		readonly TypeSpecTable typespec_table;
-		readonly MethodSpecTable method_spec_table;
+		readonly internal TypeRefTable type_ref_table;
+		readonly internal TypeDefTable type_def_table;
+		readonly internal FieldTable field_table;
+		readonly internal MethodTable method_table;
+		readonly internal ParamTable param_table;
+		readonly internal InterfaceImplTable iface_impl_table;
+		readonly internal MemberRefTable member_ref_table;
+		readonly internal ConstantTable constant_table;
+		readonly internal CustomAttributeTable custom_attribute_table;
+		readonly internal DeclSecurityTable declsec_table;
+		readonly internal StandAloneSigTable standalone_sig_table;
+		readonly internal EventMapTable event_map_table;
+		readonly internal EventTable event_table;
+		readonly internal PropertyMapTable property_map_table;
+		readonly internal PropertyTable property_table;
+		readonly internal TypeSpecTable typespec_table;
+		readonly internal MethodSpecTable method_spec_table;
 
 		readonly internal bool write_symbols;
 
@@ -849,14 +283,14 @@ namespace Mono.Cecil {
 			return GetBlobIndex (new ByteBuffer (blob));
 		}
 
-		public void BuildMetadata ()
+		public virtual void BuildMetadata ()
 		{
 			BuildModule ();
 
 			table_heap.WriteTableHeap ();
 		}
 
-		void BuildModule ()
+		protected void BuildModule ()
 		{
 			var table = GetTable<ModuleTable> (Table.Module);
 			table.AddRow (GetStringIndex (module.Name));
@@ -1998,6 +1432,97 @@ namespace Mono.Cecil {
 			}
 		}
 	}
+
+    ////////////Added
+    public sealed class MetadataProcessor
+    {
+        public delegate void Do(MetadataAccessor accessor);
+
+        public void Process(ModuleDefinition mod, string fileName)
+        {
+            Process(mod, fileName, new WriterParameters());
+        }
+
+        public void Process(ModuleDefinition mod, Stream stream)
+        {
+            Process(mod, stream, new WriterParameters());
+        }
+
+        public void Process(ModuleDefinition mod, string fileName, WriterParameters parameters)
+        {
+            if (fileName == null)
+                throw new ArgumentNullException("fileName");
+            if (fileName.Length == 0)
+                throw new ArgumentException();
+            using (var stream = new FileStream(fileName, FileMode.Create, FileAccess.ReadWrite, FileShare.None))
+            {
+                Process(mod, stream, parameters);
+            }
+        }
+
+        public void Process(ModuleDefinition mod, Stream stream, WriterParameters parameters)
+        {
+            if (stream == null)
+                throw new ArgumentNullException("stream");
+            if (!stream.CanWrite || !stream.CanSeek)
+                throw new ArgumentException();
+            if (parameters == null)
+                throw new ArgumentNullException("parameters");
+
+
+            var fq_name = stream.GetFullyQualifiedName();
+            var symbol_writer_provider = parameters.SymbolWriterProvider;
+            if (symbol_writer_provider == null && parameters.WriteSymbols)
+                symbol_writer_provider = SymbolProvider.GetPlatformWriterProvider();
+            var symbol_writer = symbol_writer_provider == null ? null : symbol_writer_provider.GetSymbolWriter(mod, fq_name);
+            ModuleWriter.WriteModuleTo(mod, stream, parameters, new TrueProcessor(this, mod, fq_name,
+                symbol_writer_provider, symbol_writer));
+        }
+
+        public event Do PreProcess;
+        private void PrePs(MetadataAccessor accessor)
+        {
+            if (PreProcess != null) PreProcess(accessor);
+        }
+        public event Do DoProcess;
+        private void DoPs(MetadataAccessor accessor)
+        {
+            if (DoProcess != null) DoProcess(accessor);
+        }
+        public event Do PostProcess;
+        private void PostPs(MetadataAccessor accessor)
+        {
+            if (PostProcess != null) PostProcess(accessor);
+        }
+
+
+        internal class TrueProcessor : MetadataBuilder
+        {
+            MetadataProcessor psr;
+            public TrueProcessor(MetadataProcessor psr, ModuleDefinition module, string fq_name, ISymbolWriterProvider symbol_writer_provider, ISymbolWriter symbol_writer) : base(module, fq_name, symbol_writer_provider, symbol_writer) { this.psr = psr; }
+
+            public override void BuildMetadata()
+            {
+                MetadataAccessor accessor = new MetadataAccessor(this);
+                BuildModule();
+                psr.PrePs(accessor);
+                psr.DoPs(accessor);
+                table_heap.WriteTableHeap();
+                psr.PostPs(accessor);
+            }
+        }
+        public class MetadataAccessor
+        {
+            TrueProcessor psr;
+            internal MetadataAccessor(TrueProcessor psr) { this.psr = psr; }
+
+            public BlobHeapBuffer BlobHeap { get { return psr.blob_heap; } }
+            public UserStringHeapBuffer USHeap { get { return psr.user_string_heap; } }
+            public StringHeapBuffer StringHeap { get { return psr.string_heap; } }
+            public TableHeapBuffer TableHeap { get { return psr.table_heap; } }
+        }
+    }
+    ////////////
 
 	sealed class SignatureWriter : ByteBuffer {
 

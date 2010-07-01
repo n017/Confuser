@@ -258,8 +258,21 @@ namespace Mono.Cecil.Cil {
 			if (instruction == null)
 				throw new ArgumentNullException ("instruction");
 
-			InsertAfter (target, instruction);
-			Remove (target);
+            int index = instructions.IndexOf(target);
+            instructions[index] = instruction;
+            foreach (Instruction inst in instructions)
+            {
+                if (inst.Operand is Instruction && inst.Operand == target)
+                    inst.Operand = instruction;
+                else if (inst.Operand is Instruction[])
+                {
+                    Instruction[] s = inst.Operand as Instruction[];
+                    for (int i = 0; i < s.Length; i++)
+                        if (s[i] == target)
+                            s[i] = instruction;
+                    inst.Operand = s;
+                }
+            }
 		}
 
 		public void Remove (Instruction instruction)

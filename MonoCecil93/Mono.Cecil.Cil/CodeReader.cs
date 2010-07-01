@@ -146,7 +146,9 @@ namespace Mono.Cecil.Cil {
 			start = position;
 			var code_size = body.code_size;
 			var end = start + code_size;
-			var instructions = body.instructions = new InstructionCollection (code_size / 3);
+			InstructionCollection instructions = new InstructionCollection (code_size / 3);
+            body.instructions = instructions;
+            instructions.initing = true;
 
 			while (position < end) {
 				var offset = base.position - start;
@@ -160,6 +162,8 @@ namespace Mono.Cecil.Cil {
 			}
 
 			ResolveBranches (instructions);
+
+            instructions.initing = false;
 		}
 
 		OpCode ReadOpCode ()

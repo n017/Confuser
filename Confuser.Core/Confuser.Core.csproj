@@ -57,10 +57,6 @@
     <CodeAnalysisRuleSet>AllRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="NetPE.Core, Version=1.0.3830.24893, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\References\NetPE.Core.dll</HintPath>
-    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core">
       <RequiredTargetFramework>3.5</RequiredTargetFramework>
@@ -75,20 +71,18 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="CecilHelper.cs" />
     <Compile Include="Compressor.cs" />
     <Compile Include="Confuser.cs" />
     <Compile Include="Confusions\AntiCFFConfusion.cs" />
     <Compile Include="Confusions\BindRevConfusion.cs" />
     <Compile Include="Confusions\ControlFlowConfusion.cs" />
     <Compile Include="Confusions\CtorProxyConfusion.cs" />
-    <Compile Include="Confusions\DirectoryNumConfusion.cs" />
     <Compile Include="Confusions\StackUnfConfusion.cs" />
-    <Compile Include="Confusions\MdStreamConfusion.cs" />
     <Compile Include="Confusions\MultiRowConfusion.cs" />
     <Compile Include="Confusions\NameConfusion.cs" />
     <Compile Include="Confusions\MtdProxyConfusion.cs" />
     <Compile Include="Confusions\AntiILDasmConfusion.cs" />
-    <Compile Include="Confusions\OfwExtendConfusion.cs" />
     <Compile Include="Confusions\StringConfusion.cs" />
     <Compile Include="Confusion.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -112,6 +106,16 @@
       <ProductName>Windows Installer 3.1</ProductName>
       <Install>true</Install>
     </BootstrapperPackage>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MonoCecil93\Mono.Cecil.csproj">
+      <Project>{D68133BD-1E63-496E-9EDE-4FBDBF77B486}</Project>
+      <Name>Mono.Cecil</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\MonoCecil93\rocks\Mono.Cecil.Rocks.csproj">
+      <Project>{FBC6DD59-D09D-499C-B03C-99C1C78FF2AC}</Project>
+      <Name>Mono.Cecil.Rocks</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

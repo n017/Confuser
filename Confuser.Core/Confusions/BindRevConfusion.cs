@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Mono.Cecil;
+using Mono.Cecil.Rocks;
 
 namespace Confuser.Core.Confusions
 {
@@ -20,7 +21,7 @@ namespace Confuser.Core.Confusions
 
         public override ProcessType Process
         {
-            get { return ProcessType.Real; }
+            get { return ProcessType.Pre; }
         }
 
         public override bool StandardCompatible
@@ -30,7 +31,10 @@ namespace Confuser.Core.Confusions
 
         public override void PreConfuse(Confuser cr, AssemblyDefinition asm)
         {
-            throw new InvalidOperationException();
+            foreach (TypeDefinition t in asm.MainModule.GetAllTypes())
+            {
+                ConfuseType(cr, t);
+            }
         }
 
         public override void PostConfuse(Confuser cr, AssemblyDefinition asm)
@@ -40,10 +44,7 @@ namespace Confuser.Core.Confusions
 
         public override void DoConfuse(Confuser cr, AssemblyDefinition asm)
         {
-            foreach (TypeDefinition t in asm.MainModule.Types)
-            {
-                ConfuseType(cr, t);
-            }
+            throw new InvalidOperationException();
         }
 
         private void ConfuseType(Confuser cr, TypeDefinition def)

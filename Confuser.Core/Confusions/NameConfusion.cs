@@ -5,6 +5,7 @@ using System.Text;
 using System.Security.Cryptography;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
+using Mono.Cecil.Rocks;
 
 namespace Confuser.Core.Confusions
 {
@@ -27,7 +28,7 @@ namespace Confuser.Core.Confusions
 
         public override void PreConfuse(Confuser cr, AssemblyDefinition asm)
         {
-            foreach (TypeDefinition t in asm.MainModule.Types)
+            foreach (TypeDefinition t in asm.MainModule.GetAllTypes())
             {
                 if (t.Name == "<Module>")
                     continue;
@@ -105,7 +106,7 @@ namespace Confuser.Core.Confusions
             {
                 cr.Log("<vars>");
                 cr.AddLv();
-                foreach (VariableDefinition var in (mtd.Body as ManagedMethodBody).Variables)
+                foreach (VariableDefinition var in mtd.Body.Variables)
                 {
                     cr.Log("<var name='" + var.Name + "' />");
                     var.Name = GetNewName(var.Name);

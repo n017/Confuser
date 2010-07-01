@@ -36,7 +36,8 @@ namespace Mono.Cecil.Cil {
 
 		readonly internal MethodDefinition method;
 
-		internal ParameterDefinition this_parameter;
+        internal ParameterDefinition this_parameter;
+        internal bool preserve_max_stack;
 		internal int max_stack_size;
 		internal int code_size;
 		internal bool init_locals;
@@ -49,6 +50,11 @@ namespace Mono.Cecil.Cil {
 
 		public MethodDefinition Method {
 			get { return method; }
+		}
+
+		public bool PreserveMaxStackSize {
+            get { return preserve_max_stack; }
+            set { preserve_max_stack = value; }
 		}
 
 		public int MaxStackSize {
@@ -131,6 +137,11 @@ namespace Mono.Cecil.Cil {
 		{
 			return new ILProcessor (this);
 		}
+
+        public void ComputeHeader()
+        {
+            CodeWriter.ComputeHeader(this);
+        }
 	}
 
 	public interface IVariableDefinitionProvider {
@@ -187,6 +198,8 @@ namespace Mono.Cecil.Cil {
 		{
 		}
 
+        internal bool initing = false;
+
 		protected override void OnAdd (Instruction item, int index)
 		{
 			if (index == 0)
@@ -195,6 +208,8 @@ namespace Mono.Cecil.Cil {
 			var previous = items [index - 1];
 			previous.next = item;
 			item.previous = previous;
+
+            RecalculateOffsets();
 		}
 
 		protected override void OnInsert (Instruction item, int index)
@@ -218,6 +233,8 @@ namespace Mono.Cecil.Cil {
 
 			current.previous = item;
 			item.next = current;
+
+            RecalculateOffsets();
 		}
 
 		protected override void OnSet (Instruction item, int index)
@@ -228,7 +245,9 @@ namespace Mono.Cecil.Cil {
 			item.next = current.next;
 
 			current.previous = null;
-			current.next = null;
+            current.next = null;
+
+            RecalculateOffsets();
 		}
 
 		protected override void OnRemove (Instruction item, int index)
@@ -243,6 +262,24 @@ namespace Mono.Cecil.Cil {
 
 			item.previous = null;
 			item.next = null;
+
+            RecalculateOffsets();
 		}
+
+
+        internal void RecalculateOffsets()
+        {
+            if (!initing)
+            {
+                int offset = 0;
+                for (int i = 0; i < this.Count; i++)
+                {
+                    this[i].Offset = offset;
+                    this[i].Previous = (i == 0 ? null : this[i - 1]);
+                    this[i].Next = (i == this.Count - 1 ? null : this[i + 1]);
+                    offset += this[i].GetSize();
+                }
+            }
+        }
 	}
 }

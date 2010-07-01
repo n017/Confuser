@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
+using Mono.Cecil.Rocks;
 using System.Security.Cryptography;
 using System.IO;
 using System.Globalization;
@@ -38,7 +39,7 @@ namespace Confuser.Core.Confusions
             txts = new List<Context>();
             cr.Log("<delegates>");
             cr.AddLv();
-            foreach (TypeDefinition def in asm.MainModule.Types)
+            foreach (TypeDefinition def in asm.MainModule.GetAllTypes().ToArray())
             {
                 if (def.Name == "<Module>") continue;
                 ProcessMethods(cr, def, asm.MainModule, new Processer(CreateDelegate));
@@ -46,10 +47,11 @@ namespace Confuser.Core.Confusions
             cr.SubLv();
             cr.Log("</delegates>");
 
-            TypeDefinition mod = asm.MainModule.Types["<Module>"];
-            AssemblyDefinition i = AssemblyFactory.GetAssembly(typeof(MtdProxyConfusion).Assembly.Location);
-            proxy = i.MainModule.Types["Confuser.Core.Confusions.CtorProxyConfusion"].Methods.GetMethod("Injection")[0];
-            proxy = asm.MainModule.Inject(proxy, mod);
+            TypeDefinition mod = asm.MainModule.GetType("<Module>");
+            AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(CtorProxyConfusion).Assembly.Location);
+            proxy = i.MainModule.GetType("Confuser.Core.Confusions.CtorProxyConfusion").Methods.FirstOrDefault(mtd => mtd.Name == "Injection");
+            proxy = CecilHelper.Inject(asm.MainModule, proxy);
+            mod.Methods.Add(proxy);
             proxy.IsAssembly = true;
             proxy.Name = GetName("Proxy" + Guid.NewGuid().ToString());
 
@@ -84,10 +86,6 @@ namespace Confuser.Core.Confusions
         List<Context> txts;
         private void ProcessMethods(Confuser cr, TypeDefinition def, ModuleDefinition mod, Processer d)
         {
-            foreach (MethodDefinition mtd in def.Constructors)
-            {
-                ProcessMethod(cr, mtd, mod, d);
-            }
             foreach (MethodDefinition mtd in def.Methods)
             {
                 ProcessMethod(cr, mtd, mod, d);
@@ -97,16 +95,14 @@ namespace Confuser.Core.Confusions
         {
             if (!mtd.HasBody || mtd.DeclaringType.FullName == "<Module>") return;
 
-            ManagedMethodBody bdy = mtd.Body as ManagedMethodBody;
-            InstructionCollection insts = bdy.Instructions;
-            CilWorker wkr = bdy.CilWorker;
-            for (int i = 0; i < insts.Count; i++)
+            MethodBody bdy = mtd.Body;
+            foreach(Instruction inst in bdy.Instructions)
             {
-                if (insts[i].OpCode.Code == Code.Newobj &&
-                    !(insts[i].Operand as MethodReference).DeclaringType.Resolve().IsInterface &&
-                    !(insts[i].Operand as MethodReference).DeclaringType.Resolve().HasGenericParameters)
+                if (inst.OpCode.Code == Code.Newobj &&
+                    !(inst.Operand as MethodReference).DeclaringType.Resolve().IsInterface &&
+                    !(inst.Operand as MethodReference).DeclaringType.Resolve().HasGenericParameters)
                 {
-                    d(cr, mtd.Body, insts[i], insts[i].Operand as MethodReference, mod);
+                    d(cr, mtd.Body, inst, inst.Operand as MethodReference, mod);
                 }
             }
         }
@@ -119,16 +115,17 @@ namespace Confuser.Core.Confusions
         {
             //Limitation
             if (MtdRef.DeclaringType.Resolve().BaseType.FullName == "System.MulticastDelegate" ||
-                MtdRef.DeclaringType.Resolve().BaseType.FullName == "System.Delegate")
+                MtdRef.DeclaringType.Resolve().BaseType.FullName == "System.Delegate" ||
+                MtdRef.HasGenericParameters)
                 return;
 
             Context txt = new Context();
             txt.inst = Inst;
             txt.bdy = Bdy;
             txt.mtdRef = MtdRef;
-            if (Mod.Types[GetSignatureO(MtdRef)] == null)
+            if (Mod.GetType(GetSignatureO(MtdRef)) == null)
             {
-                txt.dele = new TypeDefinition(GetSignatureO(MtdRef), "", TypeAttributes.NotPublic | TypeAttributes.Sealed, mcd);
+                txt.dele = new TypeDefinition("", GetSignatureO(MtdRef), TypeAttributes.NotPublic | TypeAttributes.Sealed, mcd);
                 Mod.Types.Add(txt.dele);
 
                 MethodDefinition cctor = new MethodDefinition(".ctor", 0, v);
@@ -140,7 +137,7 @@ namespace Confuser.Core.Confusions
                 cctor.IsPublic = true;
                 cctor.Parameters.Add(new ParameterDefinition(obj));
                 cctor.Parameters.Add(new ParameterDefinition(ptr));
-                txt.dele.Constructors.Add(cctor);
+                txt.dele.Methods.Add(cctor);
 
                 MethodDefinition invoke = new MethodDefinition("Invoke", 0, MtdRef.DeclaringType);
                 invoke.IsRuntime = true;
@@ -151,7 +148,7 @@ namespace Confuser.Core.Confusions
 
                 for (int i = 0; i < MtdRef.Parameters.Count; i++)
                 {
-                    invoke.Parameters.Add(new ParameterDefinition(GetNameO(MtdRef.Parameters[i]), i, MtdRef.Parameters[i].Attributes, MtdRef.Parameters[i].ParameterType));
+                    invoke.Parameters.Add(new ParameterDefinition(GetNameO(MtdRef.Parameters[i]), MtdRef.Parameters[i].Attributes, MtdRef.Parameters[i].ParameterType));
                 }
                 txt.dele.Methods.Add(invoke);
 
@@ -159,7 +156,7 @@ namespace Confuser.Core.Confusions
             }
             else
             {
-                txt.dele = Mod.Types[GetSignatureO(MtdRef)];
+                txt.dele = Mod.GetType(GetSignatureO(MtdRef));
             }
             txts.Add(txt);
         }
@@ -168,35 +165,35 @@ namespace Confuser.Core.Confusions
             foreach (Context txt in txts)
             {
                 ////////////////Field
-                if ((txt.fld = Mod.Types["<Module>"].Fields.GetField(" " + GetNameO(txt.mtdRef))) == null)
+                if ((txt.fld = Mod.GetType("<Module>").Fields.FirstOrDefault(fld => fld.Name == GetId(Mod, txt.mtdRef))) == null)
                 {
-                    txt.fld = new FieldDefinition(" " + GetNameO(txt.mtdRef), txt.dele, FieldAttributes.Static | FieldAttributes.Assembly);
-                    Mod.Types["<Module>"].Fields.Add(txt.fld);
+                    txt.fld = new FieldDefinition(GetId(Mod, txt.mtdRef), FieldAttributes.Static | FieldAttributes.Assembly, txt.dele);
+                    Mod.GetType("<Module>").Fields.Add(txt.fld);
                 }
                 ////////////////Bridge
                 MethodDefinition bdge;
-                if (Mod.Types["<Module>"].Methods.GetMethod(GetNameO(txt.mtdRef)).Length == 0)
+                if (Mod.GetType("<Module>").Methods.FirstOrDefault(mtd => mtd.Name == GetNameO(txt.mtdRef)) == null)
                 {
                     bdge = new MethodDefinition(GetNameO(txt.mtdRef), MethodAttributes.Static | MethodAttributes.Assem, txt.mtdRef.DeclaringType);
                     for (int i = 0; i < txt.mtdRef.Parameters.Count; i++)
                     {
-                        bdge.Parameters.Add(new ParameterDefinition(GetNameO(txt.mtdRef.Parameters[i]), i + 1, txt.mtdRef.Parameters[i].Attributes, txt.mtdRef.Parameters[i].ParameterType));
+                        bdge.Parameters.Add(new ParameterDefinition(GetNameO(txt.mtdRef.Parameters[i]), txt.mtdRef.Parameters[i].Attributes, txt.mtdRef.Parameters[i].ParameterType));
                     }
                     {
-                        CilWorker wkr = (bdge.Body as ManagedMethodBody).CilWorker;
+                        ILProcessor wkr = bdge.Body.GetILProcessor();
                         wkr.Emit(OpCodes.Ldsfld, txt.fld);
                         for (int i = 0; i < bdge.Parameters.Count; i++)
                         {
                             wkr.Emit(OpCodes.Ldarg, bdge.Parameters[i]);
                         }
-                        wkr.Emit(OpCodes.Call, txt.dele.Methods.GetMethod("Invoke")[0]);
+                        wkr.Emit(OpCodes.Call, txt.dele.Methods.FirstOrDefault(mtd => mtd.Name == "Invoke"));
                         wkr.Emit(OpCodes.Ret);
                     }
-                    Mod.Types["<Module>"].Methods.Add(bdge);
+                    Mod.GetType("<Module>").Methods.Add(bdge);
                 }
                 else
                 {
-                    bdge = Mod.Types["<Module>"].Methods.GetMethod(GetNameO(txt.mtdRef))[0];
+                    bdge = Mod.GetType("<Module>").Methods.FirstOrDefault(mtd => mtd.Name == GetNameO(txt.mtdRef));
                 }
 
                 ////////////////Replace
@@ -208,31 +205,30 @@ namespace Confuser.Core.Confusions
         }
         private void CreateCtors(Confuser cr, ModuleDefinition Mod)
         {
-            MethodDefinition cctor = Mod.Types["<Module>"].Constructors[0];
-            CilWorker wkr = (cctor.Body as ManagedMethodBody).CilWorker;
+            MethodDefinition cctor = Mod.GetType("<Module>").GetStaticConstructor();
+            ILProcessor wkr = cctor.Body.GetILProcessor();
 
             foreach (Context txt in txts)
             {
-                string id = GetId(txt.mtdRef.Resolve());
                 ////////////////Cctor
-                wkr.Emit(OpCodes.Ldstr, id);
+                txt.fld.Name = GetId(Mod, txt.mtdRef);
                 wkr.Emit(OpCodes.Ldtoken, txt.fld);
                 wkr.Emit(OpCodes.Call, proxy);
 
-                cr.Log("<dat id='" + id + "'/>");
+                cr.Log("<dat id='" + txt.fld.MetadataToken.ToUInt32().ToString("X8") + "'/>");
             }
         }
 
         private void InitModuleCctor(ModuleDefinition mod)
         {
-            MethodDefinition cctor = mod.Types["<Module>"].Constructors[0];
-            ManagedMethodBody bdy = cctor.Body as ManagedMethodBody;
+            MethodDefinition cctor = mod.GetType("<Module>").GetStaticConstructor();
+            MethodBody bdy = cctor.Body as MethodBody;
             bdy.Instructions.RemoveAt(bdy.Instructions.Count - 1);
         }
         private void FinalizeModuleCctor(ModuleDefinition mod)
         {
-            MethodDefinition cctor = mod.Types["<Module>"].Constructors[0];
-            (cctor.Body as ManagedMethodBody).CilWorker.Emit(OpCodes.Ret);
+            MethodDefinition cctor = mod.GetType("<Module>").GetStaticConstructor();
+            cctor.Body.GetILProcessor().Emit(OpCodes.Ret);
         }
 
         string GetNameO(MethodReference mbr)
@@ -280,9 +276,8 @@ namespace Confuser.Core.Confusions
         }
         string GetSignature(MethodReference mbr)
         {
-            int sen = mbr.GetSentinel();
             StringBuilder sig = new StringBuilder();
-            sig.Append(mbr.ReturnType.ReturnType.FullName);
+            sig.Append(mbr.ReturnType.FullName);
             if (mbr.Resolve().IsVirtual)
                 sig.Append(" virtual");
             if (mbr.HasThis)
@@ -297,10 +292,6 @@ namespace Confuser.Core.Confusions
                     if (i > 0)
                     {
                         sig.Append(",");
-                    }
-                    if (i == sen)
-                    {
-                        sig.Append("...,");
                     }
                     sig.Append(mbr.Parameters[i].ParameterType.FullName);
                 }
@@ -323,102 +314,27 @@ namespace Confuser.Core.Confusions
             return ret.ToString();
         }
 
-        private string GetId(MethodDefinition mtd)
+        private string GetId(ModuleDefinition mod, MethodReference mtd)
         {
-            MemoryStream ret = new MemoryStream();
-            using (BinaryWriter wtr = new BinaryWriter(ret))
-            {
-                byte[] bs;
-                AssemblyNameReference asm;
-                if (mtd.DeclaringType.Scope is AssemblyNameReference)
-                    asm = mtd.DeclaringType.Scope as AssemblyNameReference;
-                else if (mtd.DeclaringType.Scope is ModuleDefinition)
-                    asm = (mtd.DeclaringType.Scope as ModuleDefinition).Assembly.Name;
-                else
-                    throw new InvalidOperationException();
-
-                bs = Encoding.UTF8.GetBytes(asm.Name);
-                wtr.Write((byte)bs.Length);
-                for (int i = 0; i < bs.Length; i++)
-                {
-                    wtr.Write((byte)(bs[i] ^ bs.Length));
-                }
-
-                wtr.Write((ushort)asm.Version.Major);
-                wtr.Write((ushort)asm.Version.Minor);
-                wtr.Write((ushort)asm.Version.Build);
-                wtr.Write((ushort)asm.Version.Revision);
-
-                bs = Encoding.UTF8.GetBytes(asm.Culture);
-                wtr.Write((byte)bs.Length);
-                for (int i = 0; i < bs.Length; i++)
-                {
-                    wtr.Write((byte)(bs[i] ^ bs.Length));
-                }
-
-                if (asm.PublicKeyToken == null)
-                    wtr.Write(false);
-                else
-                {
-                    wtr.Write(true);
-                    for (int i = 0; i < 8; i++)
-                        wtr.Write(asm.PublicKeyToken[i]);
-                }
-                wtr.Write((int)mtd.MetadataToken.RID);
-            }
-            return Convert.ToBase64String(ret.ToArray());
+            char asmRef = (char)(mod.AssemblyReferences.IndexOf(mtd.DeclaringType.Scope as AssemblyNameReference) + 2);
+            return asmRef + Encoding.Unicode.GetString(BitConverter.GetBytes(mtd.Resolve().MetadataToken.ToUInt32()));
         }
-        private static void Injection(string id, RuntimeFieldHandle f)
+        private static void Injection(RuntimeFieldHandle f)
         {
-            System.Reflection.FieldInfo fld = System.Reflection.FieldInfo.GetFieldFromHandle(f);
+            var fld = System.Reflection.FieldInfo.GetFieldFromHandle(f);
 
-            string name = "";
-            Version ver;
-            string cult = "";
-            byte[] pkt;
-            int tkn;
-            using (BinaryReader rdr = new BinaryReader(new MemoryStream(Convert.FromBase64String(id))))
-            {
-                byte b = rdr.ReadByte();
-                byte[] tmp = new byte[b];
-                for (int i = 0; i < b; i++)
-                {
-                    tmp[i] = (byte)(rdr.ReadByte() ^ b);
-                }
-                name = Encoding.UTF8.GetString(tmp);
+            var asm=System.Reflection.Assembly.GetExecutingAssembly();
+            if (fld.Name[0] != (char)1)
+                asm = System.Reflection.Assembly.Load(asm.GetReferencedAssemblies()[(int)fld.Name[0] - 2]);
 
-                ver = new Version(rdr.ReadUInt16(), rdr.ReadUInt16(), rdr.ReadUInt16(), rdr.ReadUInt16());
-
-                b = rdr.ReadByte();
-                tmp = new byte[b];
-                for (int i = 0; i < b; i++)
-                {
-                    tmp[i] = (byte)(rdr.ReadByte() ^ b);
-                }
-                cult = Encoding.UTF8.GetString(tmp);
-
-                if (rdr.ReadBoolean())
-                    pkt = rdr.ReadBytes(8);
-                else
-                    pkt = null;
-
-                tkn = rdr.ReadInt32() | 0x06000000;
-            }
-
-            var n = new System.Reflection.AssemblyName();
-            n.Name = name;
-            n.Version = ver;
-            n.CultureInfo = CultureInfo.GetCultureInfo(cult);
-            n.SetPublicKeyToken(pkt);
-            var asm = System.Reflection.Assembly.Load(n);
-            var mtd = asm.GetModules()[0].ResolveMethod(tkn) as System.Reflection.ConstructorInfo;
+            var mtd = asm.GetModules()[0].ResolveMethod(BitConverter.ToInt32(Encoding.Unicode.GetBytes(fld.Name.ToCharArray(), 1, 2), 0)) as System.Reflection.ConstructorInfo;
 
             var args = mtd.GetParameters();
             Type[] arg = new Type[args.Length];
             for (int i = 0; i < args.Length; i++)
                 arg[i] = args[i].ParameterType;
 
-            System.Reflection.Emit.DynamicMethod dm = new System.Reflection.Emit.DynamicMethod("", mtd.DeclaringType, arg, mtd.DeclaringType, true);
+            var dm = new System.Reflection.Emit.DynamicMethod("", mtd.DeclaringType, arg, mtd.DeclaringType, true);
             var gen = dm.GetILGenerator();
             for (int i = 0; i < arg.Length; i++)
                 gen.Emit(System.Reflection.Emit.OpCodes.Ldarg_S, i);

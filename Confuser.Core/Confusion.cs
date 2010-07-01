@@ -4,7 +4,6 @@ using System.Linq;
 using System.Text;
 using System.Collections.ObjectModel;
 using Mono.Cecil;
-using NetPE.Core;
 
 namespace Confuser.Core
 {
@@ -35,27 +34,27 @@ namespace Confuser.Core
             cr.ScreenLog("</confusion>");
         }
 
-        internal void ExecutePreConfusion(AdvancedConfusion cion, Confuser cr, PeFile file)
+        internal void ExecutePreConfusion(AdvancedConfusion cion, Confuser cr, MetadataProcessor.MetadataAccessor accessor)
         {
             cr.ScreenLog("<pre name='" + cion.Name + "'>");
             cr.AddLv();
-            cion.PreConfuse(cr, file);
+            cion.PreConfuse(cr, accessor);
             cr.SubLv();
             cr.ScreenLog("</pre>");
         }
-        internal void ExecutePostConfusion(AdvancedConfusion cion, Confuser cr, PeFile file)
+        internal void ExecutePostConfusion(AdvancedConfusion cion, Confuser cr, MetadataProcessor.MetadataAccessor accessor)
         {
             cr.ScreenLog("<post name='" + cion.Name + "'>");
             cr.AddLv();
-            cion.PostConfuse(cr, file);
+            cion.PostConfuse(cr, accessor);
             cr.SubLv();
             cr.ScreenLog("</post>");
         }
-        internal void ExecuteConfusion(AdvancedConfusion cion, Confuser cr, PeFile file)
+        internal void ExecuteConfusion(AdvancedConfusion cion, Confuser cr, MetadataProcessor.MetadataAccessor accessor)
         {
             cr.ScreenLog("<confusion name='" + cion.Name + "'>");
             cr.AddLv();
-            cion.DoConfuse(cr, file);
+            cion.DoConfuse(cr, accessor);
             cr.SubLv();
             cr.ScreenLog("</confusion>");
         }
@@ -89,9 +88,9 @@ namespace Confuser.Core
     }
     public abstract class AdvancedConfusion : Confusion
     {
-        public abstract void PreConfuse(Confuser cr, PeFile file);
-        public abstract void DoConfuse(Confuser cr, PeFile file);
-        public abstract void PostConfuse(Confuser cr, PeFile file);
+        public abstract void PreConfuse(Confuser cr, MetadataProcessor.MetadataAccessor accessor);
+        public abstract void DoConfuse(Confuser cr, MetadataProcessor.MetadataAccessor accessor);
+        public abstract void PostConfuse(Confuser cr, MetadataProcessor.MetadataAccessor accessor);
     }
     public abstract class Confusion
     {

@@ -3,12 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Mono.Cecil;
+using Mono.Cecil.Cil;
+using Mono.Cecil.Rocks;
 using System.Collections;
 using System.Security.Cryptography;
 using System.Reflection;
 using System.IO;
 using System.Diagnostics;
-using Mono.Cecil.Cil;
 using System.IO.Compression;
 
 namespace Confuser.Core.Confusions
@@ -25,36 +26,52 @@ namespace Confuser.Core.Confusions
         }
         public override ProcessType Process
         {
-            get { return ProcessType.Pre | ProcessType.Real; }
+            get { return ProcessType.Pre | ProcessType.Post; }
         }
 
-        EmbeddedResource res;
         public override void PreConfuse(Confuser cr, AssemblyDefinition asm)
         {
             dats = new List<byte[]>();
             idx = 0;
 
             Random rand = new Random();
-            TypeDefinition mod = asm.MainModule.Types["<Module>"];
+            TypeDefinition mod = asm.MainModule.GetType("<Module>");
 
+            AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(StringConfusion).Assembly.Location);
+            strer = i.MainModule.GetType("Confuser.Core.Confusions.StringConfusion").Methods.FirstOrDefault(mtd => mtd.Name == "Injection");
+            strer = CecilHelper.Inject(asm.MainModule, strer);
+            mod.Methods.Add(strer);
             byte[] n = new byte[0x10]; rand.NextBytes(n);
-            res = new EmbeddedResource(Encoding.UTF8.GetString(n), ManifestResourceAttributes.Private);
-            asm.MainModule.Resources.Add(res);
-
-            AssemblyDefinition i = AssemblyFactory.GetAssembly(typeof(StringConfusion).Assembly.Location);
-            strer = i.MainModule.Types["Confuser.Core.Confusions.StringConfusion"].Methods.GetMethod("Injection")[0];
-            strer = asm.MainModule.Inject(strer, mod);
-            n = new byte[0x10]; rand.NextBytes(n);
             strer.Name = Encoding.UTF8.GetString(n);
             strer.IsAssembly = true;
 
             key0 = (int)(rand.NextDouble() * int.MaxValue);
             key1 = (int)(rand.NextDouble() * int.MaxValue);
+
+            rand.NextBytes(n);
+
+            foreach (Instruction inst in strer.Body.Instructions)
+            {
+                if ((inst.Operand as string) == "PADDINGPADDINGPADDING")
+                    inst.Operand = Encoding.UTF8.GetString(n);
+                else if (inst.Operand is int && (int)inst.Operand == 12345678)
+                    inst.Operand = key0;
+                else if (inst.Operand is int && (int)inst.Operand == 87654321)
+                    inst.Operand = key1;
+            }
+            EmbeddedResource res = new EmbeddedResource(Encoding.UTF8.GetString(n), ManifestResourceAttributes.Private, (byte[])null);
+            resId = asm.MainModule.Resources.Count;
+            asm.MainModule.Resources.Add(res);
         }
 
         public override void DoConfuse(Confuser cr, AssemblyDefinition asm)
         {
-            foreach (TypeDefinition def in asm.MainModule.Types)
+            throw new InvalidOperationException();
+        }
+
+        public override void PostConfuse(Confuser cr, AssemblyDefinition asm)
+        {
+            foreach (TypeDefinition def in asm.MainModule.GetAllTypes())
             {
                 ProcessMethods(cr, def);
             }
@@ -65,36 +82,18 @@ namespace Confuser.Core.Confusions
                 foreach (byte[] b in dats)
                     wtr.Write(b);
             }
-
-            foreach (Instruction inst in (strer.Body as ManagedMethodBody).Instructions)
-            {
-                if ((inst.Operand as string) == "PADDINGPADDINGPADDING")
-                    inst.Operand = res.Name;
-                else if (inst.Operand is int && (int)inst.Operand == 12345678)
-                    inst.Operand = key0;
-                else if (inst.Operand is int && (int)inst.Operand == 87654321)
-                    inst.Operand = key1;
-            } 
-            res.Data = str.ToArray();
-        }
-
-        public override void PostConfuse(Confuser cr, AssemblyDefinition asm)
-        {
-            throw new InvalidOperationException();
+            asm.MainModule.Resources[resId] = new EmbeddedResource(asm.MainModule.Resources[resId].Name, ManifestResourceAttributes.Private, str.ToArray());
         }
 
         List<byte[]> dats;
         int idx = 0;
+        int resId;
         MethodDefinition strer;
         int key0; 
         int key1;
 
         private void ProcessMethods(Confuser cr, TypeDefinition def)
         {
-            foreach (MethodDefinition mtd in def.Constructors)
-            {
-                ProcessMethod(cr, mtd);
-            }
             foreach (MethodDefinition mtd in def.Methods)
             {
                 ProcessMethod(cr, mtd);
@@ -104,19 +103,19 @@ namespace Confuser.Core.Confusions
         {
             if (mtd == strer || !mtd.HasBody) return;
 
-            ManagedMethodBody bdy = mtd.Body as ManagedMethodBody;
-            bdy.Simplify();
-            InstructionCollection insts = bdy.Instructions;
-            CilWorker wkr = bdy.CilWorker;
+            var bdy = mtd.Body;
+            bdy.SimplifyMacros();
+            var insts = bdy.Instructions;
+            ILProcessor psr = bdy.GetILProcessor();
             for (int i = 0; i < insts.Count; i++)
             {
                 if (insts[i].OpCode.Code == Code.Ldstr)
                 {
                     string val = insts[i].Operand as string;
                     if (val == "") continue;
-                    byte[] dat = Encrypt(val, mtd.MetadataToken.ToUInt());
+                    byte[] dat = Encrypt(val, mtd.MetadataToken.ToUInt32());
 
-                    int id = (int)((idx + key0) ^ mtd.MetadataToken.ToUInt());
+                    int id = (int)((idx + key0) ^ mtd.MetadataToken.ToUInt32());
                     int len = (int)~(dat.Length ^ key1);
 
                     byte[] final = new byte[dat.Length + 4];
@@ -127,11 +126,11 @@ namespace Confuser.Core.Confusions
                     cr.Log("<string value='" + val + "'/>");
 
                     Instruction now = insts[i];
-                    wkr.InsertAfter(now, wkr.Create(OpCodes.Call, strer));
-                    wkr.Replace(now, wkr.Create(OpCodes.Ldc_I4, id));
+                    psr.InsertAfter(now, psr.Create(OpCodes.Call, strer));
+                    psr.Replace(now, psr.Create(OpCodes.Ldc_I4, id));
                 }
             }
-            bdy.Optimize();
+            bdy.OptimizeMacros();
         }
 
         private static byte[] Encrypt(string str, uint mdToken)

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
+using Mono.Cecil.Rocks;
 
 namespace Confuser.Core.Confusions
 {
@@ -19,7 +20,7 @@ namespace Confuser.Core.Confusions
         }
         public override ProcessType Process
         {
-            get { return ProcessType.Real; }
+            get { return ProcessType.Post; }
         }
         public override bool StandardCompatible
         {
@@ -29,7 +30,7 @@ namespace Confuser.Core.Confusions
         {
             throw new InvalidOperationException();
         }
-        public override void PostConfuse(Confuser cr, AssemblyDefinition asm)
+        public override void DoConfuse(Confuser cr, AssemblyDefinition asm)
         {
             throw new InvalidOperationException();
         }
@@ -79,18 +80,14 @@ namespace Confuser.Core.Confusions
         }
 
         Random rad;
-        public override void DoConfuse(Confuser cr, AssemblyDefinition asm)
+        public override void PostConfuse(Confuser cr, AssemblyDefinition asm)
         {
             rad = new Random();
-            foreach (TypeDefinition t in asm.MainModule.Types)
+            foreach (TypeDefinition t in asm.MainModule.GetAllTypes())
                 ProcessMethods(cr, t);
         }
         private void ProcessMethods(Confuser cr, TypeDefinition def)
         {
-            foreach (MethodDefinition mtd in def.Constructors)
-            {
-                ProcessMethod(cr, mtd);
-            }
             foreach (MethodDefinition mtd in def.Methods)
             {
                 ProcessMethod(cr, mtd);
@@ -99,8 +96,9 @@ namespace Confuser.Core.Confusions
         private void ProcessMethod(Confuser cr, MethodDefinition mtd)   
         {
             if (!mtd.HasBody) return;
-            ManagedMethodBody bdy = mtd.Body as ManagedMethodBody;
-            bdy.Simplify();
+            MethodBody bdy = mtd.Body;
+            bdy.SimplifyMacros();
+            bdy.ComputeHeader();
             Dictionary<Instruction, Level> Ids = GetIds(bdy);
             Level[] lvs = GetLvs(Ids);
             List<Instruction[]> blks = new List<Instruction[]>();
@@ -108,7 +106,7 @@ namespace Confuser.Core.Confusions
                 blks.Add(GetInstructionsByLv(lv, Ids));
 
             bdy.Instructions.Clear();
-            CilWorker wkr = bdy.CilWorker;
+            ILProcessor wkr = bdy.GetILProcessor();
             Dictionary<Instruction, Instruction> HdrTbl = new Dictionary<Instruction, Instruction>();
             for (int i = 0; i < blks.Count; i++)
             {
@@ -148,18 +146,19 @@ namespace Confuser.Core.Confusions
             {
                 eh.TryEnd = eh.TryEnd.Next;
                 eh.HandlerEnd = eh.HandlerEnd.Next;
-                if ((eh.Type & ExceptionHandlerType.Filter) == ExceptionHandlerType.Filter)
+                if ((eh.HandlerType & ExceptionHandlerType.Filter) == ExceptionHandlerType.Filter)
                 {
                     eh.FilterEnd = eh.FilterEnd.Next;
                 }
             }
 
-            bdy.Optimize();
+            bdy.OptimizeMacros();
+            bdy.PreserveMaxStackSize = true;
 
             cr.Log("<method name='" + bdy.Method.ToString() + "'/>");
         }
 
-        private Dictionary<Instruction, Level> GetIds(ManagedMethodBody bdy)
+        private Dictionary<Instruction, Level> GetIds(MethodBody bdy)
         {
             SortedDictionary<int, Level> lvs = new SortedDictionary<int, Level>();
             int p = -1;
@@ -170,7 +169,7 @@ namespace Confuser.Core.Confusions
                 lvs.Add(eh.HandlerStart.Offset, new Level() { Handler = eh, Type = LevelType.HandlerStart });
                 lvs.Add(eh.HandlerEnd.Previous.Offset, new Level() { Handler = eh, Type = LevelType.HandlerEnd });
                 p = eh.HandlerEnd.Previous.Offset;
-                if ((eh.Type & ExceptionHandlerType.Filter) == ExceptionHandlerType.Filter)
+                if ((eh.HandlerType & ExceptionHandlerType.Filter) == ExceptionHandlerType.Filter)
                 {
                     lvs.Add(eh.FilterStart.Offset, new Level() { Handler = eh, Type = LevelType.FilterStart });
                     lvs.Add(eh.FilterEnd.Previous.Offset, new Level() { Handler = eh, Type = LevelType.FilterEnd });
@@ -185,7 +184,7 @@ namespace Confuser.Core.Confusions
             {
                 if (lvs[ks[i]].Handler != null)
                 {
-                    int oo = (lvs[ks[i]].Handler.Type & ExceptionHandlerType.Filter) == ExceptionHandlerType.Filter ? lvs[ks[i]].Handler.FilterEnd.Offset : lvs[ks[i]].Handler.HandlerEnd.Offset;
+                    int oo = (lvs[ks[i]].Handler.HandlerType & ExceptionHandlerType.Filter) == ExceptionHandlerType.Filter ? lvs[ks[i]].Handler.FilterEnd.Offset : lvs[ks[i]].Handler.HandlerEnd.Offset;
                     if ((lvs[ks[i]].Type.ToString() == "FilterEnd" ||
                         lvs[ks[i]].Type.ToString() == "HandlerEnd") &&
                         !lvs.ContainsKey(oo))
@@ -244,7 +243,7 @@ namespace Confuser.Core.Confusions
                     ret.Add(lv);
             return ret.ToArray();
         }
-        private void SetLvHandler(Level lv, ManagedMethodBody bdy, Instruction[][] blks)
+        private void SetLvHandler(Level lv, MethodBody bdy, Instruction[][] blks)
         {
             if (lv.Handler == null) return;
             switch (lv.Type)
@@ -311,10 +310,10 @@ namespace Confuser.Core.Confusions
                 ret.Add(blk.ToArray());
             return ret.ToArray();
         }
-        private void ProcessInstructions(ManagedMethodBody bdy, ref Instruction[][] blks)
+        private void ProcessInstructions(MethodBody bdy, ref Instruction[][] blks)
         {
             List<Instruction[]> ret = new List<Instruction[]>();
-            if (blks.Length != 1) ret.Add(new Instruction[] { bdy.CilWorker.Create(OpCodes.Br, blks[0][0]) });
+            if (blks.Length != 1) ret.Add(new Instruction[] { Instruction.Create(OpCodes.Br, blks[0][0]) });
             for (int i = 0; i < blks.Length; i++)
             {
                 Instruction[] blk = blks[i];
@@ -323,7 +322,7 @@ namespace Confuser.Core.Confusions
                         newBlk.Add(blk[ii]);
 
                 if (i + 1 < blks.Length)
-                    AddJump(bdy.CilWorker, newBlk, blks[i + 1][0]);
+                    AddJump(bdy.GetILProcessor(), newBlk, blks[i + 1][0]);
                 ret.Add(newBlk.ToArray());
             }
             blks = ret.ToArray();
@@ -358,7 +357,7 @@ namespace Confuser.Core.Confusions
             }
             insts = ret;
         }
-        private void AddJump(CilWorker wkr, List<Instruction> insts, Instruction target)
+        private void AddJump(ILProcessor wkr, List<Instruction> insts, Instruction target)
         {
             int i = rad.Next(0, 3);
             switch (i)

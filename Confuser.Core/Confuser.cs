@@ -6,7 +6,6 @@ using System.Threading;
 using System.IO;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-using Mono.Cecil.Binary;
 using Mono.Cecil.Metadata;
 
 namespace Confuser.Core
@@ -64,13 +63,13 @@ namespace Confuser.Core
                 ScreenLog("<start time='" + DateTime.Now.ToShortTimeString() + "'/>");
                 lv = 1;
 
-                AssemblyDefinition asm = AssemblyFactory.GetAssembly(src);
+                AssemblyDefinition asm = AssemblyDefinition.ReadAssembly(src, new ReaderParameters() { ReadingMode = ReadingMode.Immediate });
 
                 ScreenLog("<asmrefs>");
                 lv = 2;
                 foreach (AssemblyNameReference r in asm.MainModule.AssemblyReferences)
                 {
-                    asm.Resolver.Resolve(r);
+                    GlobalAssemblyResolver.Instance.Resolve(r);
                     ScreenLog("<asmref name='" + r.FullName + "'/>");
                 }
                 lv = 1;
@@ -78,10 +77,9 @@ namespace Confuser.Core
 
                 //global cctor which used in many confusion
                 MethodDefinition cctor = new MethodDefinition(".cctor", MethodAttributes.Private | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.RTSpecialName | MethodAttributes.Static, asm.MainModule.Import(typeof(void)));
-                (cctor.Body as ManagedMethodBody).CilWorker.Emit(OpCodes.Ret);
-                asm.MainModule.Types["<Module>"].Constructors.Add(cctor);
-
-                asm.MainModule.Image.DebugHeader = null;
+                cctor.Body = new MethodBody(cctor);
+                cctor.Body.GetILProcessor().Emit(OpCodes.Ret);
+                asm.MainModule.GetType("<Module>").Methods.Add(cctor);
 
                 ScreenLog("<init/>");
 
@@ -90,7 +88,7 @@ namespace Confuser.Core
                     c.ExecutePreConfusion(i as StructureConfusion, this, asm);
                 }
                 MarkAssembly(asm);
-                asm.MainModule.Types.RefreshTokens();
+                CecilHelper.RefreshTokens(asm.MainModule);
                 foreach (Confusion i in from i in c where (i is StructureConfusion) && ((i.Process & ProcessType.Real) == ProcessType.Real) orderby i.Priority ascending select i)
                 {
                     c.ExecuteConfusion(i as StructureConfusion, this, asm);
@@ -101,11 +99,29 @@ namespace Confuser.Core
                 }
 
                 MemoryStream final = new MemoryStream();
-                using (BinaryWriter wtr = new BinaryWriter(final))
+                MetadataProcessor psr = new MetadataProcessor();
+                psr.PreProcess += new MetadataProcessor.Do(delegate (MetadataProcessor.MetadataAccessor accessor)
                 {
-                    ConfusingWriter cWtr = new ConfusingWriter(asm, wtr, this);
-                    asm.Accept(cWtr);
-                }
+                    foreach (Confusion i in from i in c where (i is AdvancedConfusion) && ((i.Process & ProcessType.Pre) == ProcessType.Pre) orderby i.Priority ascending select i)
+                    {
+                        c.ExecutePreConfusion(i as AdvancedConfusion, this, accessor);
+                    }
+                });
+                psr.DoProcess += new MetadataProcessor.Do(delegate(MetadataProcessor.MetadataAccessor accessor)
+                {
+                    foreach (Confusion i in from i in c where (i is AdvancedConfusion) && ((i.Process & ProcessType.Real) == ProcessType.Real) orderby i.Priority ascending select i)
+                    {
+                        c.ExecuteConfusion(i as AdvancedConfusion, this, accessor);
+                    }
+                });
+                psr.PostProcess += new MetadataProcessor.Do(delegate(MetadataProcessor.MetadataAccessor accessor)
+                {
+                    foreach (Confusion i in from i in c where (i is AdvancedConfusion) && ((i.Process & ProcessType.Post) == ProcessType.Post) orderby i.Priority ascending select i)
+                    {
+                        c.ExecutePostConfusion(i as AdvancedConfusion, this, accessor);
+                    }
+                });
+                psr.Process(asm.MainModule, final);
 
                 if (cps)
                 {
@@ -138,49 +154,19 @@ namespace Confuser.Core
 
         void MarkAssembly(AssemblyDefinition asm)
         {
-            TypeDefinition att = new TypeDefinition("ConfusedByAttribute", "", TypeAttributes.Class | TypeAttributes.NotPublic, asm.MainModule.Import(typeof(Attribute)));
+            TypeDefinition att = new TypeDefinition("", "ConfusedByAttribute", TypeAttributes.Class | TypeAttributes.NotPublic, asm.MainModule.Import(typeof(Attribute)));
             MethodDefinition ctor = new MethodDefinition(".ctor", MethodAttributes.RTSpecialName | MethodAttributes.SpecialName | MethodAttributes.Public, asm.MainModule.Import(typeof(void)));
             ctor.Parameters.Add(new ParameterDefinition(asm.MainModule.Import(typeof(string))));
-            ManagedMethodBody bdy = ctor.Body as ManagedMethodBody;
-            bdy.CilWorker.Emit(OpCodes.Ldarg_0);
-            bdy.CilWorker.Emit(OpCodes.Call, asm.MainModule.Import(typeof(Attribute).GetConstructor(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance, null, Type.EmptyTypes, null)));
-            bdy.CilWorker.Emit(OpCodes.Ret);
-            att.Constructors.Add(ctor);
+            ILProcessor psr = (ctor.Body = new MethodBody(ctor)).GetILProcessor();
+            psr.Emit(OpCodes.Ldarg_0);
+            psr.Emit(OpCodes.Call, asm.MainModule.Import(typeof(Attribute).GetConstructor(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance, null, Type.EmptyTypes, null)));
+            psr.Emit(OpCodes.Ret);
+            att.Methods.Add(ctor);
             asm.MainModule.Types.Add(att);
 
             CustomAttribute ca = new CustomAttribute(ctor);
-            ca.ConstructorParameters.Add(string.Format("Confuser v" + typeof(Confuser).Assembly.GetName().Version.ToString()));
+            ca.ConstructorArguments.Add(new CustomAttributeArgument(asm.MainModule.Import(typeof(string)),string.Format("Confuser v" + typeof(Confuser).Assembly.GetName().Version.ToString())));
             asm.CustomAttributes.Add(ca);
         }
-    }
-
-    public class ConfusingWriter : AssemblyProcessor
-    {
-        public ConfusingWriter(AssemblyDefinition asm, BinaryWriter wtr, Confuser cr) : base(asm, wtr) { this.cr = cr; }
-        Confuser cr;
-        protected override void PreProcess()
-        {
-            foreach (Confusion i in from i in cr.Confusions where (i is AdvancedConfusion) && ((i.Process & ProcessType.Pre) == ProcessType.Pre) orderby i.Priority ascending select i)
-            {
-                cr.Confusions.ExecutePreConfusion(i as AdvancedConfusion, cr, this);
-            }
-        }
-        protected override void Process()
-        {
-            foreach (Confusion i in from i in cr.Confusions where (i is AdvancedConfusion) && ((i.Process & ProcessType.Real) == ProcessType.Real) orderby i.Priority ascending select i)
-            {
-                cr.Confusions.ExecuteConfusion(i as AdvancedConfusion, cr, this);
-            }
-        }
-        protected override void PostProcess()
-        {
-            foreach (Confusion i in from i in cr.Confusions where (i is AdvancedConfusion) && ((i.Process & ProcessType.Post) == ProcessType.Post) orderby i.Priority ascending select i)
-            {
-                cr.Confusions.ExecutePostConfusion(i as AdvancedConfusion, cr, this);
-            }
-        }
-
-        public Image Image { get { return base.Assembly.MainModule.Image; } }
-        public TablesHeap Tables { get { return base.Assembly.MainModule.Image.MetadataRoot.Streams.TablesHeap; } }
     }
 }

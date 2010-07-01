@@ -38,7 +38,7 @@ using RVA = System.UInt32;
 
 namespace Mono.Cecil.Metadata {
 
-	sealed class TableHeapBuffer : HeapBuffer {
+	public sealed class TableHeapBuffer : HeapBuffer {
 
 		readonly ModuleDefinition module;
 		readonly MetadataBuilder metadata;
@@ -54,7 +54,7 @@ namespace Mono.Cecil.Metadata {
 			get { return false; }
 		}
 
-		public TableHeapBuffer (ModuleDefinition module, MetadataBuilder metadata)
+		internal TableHeapBuffer (ModuleDefinition module, MetadataBuilder metadata)
 			: base (24)
 		{
 			this.module = module;
@@ -95,17 +95,17 @@ namespace Mono.Cecil.Metadata {
 				WriteUInt16 ((ushort) value);
 		}
 
-		public void WriteString (uint @string)
+        internal void WriteString(uint @string)
 		{
 			WriteBySize (@string, large_string);
 		}
 
-		public void WriteBlob (uint blob)
+        internal void WriteBlob(uint blob)
 		{
 			WriteBySize (blob, large_blob);
 		}
 
-		public void WriteRID (uint rid, Table table)
+		internal void WriteRID (uint rid, Table table)
 		{
 			var md_table = tables [(int) table];
 			WriteBySize (rid, md_table == null ? false : md_table.IsLarge);
@@ -121,12 +121,12 @@ namespace Mono.Cecil.Metadata {
 			return coded_index_sizes [index] = coded_index.GetSize (counter);
 		}
 
-		public void WriteCodedRID (uint rid, CodedIndex coded_index)
+        internal void WriteCodedRID(uint rid, CodedIndex coded_index)
 		{
 			WriteBySize (rid, GetCodedIndexSize (coded_index));
 		}
 
-		public void WriteTableHeap ()
+        internal void WriteTableHeap()
 		{
 			WriteUInt32 (0);					// Reserved
 			WriteByte (GetTableHeapVersion ());	// MajorVersion
@@ -140,7 +140,7 @@ namespace Mono.Cecil.Metadata {
 			WriteTables ();
 		}
 
-		void WriteRowCount ()
+		internal void WriteRowCount ()
 		{
 			for (int i = 0; i < tables.Length; i++) {
 				var table = tables [i];
@@ -151,7 +151,7 @@ namespace Mono.Cecil.Metadata {
 			}
 		}
 
-		void WriteTables ()
+		internal void WriteTables ()
 		{
 			for (int i = 0; i < tables.Length; i++) {
 				var table = tables [i];
@@ -206,7 +206,7 @@ namespace Mono.Cecil.Metadata {
 			}
 		}
 
-		public void FixupData (RVA data_rva)
+		internal void FixupData (RVA data_rva)
 		{
 			var table = GetTable<FieldRVATable> (Table.FieldRVA);
 			if (table.length == 0)
@@ -227,7 +227,7 @@ namespace Mono.Cecil.Metadata {
 		}
 	}
 
-	sealed class ResourceBuffer : ByteBuffer {
+	public sealed class ResourceBuffer : ByteBuffer {
 
 		public ResourceBuffer ()
 			: base (0)
@@ -243,7 +243,7 @@ namespace Mono.Cecil.Metadata {
 		}
 	}
 
-	sealed class DataBuffer : ByteBuffer {
+	public sealed class DataBuffer : ByteBuffer {
 
 		public DataBuffer ()
 			: base (0)
@@ -258,7 +258,7 @@ namespace Mono.Cecil.Metadata {
 		}
 	}
 
-	abstract class HeapBuffer : ByteBuffer {
+	public abstract class HeapBuffer : ByteBuffer {
 
 		public bool IsLarge {
 			get { return base.length > 65536; }
@@ -272,7 +272,7 @@ namespace Mono.Cecil.Metadata {
 		}
 	}
 
-	class StringHeapBuffer : HeapBuffer {
+	public class StringHeapBuffer : HeapBuffer {
 
 		readonly Dictionary<string, uint> strings = new Dictionary<string, uint> ();
 
@@ -305,7 +305,7 @@ namespace Mono.Cecil.Metadata {
 		}
 	}
 
-	sealed class BlobHeapBuffer : HeapBuffer {
+	public sealed class BlobHeapBuffer : HeapBuffer {
 
 		readonly Dictionary<ByteBuffer, uint> blobs = new Dictionary<ByteBuffer, uint> (new ByteBufferEqualityComparer ());
 
@@ -338,7 +338,7 @@ namespace Mono.Cecil.Metadata {
 		}
 	}
 
-	sealed class UserStringHeapBuffer : StringHeapBuffer {
+	public sealed class UserStringHeapBuffer : StringHeapBuffer {
 
 		protected override void WriteString (string @string)
 		{

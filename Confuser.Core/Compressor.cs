@@ -5,11 +5,11 @@ using System.Text;
 using Mono.Cecil;
 using System.IO;
 using System.IO.Compression;
-using Mono.Cecil.Cil;
-using Confuser.Core.Confusions;
 using System.Diagnostics;
 using System.Security;
 using System.Security.Permissions;
+using Mono.Cecil.Cil;
+using Mono.Cecil.Rocks;
 
 namespace Confuser.Core
 {
@@ -17,37 +17,30 @@ namespace Confuser.Core
     {
         public static void Compress(Confuser cr, byte[] asm, AssemblyDefinition o, string dst)
         {
-            if (o.Kind == AssemblyKind.Dll)
+            if (o.MainModule.Kind == ModuleKind.Dll)
             {
                 File.WriteAllBytes(dst, asm);
                 return;
             }
-            AssemblyDefinition ldr = AssemblyFactory.DefineAssembly("ConfusingLoader", "ConfusingLoader", o.Runtime, AssemblyKind.Windows);
-            ldr.MainModule.Image.ResourceDirectoryRoot = o.MainModule.Image.ResourceDirectoryRoot;
-            foreach (Mono.Cecil.Binary.Section sect in o.MainModule.Image.Sections)
-                if (sect.Name == ".rsrc")
-                {
-                    ldr.MainModule.Image.Sections.Add(sect);
-                    break;
-                }
+            AssemblyDefinition ldr = AssemblyDefinition.CreateAssembly(new AssemblyNameDefinition("ConfusingLoader_" + o.Name.Name, o.Name.Version), "ConfusingLoader", ModuleKind.Windows);
+            ldr.MainModule.CopyPEResourcesFrom(o.MainModule);
 
-            EmbeddedResource res = new EmbeddedResource(o.Name.Name, ManifestResourceAttributes.Public);
-            res.Data = Encrypt(asm);
+            EmbeddedResource res = new EmbeddedResource(o.Name.Name, ManifestResourceAttributes.Public, Encrypt(asm));
             ldr.MainModule.Resources.Add(res);
 
-            AssemblyDefinition ldrC = AssemblyFactory.GetAssembly(typeof(ConfusingLoader).Assembly.Location);
-            TypeDefinition t = ldr.MainModule.Inject(ldrC.MainModule.Types["Confuser.Core.Compressor/ConfusingLoader"]);
-            foreach (Instruction inst in (t.Methods.GetMethod("Main")[0].Body as ManagedMethodBody).Instructions)
+            AssemblyDefinition ldrC = AssemblyDefinition.ReadAssembly(typeof(ConfusingLoader).Assembly.Location);
+            TypeDefinition t = CecilHelper.Inject(ldr.MainModule, ldrC.MainModule.GetType("Confuser.Core.Compressor/ConfusingLoader"));
+            foreach (Instruction inst in t.Methods.FirstOrDefault(mtd => mtd.Name == "Main").Body.Instructions)
             {
                 if ((inst.Operand is MethodReference) && (inst.Operand as MethodReference).Name == "Decrypt")
-                    inst.Operand = t.Methods.GetMethod("Decrypt")[0];
+                    inst.Operand = t.Methods.FirstOrDefault(mtd => mtd.Name == "Decrypt");
                 else if ((inst.Operand is FieldReference) && (inst.Operand as FieldReference).Name == "Res")
-                    inst.Operand = t.Fields.GetField("Res");
+                    inst.Operand = t.Fields.FirstOrDefault(fld => fld.Name == "Res");
             }
-            foreach (Instruction inst in (t.Constructors[0].Body as ManagedMethodBody).Instructions)
+            foreach (Instruction inst in t.GetStaticConstructor().Body.Instructions)
             {
                 if ((inst.Operand is FieldReference) && (inst.Operand as FieldReference).Name == "Res")
-                    inst.Operand = t.Fields.GetField("Res");
+                    inst.Operand = t.Fields.FirstOrDefault(fld => fld.Name == "Res");
                 else if (inst.Operand is string)
                     inst.Operand = res.Name;
             }
@@ -55,19 +48,12 @@ namespace Confuser.Core
             t.DeclaringType = null;
             t.IsNestedPrivate = false;
             t.IsNotPublic = true;
-            ldr.EntryPoint = t.Methods.GetMethod("Main")[0];
+            ldr.MainModule.Types.Add(t);
+            ldr.EntryPoint = t.Methods.FirstOrDefault(mtd => mtd.Name == "Main");
 
-            string tmp = Path.GetTempFileName();
-            AssemblyFactory.SaveAssembly(ldr, tmp);
+            ldr.Write(dst);
 
             cr.ScreenLog("<compress/>");
-
-            Confuser ncr = new Confuser();
-            ncr.Confusions.Add(new AntiILDasmConfusion());
-            ncr.Confusions.Add(new MdStreamConfusion());
-            ncr.Confusions.Add(new StringConfusion());
-            ncr.Confusions.Add(new NameConfusion());
-            ncr.Confuse(tmp, dst);
         }
 
         static byte[] Encrypt(byte[] asm)
@@ -115,18 +101,17 @@ namespace Confuser.Core
                     asmDat = rdr.ReadBytes((int)str.Length);
                 }
                 asmDat = Decrypt(asmDat);
-                string tmp = Path.GetTempPath() + "\\" + Res + ".exe";
-                File.WriteAllBytes(tmp, asmDat);
-                File.SetAttributes(tmp, System.IO.FileAttributes.Temporary | System.IO.FileAttributes.Hidden);
-                string arg = "";
-                foreach (string i in args)
-                    arg += i + " ";
-                Process ps = Process.Start(tmp, arg);
-                ps.WaitForExit();
-                int ret = ps.ExitCode;
-                File.SetAttributes(tmp, System.IO.FileAttributes.Temporary | System.IO.FileAttributes.Hidden);
-                File.Delete(tmp);
-                return ret;
+                var asm = System.Reflection.Assembly.Load(asmDat);
+                object ret;
+                if (asm.EntryPoint.GetParameters().Length == 1)
+                    ret = asm.EntryPoint.Invoke(null, new object[] { args });
+                else
+                    ret = asm.EntryPoint.Invoke(null, null);
+                if (ret is int)
+                    return (int)ret;
+                else
+                    return 0;
+
             }
         }
 

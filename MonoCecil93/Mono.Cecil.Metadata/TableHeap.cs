@@ -31,7 +31,7 @@ using Mono.Cecil.PE;
 
 namespace Mono.Cecil.Metadata {
 
-	enum Table : byte {
+	public enum Table : byte {
 		Module = 0x00,
 		TypeRef = 0x01,
 		TypeDef = 0x02,

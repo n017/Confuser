@@ -1,9 +1,9 @@
 ﻿Structure Confusion:
-    Pre:  Add/Modify/Delete MetadataTokens(MethodDefinition,TypeDefinition,etc.)
-    Real: Add/Remove/Replace Cil Codes(Can using MetadataTokens)
-    Post: ??
+    Pre:  Add/Modify/Delete MetadataTokens & Do process without dependency or effect on MetadataTokens
+    Real: Populate Cil Codes(Can use MetadataTokens)
+    Post: Modify Cil Codes(Can use MetadataTokens)
 
 Advanced Confusion:
-    Pre:  Add/Delete/Modify PE Structure
-    Real: Add Metadata Structure
-    Post: Delete/Modify/Query Metadata Structure
+    Pre:  Add/Delete Metadata Table Structure
+    Real: Modify/Query Metadata Table Structure
+    Post: Modify Metadata Stream/Heap Structure

@@ -871,6 +871,14 @@ namespace Mono.Cecil {
 			ModuleWriter.WriteModuleTo (this, stream, parameters);
 		}
 
+        internal Section rsrc;
+        public void CopyPEResourcesFrom(ModuleDefinition mod)
+        {
+            foreach (Section sect in mod.Image.Sections)
+                if (sect.Name == ".rsrc")
+                    rsrc = sect;
+        }
+
 #endif
 
 	}

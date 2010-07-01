@@ -2,50 +2,32 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using Mono.Cecil.Binary;
-using Mono.Cecil.Metadata;
 using Mono.Cecil;
+using Mono.Cecil.Metadata;
 
 namespace Confuser.Core.Confusions
 {
     public class MultiRowConfusion : AdvancedConfusion
     {
-        public override void PreConfuse(Confuser cr, ConfusingWriter wtr)
+        public override void PreConfuse(Confuser cr, MetadataProcessor.MetadataAccessor accessor)
         {
-            throw new InvalidOperationException();
-        }
-
-        public override void DoConfuse(Confuser cr, ConfusingWriter wtr)
-        {
-            throw new InvalidOperationException();
-        }
-
-        public override void PostConfuse(Confuser cr, ConfusingWriter wtr)
-        {
-            ModuleTable modTbl = wtr.GetTable<ModuleTable>();
-            ModuleRow modRow = wtr.CreateRow<ModuleRow>();
-            modRow.EncBaseId = 0;
-            modRow.EncId = 0;
-            modRow.Generation = 0;
-            Guid g = Guid.NewGuid();
-            modRow.Mvid = wtr.AddGuid(g);
-            modRow.Name = wtr.AddString(g.ToString());
-            modTbl.Rows.Add(modRow);
+            accessor.TableHeap.GetTable<ModuleTable>(Table.Module).AddRow(accessor.StringHeap.GetStringIndex(Guid.NewGuid().ToString()));
             cr.Log("<mod/>");
 
-            AssemblyTable asmTbl = wtr.GetTable<AssemblyTable>();
-            AssemblyRow asmRow = wtr.CreateRow<AssemblyRow>();
-            asmRow.BuildNumber = 0;
-            asmRow.Culture = 0;
-            asmRow.Flags = AssemblyFlags.SideBySideCompatible;
-            asmRow.HashAlgId = AssemblyHashAlgorithm.None;
-            asmRow.MajorVersion = 0;
-            asmRow.MinorVersion = 0;
-            asmRow.Name = wtr.AddString(g.ToString());
-            asmRow.PublicKey = 0;
-            asmRow.RevisionNumber = 0;
-            asmTbl.Rows.Add(asmRow);
+            accessor.TableHeap.GetTable<AssemblyTable>(Table.Assembly).AddRow(new Row<AssemblyHashAlgorithm, ushort, ushort, ushort, ushort, AssemblyAttributes, uint, uint, uint>(
+                AssemblyHashAlgorithm.None, 0, 0, 0, 0, AssemblyAttributes.SideBySideCompatible, 0,
+                accessor.StringHeap.GetStringIndex(Guid.NewGuid().ToString()), 0));
             cr.Log("<asm/>");
+        }
+
+        public override void DoConfuse(Confuser cr, MetadataProcessor.MetadataAccessor accessor)
+        {
+            throw new InvalidOperationException();
+        }
+
+        public override void PostConfuse(Confuser cr, MetadataProcessor.MetadataAccessor accessor)
+        {
+            throw new InvalidOperationException();
         }
 
         public override Priority Priority
@@ -60,7 +42,7 @@ namespace Confuser.Core.Confusions
 
         public override ProcessType Process
         {
-            get { return ProcessType.Post; }
+            get { return ProcessType.Pre; }
         }
 
         public override bool StandardCompatible
