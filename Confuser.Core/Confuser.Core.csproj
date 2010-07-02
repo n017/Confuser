@@ -85,6 +85,19 @@
     <Compile Include="Confusions\AntiILDasmConfusion.cs" />
     <Compile Include="Confusions\StringConfusion.cs" />
     <Compile Include="Confusion.cs" />
+    <Compile Include="Poly\Expressions\AddExpression.cs" />
+    <Compile Include="Poly\Expressions\ConstantExpression.cs" />
+    <Compile Include="Poly\Expressions\NotExpression.cs" />
+    <Compile Include="Poly\Expressions\XorExpression.cs" />
+    <Compile Include="Poly\Expressions\MulExpression.cs" />
+    <Compile Include="Poly\Expressions\NegExpression.cs" />
+    <Compile Include="Poly\Expressions\SubExpression.cs" />
+    <Compile Include="Poly\Expression.cs" />
+    <Compile Include="Poly\ExpressionGenerator.cs" />
+    <Compile Include="Poly\ExpressionVisitor.cs" />
+    <Compile Include="Poly\Visitors\CecilVisitor.cs" />
+    <Compile Include="Poly\Visitors\ReflectionVisitor.cs" />
+    <Compile Include="Poly\Expressions\VariableExpression.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
