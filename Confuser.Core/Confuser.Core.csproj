@@ -78,6 +78,7 @@
     <Compile Include="Confusions\BindRevConfusion.cs" />
     <Compile Include="Confusions\ControlFlowConfusion.cs" />
     <Compile Include="Confusions\CtorProxyConfusion.cs" />
+    <Compile Include="Confusions\DecomConstConfusion.cs" />
     <Compile Include="Confusions\StackUnfConfusion.cs" />
     <Compile Include="Confusions\MultiRowConfusion.cs" />
     <Compile Include="Confusions\NameConfusion.cs" />
@@ -87,8 +88,7 @@
     <Compile Include="Confusion.cs" />
     <Compile Include="Poly\Expressions\AddExpression.cs" />
     <Compile Include="Poly\Expressions\ConstantExpression.cs" />
-    <Compile Include="Poly\Expressions\NotExpression.cs" />
-    <Compile Include="Poly\Expressions\XorExpression.cs" />
+    <Compile Include="Poly\Expressions\DivExpression.cs" />
     <Compile Include="Poly\Expressions\MulExpression.cs" />
     <Compile Include="Poly\Expressions\NegExpression.cs" />
     <Compile Include="Poly\Expressions\SubExpression.cs" />

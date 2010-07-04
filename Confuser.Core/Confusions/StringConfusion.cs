@@ -7,10 +7,11 @@ using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
 using System.Collections;
 using System.Security.Cryptography;
-using System.Reflection;
 using System.IO;
 using System.Diagnostics;
 using System.IO.Compression;
+using Confuser.Core.Poly;
+using Confuser.Core.Poly.Visitors;
 
 namespace Confuser.Core.Confusions
 {
@@ -45,20 +46,46 @@ namespace Confuser.Core.Confusions
             strer.Name = Encoding.UTF8.GetString(n);
             strer.IsAssembly = true;
 
+            int seed;
+            exp = ExpressionGenerator.Generate(5, out seed);
+            eval = new ReflectionVisitor(exp, false, false);
+            inver = new ReflectionVisitor(exp, true, false);
+
             key0 = (int)(rand.NextDouble() * int.MaxValue);
             key1 = (int)(rand.NextDouble() * int.MaxValue);
 
             rand.NextBytes(n);
 
-            foreach (Instruction inst in strer.Body.Instructions)
+            strer.Body.SimplifyMacros();
+            for (int t = 0; t < strer.Body.Instructions.Count; t++)
             {
+                Instruction inst = strer.Body.Instructions[t];
                 if ((inst.Operand as string) == "PADDINGPADDINGPADDING")
                     inst.Operand = Encoding.UTF8.GetString(n);
                 else if (inst.Operand is int && (int)inst.Operand == 12345678)
                     inst.Operand = key0;
                 else if (inst.Operand is int && (int)inst.Operand == 87654321)
                     inst.Operand = key1;
+                else if (inst.Operand is long && (long)inst.Operand == 6666666666666666)
+                {
+                    Instruction[] expInsts = new CecilVisitor(exp, true,
+                        new Instruction[]{
+                            Instruction.Create(OpCodes.Ldloc, strer.Body.Variables.FirstOrDefault(var => var.VariableType.FullName == "System.IO.BinaryReader")),
+                            Instruction.Create(OpCodes.Callvirt, asm.MainModule.Import(typeof(BinaryReader).GetMethod("ReadInt64")))
+                        }, false).GetInstructions();
+                    ILProcessor psr = strer.Body.GetILProcessor();
+                    psr.Replace(inst, expInsts[0]);
+                    for (int ii = 1; ii < expInsts.Length; ii++)
+                    {
+                        psr.InsertAfter(expInsts[ii - 1], expInsts[ii]);
+                        t++;
+                    }
+                    psr.InsertAfter(expInsts[expInsts.Length - 1], Instruction.Create(OpCodes.Conv_I8));
+                }
             }
+            strer.Body.OptimizeMacros();
+            strer.Body.ComputeOffsets();
+
             EmbeddedResource res = new EmbeddedResource(Encoding.UTF8.GetString(n), ManifestResourceAttributes.Private, (byte[])null);
             resId = asm.MainModule.Resources.Count;
             asm.MainModule.Resources.Add(res);
@@ -85,6 +112,9 @@ namespace Confuser.Core.Confusions
             asm.MainModule.Resources[resId] = new EmbeddedResource(asm.MainModule.Resources[resId].Name, ManifestResourceAttributes.Private, str.ToArray());
         }
 
+        Expression exp;
+        ReflectionVisitor eval;
+        ReflectionVisitor inver;
         List<byte[]> dats;
         int idx = 0;
         int resId;
@@ -113,10 +143,11 @@ namespace Confuser.Core.Confusions
                 {
                     string val = insts[i].Operand as string;
                     if (val == "") continue;
-                    byte[] dat = Encrypt(val, mtd.MetadataToken.ToUInt32());
 
                     int id = (int)((idx + key0) ^ mtd.MetadataToken.ToUInt32());
-                    int len = (int)~(dat.Length ^ key1);
+                    int len;
+                    byte[] dat = Encrypt(val, mtd.MetadataToken.ToUInt32(), eval, out len);
+                    len = (int)~(len ^ key1);
 
                     byte[] final = new byte[dat.Length + 4];
                     Buffer.BlockCopy(dat, 0, final, 4, dat.Length);
@@ -133,57 +164,75 @@ namespace Confuser.Core.Confusions
             bdy.OptimizeMacros();
         }
 
-        private static byte[] Encrypt(string str, uint mdToken)
+        private static byte[] Encrypt(string str, uint mdToken, ReflectionVisitor expEval, out int len)
         {
+            byte[] bs = Encoding.Unicode.GetBytes(str);
+            byte[] tmp = new byte[(bs.Length + 7) & ~7];
+            Buffer.BlockCopy(bs, 0, tmp, 0, bs.Length);
+            byte[] ret = new byte[(bs.Length + 7) & ~7];
+            len = bs.Length;
+
             Random rand = new Random((int)mdToken);
-            byte[] bs = Encoding.UTF8.GetBytes(str);
-
-            int key = 0;
-            for (int i = 0; i < bs.Length; i++)
+            for (int i = 0; i < tmp.Length; i += 8)
             {
-                bs[i] = (byte)(bs[i] ^ (rand.Next() & key));
-                key += bs[i];
+                long en = (long)expEval.Eval(BitConverter.ToInt64(tmp, i) ^ rand.Next());
+                Debug.WriteLine(BitConverter.ToInt64(tmp, i).ToString() + " => " + en);
+                Buffer.BlockCopy(BitConverter.GetBytes(en), 0, ret, i, 8);
             }
+            Debug.WriteLine("");
 
-            return bs;
+            return ret;
         }
-        private static string Decrypt(byte[] bytes, uint mdToken)
+        private static string Decrypt(byte[] bytes, uint mdToken, int len, ReflectionVisitor expEval)
         {
             Random rand = new Random((int)mdToken);
 
-            int key = 0;
-            for (int i = 0; i < bytes.Length; i++)
+            byte[] ret = new byte[(len + 7) & ~7];
+
+            using (BinaryReader rdr = new BinaryReader(new MemoryStream(bytes)))
             {
-                byte o = bytes[i];
-                bytes[i] = (byte)(bytes[i] ^ (rand.Next() & key));
-                key += o;
+                for (int i = 0; i < ret.Length; i += 8)
+                {
+                    long r = rdr.ReadInt64();
+                    long de = (long)expEval.Eval(r) ^ rand.Next();
+                    Debug.WriteLine(r.ToString() + " => " + de);
+                    Buffer.BlockCopy(BitConverter.GetBytes(de), 0, ret, i, 8);
+                }
             }
-            return Encoding.UTF8.GetString(bytes);
+            Debug.WriteLine("");
+
+            return Encoding.Unicode.GetString(ret, 0, len);
         }
         private static string Injection(int id)
         {
-            Assembly asm = Assembly.GetCallingAssembly();
-            Stream str = asm.GetManifestResourceStream("PADDINGPADDINGPADDING");
-            int mdTkn = new StackFrame(1).GetMethod().MetadataToken;
-            using (BinaryReader rdr = new BinaryReader(new DeflateStream(str, CompressionMode.Decompress)))
+            Dictionary<int, string> hashTbl;
+            if ((hashTbl = AppDomain.CurrentDomain.GetData("PADDINGPADDINGPADDING") as Dictionary<int, string>) == null)
+                AppDomain.CurrentDomain.SetData("PADDINGPADDINGPADDING", hashTbl = new Dictionary<int, string>());
+            string ret;
+            if (!hashTbl.TryGetValue(id, out ret))
             {
-                rdr.ReadBytes((mdTkn ^ id) - 12345678);
-                int len = (int)((~rdr.ReadUInt32()) ^ 87654321);
-                byte[] b = rdr.ReadBytes(len);
-
-                ///////////////////
-                Random rand = new Random((int)mdTkn);
-
-                int key = 0;
-                for (int i = 0; i < b.Length; i++)
+                System.Reflection.Assembly asm = System.Reflection.Assembly.GetCallingAssembly();
+                Stream str = asm.GetManifestResourceStream("PADDINGPADDINGPADDING");
+                int mdTkn = new StackFrame(1).GetMethod().MetadataToken;
+                using (BinaryReader rdr = new BinaryReader(new DeflateStream(str, CompressionMode.Decompress)))
                 {
-                    byte o = b[i];
-                    b[i] = (byte)(b[i] ^ (rand.Next() & key));
-                    key += o;
+                    rdr.ReadBytes((mdTkn ^ id) - 12345678);
+                    int len = (int)((~rdr.ReadUInt32()) ^ 87654321);
+
+                    ///////////////////
+                    Random rand = new Random((int)mdTkn);
+
+                    byte[] f = new byte[(len + 7) & ~7];
+
+                    for (int i = 0; i < f.Length; i += 8)
+                        Buffer.BlockCopy(BitConverter.GetBytes(6666666666666666 ^ rand.Next()), 0, f, i, 8);
+
+
+                    hashTbl[id] = (ret = Encoding.Unicode.GetString(f, 0, len));
+                    ///////////////////
                 }
-                return Encoding.UTF8.GetString(b);
-                ///////////////////
             }
+            return ret;
         }
 
         public override bool StandardCompatible

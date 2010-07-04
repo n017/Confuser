@@ -19,7 +19,7 @@ namespace Confuser.Core.Poly
                 return exp;
         }
 
-        public static Expression Generate(int lv, ref int seed)
+        public static Expression Generate(int lv, out int seed)
         {
             Expression exp;
             Random rand = new Random();
@@ -44,14 +44,16 @@ namespace Confuser.Core.Poly
                 }
                 else
                 {
-                    ret = new ConstantExpression() { Value = rand.Next(-10, 10) };
+                    ret = new ConstantExpression();
+                    while ((ret as ConstantExpression).Value == 0)
+                        (ret as ConstantExpression).Value = rand.Next(-10, 10);
                 }
             }
             else
             {
-                int a = rand.NextDouble() > 0.25 ? lv - 1 : 0;
-                int b = rand.NextDouble() > 0.25 ? lv - 1 : 0;
-                switch (rand.Next(0, 6))
+                int a = rand.NextDouble() > 0.15 ? lv - 1 : 0;
+                int b = rand.NextDouble() > 0.15 ? lv - 1 : 0;
+                switch (rand.Next(0, 4))
                 {
                     case 0:
                         ret = new AddExpression();
@@ -72,15 +74,11 @@ namespace Confuser.Core.Poly
                         ret = new NegExpression();
                         (ret as NegExpression).Value = Generate(ret, a, ref hasVar, rand);
                         break;
-                    case 4:
-                        ret = new XorExpression();
-                        (ret as XorExpression).OperandA = Generate(ret, a, ref hasVar, rand);
-                        (ret as XorExpression).OperandB = Generate(ret, b, ref hasVar, rand);
-                        break;
-                    case 5:
-                        ret = new NotExpression();
-                        (ret as NotExpression).Value = Generate(ret, a, ref hasVar, rand);
-                        break;
+                    //case 4:
+                    //    ret = new DivExpression();
+                    //    (ret as DivExpression).OperandA = Generate(ret, a, ref hasVar, rand);
+                    //    (ret as DivExpression).OperandB = Generate(ret, b, ref hasVar, rand);
+                    //    break;
                 }
             }
             ret.Parent = par;

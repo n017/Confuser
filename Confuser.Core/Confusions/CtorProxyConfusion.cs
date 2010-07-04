@@ -123,7 +123,7 @@ namespace Confuser.Core.Confusions
             txt.inst = Inst;
             txt.bdy = Bdy;
             txt.mtdRef = MtdRef;
-            if (Mod.GetType(GetSignatureO(MtdRef)) == null)
+            if ((txt.dele = Mod.GetType(GetSignatureO(MtdRef))) == null)
             {
                 txt.dele = new TypeDefinition("", GetSignatureO(MtdRef), TypeAttributes.NotPublic | TypeAttributes.Sealed, mcd);
                 Mod.Types.Add(txt.dele);
@@ -154,10 +154,6 @@ namespace Confuser.Core.Confusions
 
                 cr.Log("<delegate sig='" + GetSignature(MtdRef) + "'/>");
             }
-            else
-            {
-                txt.dele = Mod.GetType(GetSignatureO(MtdRef));
-            }
             txts.Add(txt);
         }
         private void CreateFieldBridges(Confuser cr, ModuleDefinition Mod)
@@ -172,7 +168,7 @@ namespace Confuser.Core.Confusions
                 }
                 ////////////////Bridge
                 MethodDefinition bdge;
-                if (Mod.GetType("<Module>").Methods.FirstOrDefault(mtd => mtd.Name == GetNameO(txt.mtdRef)) == null)
+                if ((bdge = Mod.GetType("<Module>").Methods.FirstOrDefault(mtd => mtd.Name == GetNameO(txt.mtdRef))) == null)
                 {
                     bdge = new MethodDefinition(GetNameO(txt.mtdRef), MethodAttributes.Static | MethodAttributes.Assem, txt.mtdRef.DeclaringType);
                     for (int i = 0; i < txt.mtdRef.Parameters.Count; i++)
@@ -190,10 +186,6 @@ namespace Confuser.Core.Confusions
                         wkr.Emit(OpCodes.Ret);
                     }
                     Mod.GetType("<Module>").Methods.Add(bdge);
-                }
-                else
-                {
-                    bdge = Mod.GetType("<Module>").Methods.FirstOrDefault(mtd => mtd.Name == GetNameO(txt.mtdRef));
                 }
 
                 ////////////////Replace

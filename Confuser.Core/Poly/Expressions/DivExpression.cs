@@ -5,7 +5,7 @@ using System.Text;
 
 namespace Confuser.Core.Poly.Expressions
 {
-    public class XorExpression : Expression
+    public class DivExpression : Expression
     {
         Expression a;
         public Expression OperandA { get { return a; } set { a = value; } }
@@ -45,7 +45,7 @@ namespace Confuser.Core.Poly.Expressions
 
         public override string ToString()
         {
-            return string.Format("({0}^{1})", a, b);
+            return string.Format("({0}/{1})", a, b);
         }
     }
 }

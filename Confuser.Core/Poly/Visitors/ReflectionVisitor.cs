@@ -11,10 +11,15 @@ namespace Confuser.Core.Poly.Visitors
     {
         DynamicMethod dm;
         ILGenerator gen;
-        public ReflectionVisitor(Expression exp, bool isReverse)
+        bool useDouble;
+        public ReflectionVisitor(Expression exp, bool isReverse, bool useDouble)
         {
-            dm = new DynamicMethod("", typeof(int), new Type[] { typeof(int) });
+            if (useDouble)
+                dm = new DynamicMethod("", typeof(double), new Type[] { typeof(double) });
+            else
+                dm = new DynamicMethod("", typeof(long), new Type[] { typeof(long) });
             gen = dm.GetILGenerator();
+            this.useDouble = useDouble;
             if (isReverse)
                 exp.GetVariableExpression().VisitReverse(this, null);
             else
@@ -22,9 +27,12 @@ namespace Confuser.Core.Poly.Visitors
             gen.Emit(OpCodes.Ret);
         }
 
-        public int Eval(int var)
+        public object Eval(object var)
         {
-            return (int)dm.Invoke(null, new object[] { var });
+            if (useDouble)
+                return (double)dm.Invoke(null, new object[] { (double)var });
+            else
+                return (long)dm.Invoke(null, new object[] { (long)var });
         }
 
         public override void Visit(Expression exp)
@@ -32,7 +40,10 @@ namespace Confuser.Core.Poly.Visitors
             if (exp is ConstantExpression)
             {
                 ConstantExpression tExp = exp as ConstantExpression;
-                gen.Emit(OpCodes.Ldc_I4, tExp.Value);
+                if (useDouble)
+                    gen.Emit(OpCodes.Ldc_R8, tExp.Value);
+                else
+                    gen.Emit(OpCodes.Ldc_I8, (long)tExp.Value);
             }
             else if (exp is VariableExpression)
             {
@@ -54,13 +65,9 @@ namespace Confuser.Core.Poly.Visitors
             {
                 gen.Emit(OpCodes.Neg);
             }
-            else if (exp is XorExpression)
+            else if (exp is DivExpression)
             {
-                gen.Emit(OpCodes.Xor);
-            }
-            else if (exp is NotExpression)
-            {
-                gen.Emit(OpCodes.Not);
+                gen.Emit(OpCodes.Div);
             }
         }
 
@@ -69,7 +76,10 @@ namespace Confuser.Core.Poly.Visitors
             if (exp is ConstantExpression)
             {
                 ConstantExpression tExp = exp as ConstantExpression;
-                gen.Emit(OpCodes.Ldc_I4, tExp.Value);
+                if (useDouble)
+                    gen.Emit(OpCodes.Ldc_R8, tExp.Value);
+                else
+                    gen.Emit(OpCodes.Ldc_I8, (long)tExp.Value);
             }
             else if (exp is VariableExpression)
             {
@@ -91,13 +101,9 @@ namespace Confuser.Core.Poly.Visitors
             {
                 gen.Emit(OpCodes.Neg);
             }
-            else if (exp is XorExpression)
+            else if (exp is DivExpression)
             {
-                gen.Emit(OpCodes.Xor);
-            }
-            else if (exp is NotExpression)
-            {
-                gen.Emit(OpCodes.Not);
+                gen.Emit(OpCodes.Mul);
             }
         }
     }

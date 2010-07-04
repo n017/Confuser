@@ -7,8 +7,8 @@ namespace Confuser.Core.Poly.Expressions
 {
     public class ConstantExpression : Expression
     {
-        int val;
-        public int Value { get { return val; } set { val = value; } }
+        double val;
+        public double Value { get { return val; } set { val = value; } }
 
         public override Expression GetVariableExpression()
         {

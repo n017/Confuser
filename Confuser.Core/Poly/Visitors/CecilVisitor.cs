@@ -10,15 +10,19 @@ namespace Confuser.Core.Poly.Visitors
     public class CecilVisitor : ExpressionVisitor
     {
         List<Instruction> insts = new List<Instruction>();
-        public CecilVisitor(Expression exp, bool isReverse)
+        Instruction[] arg;
+        bool useDouble;
+        public CecilVisitor(Expression exp, bool isReverse, Instruction[] arg, bool useDouble)
         {
+            this.arg = arg;
+            this.useDouble = useDouble;
             if (isReverse)
                 exp.GetVariableExpression().VisitReverse(this, null);
             else
                 exp.Visit(this);
         }
 
-        public Instruction[] GetInstructions(int var)
+        public Instruction[] GetInstructions()
         {
             return insts.ToArray();
         }
@@ -28,11 +32,14 @@ namespace Confuser.Core.Poly.Visitors
             if (exp is ConstantExpression)
             {
                 ConstantExpression tExp = exp as ConstantExpression;
-                insts.Add(Instruction.Create(OpCodes.Ldc_I4, tExp.Value));
+                if (useDouble)
+                    insts.Add(Instruction.Create(OpCodes.Ldc_R8, tExp.Value));
+                else
+                    insts.Add(Instruction.Create(OpCodes.Ldc_I8, (long)tExp.Value));
             }
             else if (exp is VariableExpression)
             {
-                insts.Add(Instruction.Create(OpCodes.Ldarg_0));
+                insts.AddRange(arg);
             }
             else if (exp is AddExpression)
             {
@@ -50,13 +57,9 @@ namespace Confuser.Core.Poly.Visitors
             {
                 insts.Add(Instruction.Create(OpCodes.Neg));
             }
-            else if (exp is XorExpression)
+            else if (exp is DivExpression)
             {
-                insts.Add(Instruction.Create(OpCodes.Xor));
-            }
-            else if (exp is NotExpression)
-            {
-                insts.Add(Instruction.Create(OpCodes.Not));
+                insts.Add(Instruction.Create(OpCodes.Div));
             }
         }
 
@@ -65,11 +68,14 @@ namespace Confuser.Core.Poly.Visitors
             if (exp is ConstantExpression)
             {
                 ConstantExpression tExp = exp as ConstantExpression;
-                insts.Add(Instruction.Create(OpCodes.Ldc_I4, tExp.Value));
+                if (useDouble)
+                    insts.Add(Instruction.Create(OpCodes.Ldc_R8, tExp.Value));
+                else
+                    insts.Add(Instruction.Create(OpCodes.Ldc_I8, (long)tExp.Value));
             }
             else if (exp is VariableExpression)
             {
-                insts.Add(Instruction.Create(OpCodes.Ldarg_0));
+                insts.AddRange(arg);
             }
             else if (exp is AddExpression)
             {
@@ -87,13 +93,9 @@ namespace Confuser.Core.Poly.Visitors
             {
                 insts.Add(Instruction.Create(OpCodes.Neg));
             }
-            else if (exp is XorExpression)
+            else if (exp is DivExpression)
             {
-                insts.Add(Instruction.Create(OpCodes.Xor));
-            }
-            else if (exp is NotExpression)
-            {
-                insts.Add(Instruction.Create(OpCodes.Not));
+                insts.Add(Instruction.Create(OpCodes.Mul));
             }
         }
     }

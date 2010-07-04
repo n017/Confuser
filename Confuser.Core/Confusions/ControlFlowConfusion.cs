@@ -12,7 +12,7 @@ namespace Confuser.Core.Confusions
     {
         public override Priority Priority
         {
-            get { return Priority.CodeLevel; }
+            get { return Priority.MethodLevel; }
         }
         public override string Name
         {
@@ -292,7 +292,7 @@ namespace Confuser.Core.Confusions
             for (int i = 0; i < insts.Length; i++)
             {
                 blk.Add(insts[i]);
-                if ((rad.Next() > rad.Next() ||
+                if ((rad.NextDouble() > 0.5 ||
                     insts[i].OpCode.Name.StartsWith("new") ||
                     insts[i].OpCode.Name == "pop" ||
                     insts[i].OpCode.Name.StartsWith("ldloc")) &&

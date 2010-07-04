@@ -43,7 +43,7 @@ namespace Mono.Cecil.Cil {
 		internal bool init_locals;
 		internal MetadataToken local_var_token;
 
-		internal Collection<Instruction> instructions;
+		internal InstructionCollection instructions;
 		internal Collection<ExceptionHandler> exceptions;
 		internal Collection<VariableDefinition> variables;
 		Scope scope;
@@ -142,6 +142,11 @@ namespace Mono.Cecil.Cil {
         {
             CodeWriter.ComputeHeader(this);
         }
+
+        public void ComputeOffsets()
+        {
+            instructions.ComputeOffsets();
+        }
 	}
 
 	public interface IVariableDefinitionProvider {
@@ -208,8 +213,6 @@ namespace Mono.Cecil.Cil {
 			var previous = items [index - 1];
 			previous.next = item;
 			item.previous = previous;
-
-            RecalculateOffsets();
 		}
 
 		protected override void OnInsert (Instruction item, int index)
@@ -233,8 +236,6 @@ namespace Mono.Cecil.Cil {
 
 			current.previous = item;
 			item.next = current;
-
-            RecalculateOffsets();
 		}
 
 		protected override void OnSet (Instruction item, int index)
@@ -246,8 +247,6 @@ namespace Mono.Cecil.Cil {
 
 			current.previous = null;
             current.next = null;
-
-            RecalculateOffsets();
 		}
 
 		protected override void OnRemove (Instruction item, int index)
@@ -262,12 +261,10 @@ namespace Mono.Cecil.Cil {
 
 			item.previous = null;
 			item.next = null;
-
-            RecalculateOffsets();
 		}
 
 
-        internal void RecalculateOffsets()
+        internal void ComputeOffsets()
         {
             if (!initing)
             {
