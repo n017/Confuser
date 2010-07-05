@@ -1,7 +1,5 @@
 Microsoft Visual Studio Solution File, Format Version 10.00
 # Visual Studio 2008
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Confuser", "Confuser\Confuser.csproj", "{680CB8F6-E3B8-443C-B61B-590361EA6E3D}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Confuser.Core", "Confuser.Core\Confuser.Core.csproj", "{FAD246BD-65C2-4379-8B1F-59C1BA71B8E9}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mono.Cecil", "MonoCecil93\Mono.Cecil.csproj", "{D68133BD-1E63-496E-9EDE-4FBDBF77B486}"
@@ -10,22 +8,19 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mono.Cecil.Rocks", "MonoCec
 EndProject
 Global
 	GlobalSection(TeamFoundationVersionControl) = preSolution
-		SccNumberOfProjects = 5
+		SccNumberOfProjects = 4
 		SccEnterpriseProvider = {4CA58AB2-18FA-4F8D-95D4-32DDF27D184C}
 		SccTeamFoundationServer = https://tfs09.codeplex.com/
 		SccLocalPath0 = .
-		SccProjectUniqueName1 = Confuser\\Confuser.csproj
-		SccProjectName1 = Confuser
-		SccLocalPath1 = Confuser
-		SccProjectUniqueName2 = Confuser.Core\\Confuser.Core.csproj
-		SccProjectName2 = Confuser.Core
-		SccLocalPath2 = Confuser.Core
-		SccProjectUniqueName3 = MonoCecil93\\Mono.Cecil.csproj
-		SccProjectName3 = MonoCecil93
-		SccLocalPath3 = MonoCecil93
-		SccProjectUniqueName4 = MonoCecil93\\rocks\\Mono.Cecil.Rocks.csproj
-		SccProjectName4 = MonoCecil93/rocks
-		SccLocalPath4 = MonoCecil93\\rocks
+		SccProjectUniqueName1 = Confuser.Core\\Confuser.Core.csproj
+		SccProjectName1 = Confuser.Core
+		SccLocalPath1 = Confuser.Core
+		SccProjectUniqueName2 = MonoCecil93\\Mono.Cecil.csproj
+		SccProjectName2 = MonoCecil93
+		SccLocalPath2 = MonoCecil93
+		SccProjectUniqueName3 = MonoCecil93\\rocks\\Mono.Cecil.Rocks.csproj
+		SccProjectName3 = MonoCecil93/rocks
+		SccLocalPath3 = MonoCecil93\\rocks
 	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug - No System.dll|Any CPU = Debug - No System.dll|Any CPU
@@ -33,12 +28,6 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{680CB8F6-E3B8-443C-B61B-590361EA6E3D}.Debug - No System.dll|Any CPU.ActiveCfg = Debug|Any CPU
-		{680CB8F6-E3B8-443C-B61B-590361EA6E3D}.Debug - No System.dll|Any CPU.Build.0 = Debug|Any CPU
-		{680CB8F6-E3B8-443C-B61B-590361EA6E3D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{680CB8F6-E3B8-443C-B61B-590361EA6E3D}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{680CB8F6-E3B8-443C-B61B-590361EA6E3D}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{680CB8F6-E3B8-443C-B61B-590361EA6E3D}.Release|Any CPU.Build.0 = Release|Any CPU
 		{FAD246BD-65C2-4379-8B1F-59C1BA71B8E9}.Debug - No System.dll|Any CPU.ActiveCfg = Debug|Any CPU
 		{FAD246BD-65C2-4379-8B1F-59C1BA71B8E9}.Debug - No System.dll|Any CPU.Build.0 = Debug|Any CPU
 		{FAD246BD-65C2-4379-8B1F-59C1BA71B8E9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
