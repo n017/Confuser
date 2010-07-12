@@ -10,18 +10,8 @@ using Confuser.Core.Poly.Visitors;
 
 namespace Confuser.Core.Confusions
 {
-    public class DecomConstConfusion : StructureConfusion
+    public class DisConstConfusion : StructureConfusion
     {
-        public override void PreConfuse(Confuser cr, AssemblyDefinition asm)
-        {
-            throw new InvalidOperationException();
-        }
-
-        public override void DoConfuse(Confuser cr, AssemblyDefinition asm)
-        {
-            throw new InvalidOperationException();
-        }
-
         public override Priority Priority
         {
             get { return Priority.CodeLevel; }
@@ -29,12 +19,12 @@ namespace Confuser.Core.Confusions
 
         public override string Name
         {
-            get { return "Constant Decomposition Confusion"; }
+            get { return "Constant Disintegration Confusion"; }
         }
 
-        public override ProcessType Process
+        public override Phases Phases
         {
-            get { return ProcessType.Post; }
+            get { return Phases.Phase3; }
         }
 
         public override bool StandardCompatible
@@ -44,19 +34,13 @@ namespace Confuser.Core.Confusions
 
 
 
-        public override void PostConfuse(Confuser cr, AssemblyDefinition asm)
+        public override void Confuse(int phase, Confuser cr, AssemblyDefinition asm, IMemberDefinition[] defs)
         {
-            foreach (TypeDefinition t in asm.MainModule.GetAllTypes())
-                ProcessMethods(cr, t);
+            if (phase != 3) throw new InvalidOperationException();
+            foreach (MethodDefinition mtd in defs)
+                ProcessMethod(cr, mtd);
         }
 
-        private void ProcessMethods(Confuser cr, TypeDefinition def)
-        {
-            foreach (MethodDefinition mtd in def.Methods)
-            {
-                ProcessMethod(cr, mtd);
-            }
-        }
         private void ProcessMethod(Confuser cr, MethodDefinition mtd)
         {
             if (!mtd.HasBody) return;
@@ -109,6 +93,17 @@ namespace Confuser.Core.Confusions
                     }
                 }
             }
+        }
+
+        public override string Description
+        {
+            get { return @"This confusion disintegrate the constants in the code into expression.
+***This confusion could affect the performance if your application uses constant frequently***"; }
+        }
+
+        public override Target Target
+        {
+            get { return Target.Methods; }
         }
     }
 }

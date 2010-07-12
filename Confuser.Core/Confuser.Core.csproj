@@ -75,10 +75,10 @@
     <Compile Include="Compressor.cs" />
     <Compile Include="Confuser.cs" />
     <Compile Include="Confusions\AntiCFFConfusion.cs" />
-    <Compile Include="Confusions\BindRevConfusion.cs" />
+    <Compile Include="Confusions\MdReduceConfusion.cs" />
     <Compile Include="Confusions\ControlFlowConfusion.cs" />
     <Compile Include="Confusions\CtorProxyConfusion.cs" />
-    <Compile Include="Confusions\DecomConstConfusion.cs" />
+    <Compile Include="Confusions\DisConstConfusion.cs" />
     <Compile Include="Confusions\StackUnfConfusion.cs" />
     <Compile Include="Confusions\MultiRowConfusion.cs" />
     <Compile Include="Confusions\NameConfusion.cs" />

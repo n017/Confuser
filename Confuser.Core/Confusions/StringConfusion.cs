@@ -25,91 +25,90 @@ namespace Confuser.Core.Confusions
         {
             get { return Priority.CodeLevel; }
         }
-        public override ProcessType Process
+        public override Phases Phases
         {
-            get { return ProcessType.Pre | ProcessType.Post; }
+            get { return Phases.Phase1 | Phases.Phase3; }
         }
 
-        public override void PreConfuse(Confuser cr, AssemblyDefinition asm)
+        public override void Confuse(int phase, Confuser cr, AssemblyDefinition asm, IMemberDefinition[] defs)
         {
-            dats = new List<byte[]>();
-            idx = 0;
-
-            Random rand = new Random();
-            TypeDefinition mod = asm.MainModule.GetType("<Module>");
-
-            AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(StringConfusion).Assembly.Location);
-            strer = i.MainModule.GetType("Confuser.Core.Confusions.StringConfusion").Methods.FirstOrDefault(mtd => mtd.Name == "Injection");
-            strer = CecilHelper.Inject(asm.MainModule, strer);
-            mod.Methods.Add(strer);
-            byte[] n = new byte[0x10]; rand.NextBytes(n);
-            strer.Name = Encoding.UTF8.GetString(n);
-            strer.IsAssembly = true;
-
-            int seed;
-            exp = ExpressionGenerator.Generate(5, out seed);
-            eval = new ReflectionVisitor(exp, false, false);
-            inver = new ReflectionVisitor(exp, true, false);
-
-            key0 = (int)(rand.NextDouble() * int.MaxValue);
-            key1 = (int)(rand.NextDouble() * int.MaxValue);
-
-            rand.NextBytes(n);
-
-            strer.Body.SimplifyMacros();
-            for (int t = 0; t < strer.Body.Instructions.Count; t++)
+            switch (phase)
             {
-                Instruction inst = strer.Body.Instructions[t];
-                if ((inst.Operand as string) == "PADDINGPADDINGPADDING")
-                    inst.Operand = Encoding.UTF8.GetString(n);
-                else if (inst.Operand is int && (int)inst.Operand == 12345678)
-                    inst.Operand = key0;
-                else if (inst.Operand is int && (int)inst.Operand == 87654321)
-                    inst.Operand = key1;
-                else if (inst.Operand is long && (long)inst.Operand == 6666666666666666)
-                {
-                    Instruction[] expInsts = new CecilVisitor(exp, true,
-                        new Instruction[]{
-                            Instruction.Create(OpCodes.Ldloc, strer.Body.Variables.FirstOrDefault(var => var.VariableType.FullName == "System.IO.BinaryReader")),
-                            Instruction.Create(OpCodes.Callvirt, asm.MainModule.Import(typeof(BinaryReader).GetMethod("ReadInt64")))
-                        }, false).GetInstructions();
-                    ILProcessor psr = strer.Body.GetILProcessor();
-                    psr.Replace(inst, expInsts[0]);
-                    for (int ii = 1; ii < expInsts.Length; ii++)
+                case 1:
+                    dats = new List<byte[]>();
+                    idx = 0;
+
+                    Random rand = new Random();
+                    TypeDefinition mod = asm.MainModule.GetType("<Module>");
+
+                    AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(StringConfusion).Assembly.Location);
+                    strer = i.MainModule.GetType("Confuser.Core.Confusions.StringConfusion").Methods.FirstOrDefault(mtd => mtd.Name == "Injection");
+                    strer = CecilHelper.Inject(asm.MainModule, strer);
+                    mod.Methods.Add(strer);
+                    byte[] n = new byte[0x10]; rand.NextBytes(n);
+                    strer.Name = Encoding.UTF8.GetString(n);
+                    strer.IsAssembly = true;
+
+                    int seed;
+                    exp = ExpressionGenerator.Generate(5, out seed);
+                    eval = new ReflectionVisitor(exp, false, false);
+                    inver = new ReflectionVisitor(exp, true, false);
+
+                    key0 = (int)(rand.NextDouble() * int.MaxValue);
+                    key1 = (int)(rand.NextDouble() * int.MaxValue);
+
+                    rand.NextBytes(n);
+
+                    strer.Body.SimplifyMacros();
+                    for (int t = 0; t < strer.Body.Instructions.Count; t++)
                     {
-                        psr.InsertAfter(expInsts[ii - 1], expInsts[ii]);
-                        t++;
+                        Instruction inst = strer.Body.Instructions[t];
+                        if ((inst.Operand as string) == "PADDINGPADDINGPADDING")
+                            inst.Operand = Encoding.UTF8.GetString(n);
+                        else if (inst.Operand is int && (int)inst.Operand == 12345678)
+                            inst.Operand = key0;
+                        else if (inst.Operand is int && (int)inst.Operand == 87654321)
+                            inst.Operand = key1;
+                        else if (inst.Operand is long && (long)inst.Operand == 6666666666666666)
+                        {
+                            Instruction[] expInsts = new CecilVisitor(exp, true,
+                                new Instruction[]{
+                                Instruction.Create(OpCodes.Ldloc, strer.Body.Variables.FirstOrDefault(var => var.VariableType.FullName == "System.IO.BinaryReader")),
+                                Instruction.Create(OpCodes.Callvirt, asm.MainModule.Import(typeof(BinaryReader).GetMethod("ReadInt64")))
+                                 }, false).GetInstructions();
+                            ILProcessor psr = strer.Body.GetILProcessor();
+                            psr.Replace(inst, expInsts[0]);
+                            for (int ii = 1; ii < expInsts.Length; ii++)
+                            {
+                                psr.InsertAfter(expInsts[ii - 1], expInsts[ii]);
+                                t++;
+                            }
+                            psr.InsertAfter(expInsts[expInsts.Length - 1], Instruction.Create(OpCodes.Conv_I8));
+                        }
                     }
-                    psr.InsertAfter(expInsts[expInsts.Length - 1], Instruction.Create(OpCodes.Conv_I8));
-                }
+                    strer.Body.OptimizeMacros();
+                    strer.Body.ComputeOffsets();
+
+                    EmbeddedResource res = new EmbeddedResource(Encoding.UTF8.GetString(n), ManifestResourceAttributes.Private, (byte[])null);
+                    resId = asm.MainModule.Resources.Count;
+                    asm.MainModule.Resources.Add(res);
+                    break;
+                case 3:
+                    foreach (MethodDefinition mtd in defs)
+                    {
+                        ProcessMethod(cr, mtd);
+                    }
+
+                    MemoryStream str = new MemoryStream();
+                    using (BinaryWriter wtr = new BinaryWriter(new DeflateStream(str, CompressionMode.Compress)))
+                    {
+                        foreach (byte[] b in dats)
+                            wtr.Write(b);
+                    }
+                    asm.MainModule.Resources[resId] = new EmbeddedResource(asm.MainModule.Resources[resId].Name, ManifestResourceAttributes.Private, str.ToArray());
+                    break;
+                default: throw new InvalidOperationException();
             }
-            strer.Body.OptimizeMacros();
-            strer.Body.ComputeOffsets();
-
-            EmbeddedResource res = new EmbeddedResource(Encoding.UTF8.GetString(n), ManifestResourceAttributes.Private, (byte[])null);
-            resId = asm.MainModule.Resources.Count;
-            asm.MainModule.Resources.Add(res);
-        }
-
-        public override void DoConfuse(Confuser cr, AssemblyDefinition asm)
-        {
-            throw new InvalidOperationException();
-        }
-
-        public override void PostConfuse(Confuser cr, AssemblyDefinition asm)
-        {
-            foreach (TypeDefinition def in asm.MainModule.GetAllTypes())
-            {
-                ProcessMethods(cr, def);
-            }
-
-            MemoryStream str = new MemoryStream();
-            using (BinaryWriter wtr = new BinaryWriter(new DeflateStream(str, CompressionMode.Compress)))
-            {
-                foreach (byte[] b in dats)
-                    wtr.Write(b);
-            }
-            asm.MainModule.Resources[resId] = new EmbeddedResource(asm.MainModule.Resources[resId].Name, ManifestResourceAttributes.Private, str.ToArray());
         }
 
         Expression exp;
@@ -122,13 +121,6 @@ namespace Confuser.Core.Confusions
         int key0; 
         int key1;
 
-        private void ProcessMethods(Confuser cr, TypeDefinition def)
-        {
-            foreach (MethodDefinition mtd in def.Methods)
-            {
-                ProcessMethod(cr, mtd);
-            }
-        }
         private void ProcessMethod(Confuser cr, MethodDefinition mtd)
         {
             if (mtd == strer || !mtd.HasBody) return;
@@ -154,7 +146,6 @@ namespace Confuser.Core.Confusions
                     Buffer.BlockCopy(BitConverter.GetBytes(len), 0, final, 0, 4);
                     dats.Add(final);
                     idx += final.Length;
-                    cr.Log("<string value='" + val + "'/>");
 
                     Instruction now = insts[i];
                     psr.InsertAfter(now, psr.Create(OpCodes.Call, strer));
@@ -238,6 +229,16 @@ namespace Confuser.Core.Confusions
         public override bool StandardCompatible
         {
             get { return true; }
+        }
+
+        public override string Description
+        {
+            get { return "This confusion obfuscate the strings in the code and store them in a encrypted and compressed form."; }
+        }
+
+        public override Target Target
+        {
+            get { return Target.Methods; }
         }
     }
 }

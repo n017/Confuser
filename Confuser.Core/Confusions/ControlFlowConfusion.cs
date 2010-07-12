@@ -18,21 +18,13 @@ namespace Confuser.Core.Confusions
         {
             get { return "Control Flow Confusion"; }
         }
-        public override ProcessType Process
+        public override Phases Phases
         {
-            get { return ProcessType.Post; }
+            get { return Phases.Phase3; }
         }
         public override bool StandardCompatible
         {
             get { return false; }
-        }
-        public override void PreConfuse(Confuser cr, AssemblyDefinition asm)
-        {
-            throw new InvalidOperationException();
-        }
-        public override void DoConfuse(Confuser cr, AssemblyDefinition asm)
-        {
-            throw new InvalidOperationException();
         }
 
         private enum LevelType
@@ -80,19 +72,14 @@ namespace Confuser.Core.Confusions
         }
 
         Random rad;
-        public override void PostConfuse(Confuser cr, AssemblyDefinition asm)
+        public override void Confuse(int phase, Confuser cr, AssemblyDefinition asm, IMemberDefinition[] defs)
         {
+            if (phase != 3) throw new InvalidOperationException();
             rad = new Random();
-            foreach (TypeDefinition t in asm.MainModule.GetAllTypes())
-                ProcessMethods(cr, t);
+            foreach (IMemberDefinition mtd in defs)
+                ProcessMethod(cr, mtd as MethodDefinition);
         }
-        private void ProcessMethods(Confuser cr, TypeDefinition def)
-        {
-            foreach (MethodDefinition mtd in def.Methods)
-            {
-                ProcessMethod(cr, mtd);
-            }
-        }
+
         private void ProcessMethod(Confuser cr, MethodDefinition mtd)   
         {
             if (!mtd.HasBody) return;
@@ -154,8 +141,6 @@ namespace Confuser.Core.Confusions
 
             bdy.OptimizeMacros();
             bdy.PreserveMaxStackSize = true;
-
-            cr.Log("<method name='" + bdy.Method.ToString() + "'/>");
         }
 
         private Dictionary<Instruction, Level> GetIds(MethodBody bdy)
@@ -368,6 +353,16 @@ namespace Confuser.Core.Confusions
                     insts.Add(wkr.Create(OpCodes.Br, target));
                     break;
             }
+        }
+
+        public override string Description
+        {
+            get { return "This confusion obfuscate the code in the methods so that decompilers cannot decompile the methods."; }
+        }
+
+        public override Target Target
+        {
+            get { return Target.Methods; }
         }
     }
 }

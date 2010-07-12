@@ -22,60 +22,58 @@ namespace Confuser.Core.Confusions
         {
             get { return "Constructor Proxy Confusion"; }
         }
-        public override ProcessType Process
+        public override Phases Phases
         {
-            get { return ProcessType.Pre | ProcessType.Real; }
+            get { return Phases.Phase1 | Phases.Phase2; }
         }
 
 
 
-        public override void PreConfuse(Confuser cr, AssemblyDefinition asm)
+        public override void Confuse(int phase,Confuser cr, AssemblyDefinition asm, IMemberDefinition[] defs)
         {
-            mcd = asm.MainModule.Import(typeof(MulticastDelegate));
-            v = asm.MainModule.Import(typeof(void));
-            obj = asm.MainModule.Import(typeof(object));
-            ptr = asm.MainModule.Import(typeof(IntPtr));
-
-            txts = new List<Context>();
-            cr.Log("<delegates>");
-            cr.AddLv();
-            foreach (TypeDefinition def in asm.MainModule.GetAllTypes().ToArray())
+            switch (phase)
             {
-                if (def.Name == "<Module>") continue;
-                ProcessMethods(cr, def, asm.MainModule, new Processer(CreateDelegate));
+                case 1:
+                    mcd = asm.MainModule.Import(typeof(MulticastDelegate));
+                    v = asm.MainModule.Import(typeof(void));
+                    obj = asm.MainModule.Import(typeof(object));
+                    ptr = asm.MainModule.Import(typeof(IntPtr));
+
+                    txts = new List<Context>();
+                    foreach (MethodDefinition mtd in defs)
+                    {
+                        if (!mtd.HasBody || mtd.DeclaringType.FullName == "<Module>") continue;
+
+                        MethodBody bdy = mtd.Body;
+                        foreach (Instruction inst in bdy.Instructions)
+                        {
+                            if (inst.OpCode.Code == Code.Newobj &&
+                                !(inst.Operand as MethodReference).DeclaringType.Resolve().IsInterface &&
+                                !(inst.Operand as MethodReference).DeclaringType.Resolve().HasGenericParameters)
+                            {
+                                CreateDelegate(cr, mtd.Body, inst, inst.Operand as MethodReference, asm.MainModule);
+                            }
+                        }
+                    }
+
+                    TypeDefinition mod = asm.MainModule.GetType("<Module>");
+                    AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(CtorProxyConfusion).Assembly.Location);
+                    proxy = i.MainModule.GetType("Confuser.Core.Confusions.CtorProxyConfusion").Methods.FirstOrDefault(mtd => mtd.Name == "Injection");
+                    proxy = CecilHelper.Inject(asm.MainModule, proxy);
+                    mod.Methods.Add(proxy);
+                    proxy.IsAssembly = true;
+                    proxy.Name = GetName("Proxy" + Guid.NewGuid().ToString());
+
+                    CreateFieldBridges(cr, asm.MainModule);
+                    break;
+                case 2:
+                    InitModuleCctor(asm.MainModule);
+                    CreateCtors(cr, asm.MainModule);
+                    FinalizeModuleCctor(asm.MainModule);
+                    break;
+                default:
+                    throw new InvalidOperationException();
             }
-            cr.SubLv();
-            cr.Log("</delegates>");
-
-            TypeDefinition mod = asm.MainModule.GetType("<Module>");
-            AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(CtorProxyConfusion).Assembly.Location);
-            proxy = i.MainModule.GetType("Confuser.Core.Confusions.CtorProxyConfusion").Methods.FirstOrDefault(mtd => mtd.Name == "Injection");
-            proxy = CecilHelper.Inject(asm.MainModule, proxy);
-            mod.Methods.Add(proxy);
-            proxy.IsAssembly = true;
-            proxy.Name = GetName("Proxy" + Guid.NewGuid().ToString());
-
-            cr.Log("<refs>");
-            cr.AddLv();
-            CreateFieldBridges(cr, asm.MainModule);
-            cr.SubLv();
-            cr.Log("</refs>");
-        }
-        public override void DoConfuse(Confuser cr, AssemblyDefinition asm)
-        {
-            InitModuleCctor(asm.MainModule);
-
-            cr.Log("<ctors>");
-            cr.AddLv();
-            CreateCtors(cr, asm.MainModule);
-            cr.SubLv();
-            cr.Log("</ctors>");
-
-            FinalizeModuleCctor(asm.MainModule);
-        }
-        public override void PostConfuse(Confuser cr, AssemblyDefinition asm)
-        {
-            throw new InvalidOperationException();
         }
 
 
@@ -151,8 +149,6 @@ namespace Confuser.Core.Confusions
                     invoke.Parameters.Add(new ParameterDefinition(GetNameO(MtdRef.Parameters[i]), MtdRef.Parameters[i].Attributes, MtdRef.Parameters[i].ParameterType));
                 }
                 txt.dele.Methods.Add(invoke);
-
-                cr.Log("<delegate sig='" + GetSignature(MtdRef) + "'/>");
             }
             txts.Add(txt);
         }
@@ -191,8 +187,6 @@ namespace Confuser.Core.Confusions
                 ////////////////Replace
                 txt.inst.OpCode = OpCodes.Call;
                 txt.inst.Operand = bdge;
-
-                cr.Log("<ref sig='" + txt.mtdRef.ToString() + "'/>");
             }
         }
         private void CreateCtors(Confuser cr, ModuleDefinition Mod)
@@ -206,8 +200,6 @@ namespace Confuser.Core.Confusions
                 txt.fld.Name = GetId(Mod, txt.mtdRef);
                 wkr.Emit(OpCodes.Ldtoken, txt.fld);
                 wkr.Emit(OpCodes.Call, proxy);
-
-                cr.Log("<dat id='" + txt.fld.MetadataToken.ToUInt32().ToString("X8") + "'/>");
             }
         }
 
@@ -339,6 +331,17 @@ namespace Confuser.Core.Confusions
         public override bool StandardCompatible
         {
             get { return true; }
+        }
+
+        public override string Description
+        {
+            get { return @"This confusion create proxies between references of constructors and methods code.
+***This confusion could affect the startup performance***"; }
+        }
+
+        public override Target Target
+        {
+            get { return Target.Methods; }
         }
     }
 }

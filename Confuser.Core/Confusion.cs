@@ -7,65 +7,12 @@ using Mono.Cecil;
 
 namespace Confuser.Core
 {
-    public class ConfusionCollection : Collection<Confusion>
-    {
-        internal void ExecutePreConfusion(StructureConfusion cion, Confuser cr, AssemblyDefinition asm)
-        {
-            cr.ScreenLog("<pre name='" + cion.Name + "'>");
-            cr.AddLv();
-            cion.PreConfuse(cr, asm);
-            cr.SubLv();
-            cr.ScreenLog("</pre>");
-        }
-        internal void ExecutePostConfusion(StructureConfusion cion, Confuser cr, AssemblyDefinition asm)
-        {
-            cr.ScreenLog("<post name='" + cion.Name + "'>");
-            cr.AddLv();
-            cion.PostConfuse(cr, asm);
-            cr.SubLv();
-            cr.ScreenLog("</post>");
-        }
-        internal void ExecuteConfusion(StructureConfusion cion, Confuser cr, AssemblyDefinition asm)
-        {
-            cr.ScreenLog("<confusion name='" + cion.Name + "'>");
-            cr.AddLv();
-            cion.DoConfuse(cr, asm);
-            cr.SubLv();
-            cr.ScreenLog("</confusion>");
-        }
-
-        internal void ExecutePreConfusion(AdvancedConfusion cion, Confuser cr, MetadataProcessor.MetadataAccessor accessor)
-        {
-            cr.ScreenLog("<pre name='" + cion.Name + "'>");
-            cr.AddLv();
-            cion.PreConfuse(cr, accessor);
-            cr.SubLv();
-            cr.ScreenLog("</pre>");
-        }
-        internal void ExecutePostConfusion(AdvancedConfusion cion, Confuser cr, MetadataProcessor.MetadataAccessor accessor)
-        {
-            cr.ScreenLog("<post name='" + cion.Name + "'>");
-            cr.AddLv();
-            cion.PostConfuse(cr, accessor);
-            cr.SubLv();
-            cr.ScreenLog("</post>");
-        }
-        internal void ExecuteConfusion(AdvancedConfusion cion, Confuser cr, MetadataProcessor.MetadataAccessor accessor)
-        {
-            cr.ScreenLog("<confusion name='" + cion.Name + "'>");
-            cr.AddLv();
-            cion.DoConfuse(cr, accessor);
-            cr.SubLv();
-            cr.ScreenLog("</confusion>");
-        }
-    }
-
     [Flags]
-    public enum ProcessType
+    public enum Phases
     {
-        Pre = 1,
-        Real = 2,
-        Post = 4
+        Phase1 = 1,
+        Phase2 = 2,
+        Phase3 = 4
     }
     
     public enum Priority
@@ -82,22 +29,43 @@ namespace Confuser.Core
 
     public abstract class StructureConfusion : Confusion
     {
-        public abstract void PreConfuse(Confuser cr, AssemblyDefinition asm);
-        public abstract void DoConfuse(Confuser cr, AssemblyDefinition asm);
-        public abstract void PostConfuse(Confuser cr, AssemblyDefinition asm);
+        public abstract void Confuse(int phase, Confuser cr, AssemblyDefinition asm, IMemberDefinition[] defs);
     }
     public abstract class AdvancedConfusion : Confusion
     {
-        public abstract void PreConfuse(Confuser cr, MetadataProcessor.MetadataAccessor accessor);
-        public abstract void DoConfuse(Confuser cr, MetadataProcessor.MetadataAccessor accessor);
-        public abstract void PostConfuse(Confuser cr, MetadataProcessor.MetadataAccessor accessor);
+        public abstract void Confuse(int phase, Confuser cr, MetadataProcessor.MetadataAccessor accessor);
+        public override Target Target
+		{
+			get
+			{
+                return Target.Whole;
+			}
+		}
+    }
+
+    [Flags]
+    public enum Target
+    {
+        Types = 1,
+        Methods = 2,
+        Fields = 4,
+        Events = 8,
+        Properties = 16,
+        All = 32,
+        Whole = 64,
     }
     public abstract class Confusion
     {
+        Confuser cr;
+        internal Confuser Confuser { get { return cr; } set { cr = value; } }
+        protected void Log(string message) { cr.LogMessage(message); }
+
         public abstract Priority Priority { get; }
         public abstract string Name { get; }
-        public abstract ProcessType Process { get; }
+        public abstract string Description { get; }
+        public abstract Phases Phases { get; }
         public abstract bool StandardCompatible { get; }
+        public abstract Target Target { get; }
         public override string ToString()
         {
             return Name;

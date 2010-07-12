@@ -9,8 +9,9 @@ namespace Confuser.Core.Confusions
 {
     public class AntiILDasmConfusion : StructureConfusion
     {
-        public override void PreConfuse(Confuser cr, AssemblyDefinition asm)
+        public override void Confuse(int phase, Confuser cr, AssemblyDefinition asm, IMemberDefinition[] defs)
         {
+            if (phase != 1) throw new InvalidOperationException();
             MethodReference ctor = asm.MainModule.Import(typeof(SuppressIldasmAttribute).GetConstructor(Type.EmptyTypes));
             bool has = false;
             foreach (CustomAttribute att in asm.MainModule.CustomAttributes)
@@ -24,16 +25,6 @@ namespace Confuser.Core.Confusions
                 asm.MainModule.CustomAttributes.Add(new CustomAttribute(ctor));
         }
 
-        public override void DoConfuse(Confuser cr, AssemblyDefinition asm)
-        {
-            throw new InvalidOperationException();
-        }
-
-        public override void PostConfuse(Confuser cr, AssemblyDefinition asm)
-        {
-            throw new InvalidOperationException();
-        }
-
         public override Priority Priority
         {
             get { return Priority.AssemblyLevel; }
@@ -44,14 +35,24 @@ namespace Confuser.Core.Confusions
             get { return "Anti IL Dasm Confusion"; }
         }
 
-        public override ProcessType Process
+        public override Phases Phases
         {
-            get { return ProcessType.Pre; }
+            get { return Phases.Phase1; }
         }
 
         public override bool StandardCompatible
         {
             get { return true; }
+        }
+
+        public override string Description
+        {
+            get { return "This confusion marked the assembly with a attribute and ILDasm would not disassemble the assemblies with this attribute."; }
+        }
+
+        public override Target Target
+        {
+            get { return Target.Whole; }
         }
     }
 }

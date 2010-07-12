@@ -11,18 +11,18 @@ namespace Confuser.Core.Confusions
     public class StackUnfConfusion : StructureConfusion
     {
         Random rad;
-
-        private void ProcessMethods(Confuser cr, TypeDefinition def)
+        public override void Confuse(int phase, Confuser cr, AssemblyDefinition asm, IMemberDefinition[] defs)
         {
-            foreach (MethodDefinition mtd in def.Methods)
-            {
+            if (phase != 3) throw new InvalidOperationException();
+            rad = new Random();
+            foreach (MethodDefinition mtd in defs)
                 ProcessMethod(cr, mtd);
-            }
         }
+
         private void ProcessMethod(Confuser cr, MethodDefinition mtd)
         {
             if (!mtd.HasBody) return;
-            MethodBody bdy = mtd.Body ;
+            MethodBody bdy = mtd.Body;
             ILProcessor wkr = bdy.GetILProcessor();
 
             Instruction original = bdy.Instructions[0];
@@ -44,25 +44,8 @@ namespace Confuser.Core.Confusions
             wkr.InsertBefore(original, stackrecovering);
             wkr.InsertBefore(stackrecovering, stackundering);
             wkr.InsertBefore(stackundering, jmp);
-            cr.Log("<method name='" + mtd.ToString() + "'/>");
         }
 
-        public override void PreConfuse(Confuser cr, AssemblyDefinition asm)
-        {
-            throw new InvalidOperationException();
-        }
-        public override void DoConfuse(Confuser cr, AssemblyDefinition asm)
-        {
-            throw new InvalidOperationException();
-        }
-        public override void PostConfuse(Confuser cr, AssemblyDefinition asm)
-        {
-            rad = new Random();
-            foreach (TypeDefinition def in asm.MainModule.GetAllTypes())
-            {
-                ProcessMethods(cr, def);
-            }
-        }
 
         public override Priority Priority
         {
@@ -74,14 +57,24 @@ namespace Confuser.Core.Confusions
             get { return "Stack Underflow Confusion"; }
         }
 
-        public override ProcessType Process
+        public override Phases Phases
         {
-            get { return ProcessType.Post; }
+            get { return Phases.Phase3; }
         }
 
         public override bool StandardCompatible
         {
             get { return false; }
+        }
+
+        public override string Description
+        {
+            get { return "This confusion will add a piece of code in the front of the methods and cause decompilers to crash."; }
+        }
+
+        public override Target Target
+        {
+            get { return Target.Methods; }
         }
     }
 }

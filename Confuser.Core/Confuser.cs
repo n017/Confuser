@@ -10,11 +10,11 @@ using Mono.Cecil.Metadata;
 
 namespace Confuser.Core
 {
-    public class LoggingEventArgs : EventArgs
+    public class LogEventArgs : EventArgs
     {
-        public LoggingEventArgs(string m) { this.m = m; }
-        string m;
-        public string Message { get { return m; } }
+        public LogEventArgs(string message) { this.message = message; }
+        string message;
+        public string Message { get { return message; } }
     }
     public class ExceptionEventArgs : EventArgs
     {
@@ -23,135 +23,145 @@ namespace Confuser.Core
         public Exception Exception { get { return ex; } }
     }
 
-    public delegate void LoggingEventHandler(object sender, LoggingEventArgs e);
+    public delegate void LogEventHandler(object sender, LogEventArgs e);
     public delegate void ExceptionEventHandler(object sender, ExceptionEventArgs e);
+
+    public class ConfusionParameter
+    {
+        Confusion c;
+        public Confusion Confusion { get { return c; } set { c = value; } }
+        IMemberDefinition[] defs;
+        public IMemberDefinition[] Targets { get { return defs; } set { defs = value; } }
+    }
 
     public class Confuser
     {
-        public event LoggingEventHandler Logging;
-        public event LoggingEventHandler ScreenLogging;
+        public event LogEventHandler Log;
         public event EventHandler Finish;
         public event ExceptionEventHandler Fault;
-
-        ConfusionCollection c = new ConfusionCollection();
-        public ConfusionCollection Confusions { get { return c; } }
 
         bool cps = false;
         public bool CompressOutput { get { return cps; } set { cps = value; } }
 
-        int lv;
-        internal void Log(string mess)
+        internal void LogMessage(string message)
         {
-            if (Logging != null)
-                Logging(this, new LoggingEventArgs(new string(' ', lv * 4) + mess));
+            if (Log != null)
+                Log(this, new LogEventArgs(message));
         }
-        internal void ScreenLog(string mess)
-        {
-            if (Logging != null)
-                Logging(this, new LoggingEventArgs(new string(' ', lv * 4) + mess));
-            if (ScreenLogging != null)
-                ScreenLogging(this, new LoggingEventArgs(new string(' ', lv * 4) + mess));
-        }
-        internal void AddLv() { lv++; }
-        internal void SubLv() { lv--; }
 
-        public void Confuse(string src, string dst)
+        public void Confuse(AssemblyDefinition src, string dst, ConfusionParameter[] parameters)
         {
-            lv = 0;
+            Confuse(src, File.OpenWrite(dst), parameters);
+        }
+        public void Confuse(AssemblyDefinition src, Stream dst, ConfusionParameter[] parameters)
+        {
             try
             {
-                ScreenLog("<start time='" + DateTime.Now.ToShortTimeString() + "'/>");
-                lv = 1;
+                LogMessage("Started at " + DateTime.Now.ToShortTimeString() + ".");
+                LogMessage("");
 
-                AssemblyDefinition asm = AssemblyDefinition.ReadAssembly(src, new ReaderParameters() { ReadingMode = ReadingMode.Immediate });
-
-                ScreenLog("<asmrefs>");
-                lv = 2;
-                foreach (AssemblyNameReference r in asm.MainModule.AssemblyReferences)
+                LogMessage("Loading assembly reference...");
+                foreach (AssemblyNameReference r in src.MainModule.AssemblyReferences)
                 {
                     GlobalAssemblyResolver.Instance.Resolve(r);
-                    ScreenLog("<asmref name='" + r.FullName + "'/>");
+                    LogMessage(">" + r.FullName);
                 }
-                lv = 1;
-                ScreenLog("</asmrefs>");
 
                 //global cctor which used in many confusion
-                MethodDefinition cctor = new MethodDefinition(".cctor", MethodAttributes.Private | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.RTSpecialName | MethodAttributes.Static, asm.MainModule.Import(typeof(void)));
+                MethodDefinition cctor = new MethodDefinition(".cctor", MethodAttributes.Private | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.RTSpecialName | MethodAttributes.Static, src.MainModule.Import(typeof(void)));
                 cctor.Body = new MethodBody(cctor);
                 cctor.Body.GetILProcessor().Emit(OpCodes.Ret);
-                asm.MainModule.GetType("<Module>").Methods.Add(cctor);
+                src.MainModule.GetType("<Module>").Methods.Add(cctor);
 
-                ScreenLog("<init/>");
+                Dictionary<Confusion, IMemberDefinition[]> cs = new Dictionary<Confusion, IMemberDefinition[]>();
+                foreach (ConfusionParameter para in parameters)
+                    cs.Add(para.Confusion, para.Targets);
 
-                foreach (Confusion i in from i in c where (i is StructureConfusion) && ((i.Process & ProcessType.Pre) == ProcessType.Pre) orderby i.Priority ascending select i)
+                foreach (Confusion i in from i in cs.Keys where (i is StructureConfusion) && ((i.Phases & Phases.Phase1) == Phases.Phase1) orderby i.Priority ascending select i)
                 {
-                    c.ExecutePreConfusion(i as StructureConfusion, this, asm);
+                    LogMessage("Executing " + i.Name + " Phase 1...");
+                    (i as StructureConfusion).Confuse(1, this, src, cs[i]);
                 }
-                MarkAssembly(asm);
-                CecilHelper.RefreshTokens(asm.MainModule);
-                foreach (Confusion i in from i in c where (i is StructureConfusion) && ((i.Process & ProcessType.Real) == ProcessType.Real) orderby i.Priority ascending select i)
+                MarkAssembly(src);
+                CecilHelper.RefreshTokens(src.MainModule);
+                foreach (Confusion i in from i in cs.Keys where (i is StructureConfusion) && ((i.Phases & Phases.Phase2) == Phases.Phase2) orderby i.Priority ascending select i)
                 {
-                    c.ExecuteConfusion(i as StructureConfusion, this, asm);
+                    LogMessage("Executing " + i.Name + " Phase 2...");
+                    (i as StructureConfusion).Confuse(2, this, src, cs[i]);
                 }
-                foreach (Confusion i in from i in c where (i is StructureConfusion) && ((i.Process & ProcessType.Post) == ProcessType.Post) orderby i.Priority ascending select i)
+                foreach (Confusion i in from i in cs.Keys where (i is StructureConfusion) && ((i.Phases & Phases.Phase3) == Phases.Phase3) orderby i.Priority ascending select i)
                 {
-                    c.ExecutePostConfusion(i as StructureConfusion, this, asm);
+                    LogMessage("Executing " + i.Name + " Phase 3...");
+                    (i as StructureConfusion).Confuse(3, this, src, cs[i]);
                 }
+
+                LogMessage("");
 
                 MemoryStream final = new MemoryStream();
                 MetadataProcessor psr = new MetadataProcessor();
-                psr.PreProcess += new MetadataProcessor.Do(delegate (MetadataProcessor.MetadataAccessor accessor)
+                psr.PreProcess += new MetadataProcessor.Do(delegate(MetadataProcessor.MetadataAccessor accessor)
                 {
-                    foreach (Confusion i in from i in c where (i is AdvancedConfusion) && ((i.Process & ProcessType.Pre) == ProcessType.Pre) orderby i.Priority ascending select i)
+                    foreach (Confusion i in from i in cs.Keys where (i is AdvancedConfusion) && ((i.Phases & Phases.Phase1) == Phases.Phase1) orderby i.Priority ascending select i)
                     {
-                        c.ExecutePreConfusion(i as AdvancedConfusion, this, accessor);
+                        LogMessage("Preparing " + i.Name + "...");
+                        (i as AdvancedConfusion).Confuse(1, this, accessor);
                     }
                 });
                 psr.DoProcess += new MetadataProcessor.Do(delegate(MetadataProcessor.MetadataAccessor accessor)
                 {
-                    foreach (Confusion i in from i in c where (i is AdvancedConfusion) && ((i.Process & ProcessType.Real) == ProcessType.Real) orderby i.Priority ascending select i)
+                    foreach (Confusion i in from i in cs.Keys where (i is AdvancedConfusion) && ((i.Phases & Phases.Phase2) == Phases.Phase2) orderby i.Priority ascending select i)
                     {
-                        c.ExecuteConfusion(i as AdvancedConfusion, this, accessor);
+                        LogMessage("Executing " + i.Name + "...");
+                        (i as AdvancedConfusion).Confuse(2, this, accessor);
                     }
                 });
                 psr.PostProcess += new MetadataProcessor.Do(delegate(MetadataProcessor.MetadataAccessor accessor)
                 {
-                    foreach (Confusion i in from i in c where (i is AdvancedConfusion) && ((i.Process & ProcessType.Post) == ProcessType.Post) orderby i.Priority ascending select i)
+                    foreach (Confusion i in from i in cs.Keys where (i is AdvancedConfusion) && ((i.Phases & Phases.Phase3) == Phases.Phase3) orderby i.Priority ascending select i)
                     {
-                        c.ExecutePostConfusion(i as AdvancedConfusion, this, accessor);
+                        LogMessage("Finalizing " + i.Name + "...");
+                        (i as AdvancedConfusion).Confuse(3, this, accessor);
                     }
                 });
-                psr.Process(asm.MainModule, final);
+                psr.Process(src.MainModule, final);
 
+                LogMessage("");
                 if (cps)
                 {
-                    Compressor.Compress(this, final.ToArray(), asm, dst);
+                    LogMessage("Compressing output assembly...");
+                    Compressor.Compress(this, final.ToArray(), src, dst);
                 }
                 else
                 {
-                    File.WriteAllBytes(dst, final.ToArray());
+                    byte[] arr = final.ToArray();
+                    dst.Write(arr, 0, arr.Length);
                 }
 
-                ScreenLog("<saved/>");
+                LogMessage("Assembly Saved.");
             }
             catch (Exception ex)
             {
-                ScreenLog("<fault message='" + ex.Message + "'/>");
+                LogMessage("Fault Exception occured:");
+                LogMessage(ex.ToString());
                 if (Fault != null)
                     Fault(this, new ExceptionEventArgs(ex));
             }
-            lv = 0;
 
-            ScreenLog("<end time='" + DateTime.Now.ToShortTimeString() + "'/>");
+            LogMessage("");
+            LogMessage("Ended at " + DateTime.Now.ToShortTimeString() + ".");
             if (Finish != null)
                 Finish(this, new EventArgs());
         }
 
-        public void ConfuseAsync(string src, string dst)
+        public void ConfuseAsync(AssemblyDefinition src, string dst, ConfusionParameter[] parameters)
         {
-            ThreadPool.QueueUserWorkItem(delegate { Confuse(src, dst); });
+            ConfuseAsync(src, File.OpenWrite(dst), parameters);
         }
-
+        public void ConfuseAsync(AssemblyDefinition src, Stream dst, ConfusionParameter[] parameters)
+        {
+            ThreadPool.QueueUserWorkItem(delegate { Confuse(src, dst, parameters); });
+        }
+        
         void MarkAssembly(AssemblyDefinition asm)
         {
             TypeDefinition att = new TypeDefinition("", "ConfusedByAttribute", TypeAttributes.Class | TypeAttributes.NotPublic, asm.MainModule.Import(typeof(Attribute)));

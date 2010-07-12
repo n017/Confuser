@@ -15,17 +15,16 @@ namespace Confuser.Core
 {
     static class Compressor
     {
-        public static void Compress(Confuser cr, byte[] asm, AssemblyDefinition o, string dst)
+        public static void Compress(Confuser cr, byte[] asm, AssemblyDefinition o, Stream dst)
         {
             if (o.MainModule.Kind == ModuleKind.Dll)
             {
-                File.WriteAllBytes(dst, asm);
+                dst.Write(asm, 0, asm.Length);
                 return;
             }
             AssemblyDefinition ldr = AssemblyDefinition.CreateAssembly(new AssemblyNameDefinition("ConfusingLoader_" + o.Name.Name, o.Name.Version), "ConfusingLoader", ModuleKind.Windows);
-            ldr.MainModule.CopyPEResourcesFrom(o.MainModule);
 
-            EmbeddedResource res = new EmbeddedResource(o.Name.Name, ManifestResourceAttributes.Public, Encrypt(asm));
+            EmbeddedResource res = new EmbeddedResource(Encoding.UTF8.GetString(Guid.NewGuid().ToByteArray()), ManifestResourceAttributes.Public, Encrypt(asm));
             ldr.MainModule.Resources.Add(res);
 
             AssemblyDefinition ldrC = AssemblyDefinition.ReadAssembly(typeof(ConfusingLoader).Assembly.Location);
@@ -51,9 +50,13 @@ namespace Confuser.Core
             ldr.MainModule.Types.Add(t);
             ldr.EntryPoint = t.Methods.FirstOrDefault(mtd => mtd.Name == "Main");
 
-            ldr.Write(dst);
+            t.Name = Encoding.UTF8.GetString(Guid.NewGuid().ToByteArray());
+            foreach (MethodDefinition mtd in t.Methods)
+                mtd.Name = Encoding.UTF8.GetString(Guid.NewGuid().ToByteArray());
+            foreach (FieldDefinition fld in t.Fields)
+                fld.Name = Encoding.UTF8.GetString(Guid.NewGuid().ToByteArray());
 
-            cr.ScreenLog("<compress/>");
+            ldr.Write(dst);
         }
 
         static byte[] Encrypt(byte[] asm)

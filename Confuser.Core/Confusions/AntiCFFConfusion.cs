@@ -7,23 +7,14 @@ using Mono.Cecil.Metadata;
 
 namespace Confuser.Core.Confusions
 {
-    public class AntiCFFConfusion:AdvancedConfusion
+    public class AntiCFFConfusion : AdvancedConfusion
     {
-        public override void PreConfuse(Confuser cr, MetadataProcessor.MetadataAccessor accessor)
+        public override void Confuse(int phase, Confuser cr, MetadataProcessor.MetadataAccessor accessor)
         {
-            throw new InvalidOperationException();
-        }
-
-        public override void DoConfuse(Confuser cr, MetadataProcessor.MetadataAccessor accessor)
-        {
+            if (phase != 2) throw new InvalidOperationException();
             foreach (Row<ParameterAttributes, ushort, uint> r in accessor.TableHeap.GetTable<ParamTable>(Table.Param))
                 if (r != null)
                     r.Col3 = 0x7fff7fff;
-        }
-
-        public override void PostConfuse(Confuser cr, MetadataProcessor.MetadataAccessor accessor)
-        {
-            throw new InvalidOperationException();
         }
 
         public override Priority Priority
@@ -36,14 +27,19 @@ namespace Confuser.Core.Confusions
             get { return "Anti CFF Explorer Confusion"; }
         }
 
-        public override ProcessType Process
+        public override Phases Phases
         {
-            get { return ProcessType.Real; }
+            get { return Phases.Phase2; }
         }
 
         public override bool StandardCompatible
         {
             get { return false; }
+        }
+
+        public override string Description
+        {
+            get { return "This confusion prevent CFF Explorer to view the metadata of the assembly."; }
         }
     }
 }

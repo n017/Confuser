@@ -21,102 +21,97 @@ namespace Confuser.Core.Confusions
             get { return Priority.Safe; }
         }
 
-        public override ProcessType Process
+        public override Phases Phases
         {
-            get { return ProcessType.Pre; }            //Sorting of TypeDef cause MetadataTokens changed
+            get { return Phases.Phase1; }            //Sorting of TypeDef cause MetadataTokens changed
         }
 
-        public override void PreConfuse(Confuser cr, AssemblyDefinition asm)
+        public override void Confuse(int phase, Confuser cr, AssemblyDefinition asm, IMemberDefinition[] defs)
         {
-            foreach (TypeDefinition t in asm.MainModule.GetAllTypes())
+            if (phase != 1) throw new InvalidOperationException();
+            foreach (IMemberDefinition mem in defs)
             {
-                if (t.Name == "<Module>")
-                    continue;
-                PerformType(cr, t);
-            }
-        }
-
-        public override void DoConfuse(Confuser cr, AssemblyDefinition asm)
-        {
-            throw new InvalidOperationException();
-        }
-
-        public override void PostConfuse(Confuser cr, AssemblyDefinition asm)
-        {
-            throw new InvalidOperationException();
-        }
-
-        void PerformType(Confuser cr, TypeDefinition type)
-        {
-            if (!(type.IsRuntimeSpecialName || type.IsSpecialName || type.IsPublic || type.IsNestedPublic || type.IsNestedFamilyOrAssembly))
-            {
-                type.Name = GetNewName(type.Name);
-                type.Namespace = "";
-            }
-
-            cr.AddLv();
-            {
-                foreach (MethodDefinition mtd in type.Methods)
+                if (mem is TypeDefinition)
                 {
+                    TypeDefinition type = mem as TypeDefinition;
+                    if (!(type.IsRuntimeSpecialName || type.IsSpecialName || type.IsPublic || type.IsNestedPublic || type.IsNestedFamilyOrAssembly))
+                    {
+                        type.Name = GetNewName(type.Name);
+                        type.Namespace = "";
+                    }
+
+                    foreach (MethodDefinition mtd in type.Methods)
+                    {
+                        if (mtd.IsConstructor || mtd.IsPublic || mtd.IsFamilyOrAssembly || mtd.IsSpecialName || mtd.IsFamily)
+                            continue;
+                        PerformMethod(cr, mtd);
+                    }
+                    foreach (FieldDefinition fld in type.Fields)
+                    {
+                        if (fld.IsPublic || fld.IsFamilyOrAssembly || fld.IsSpecialName || fld.IsRuntimeSpecialName || fld.IsPublic || fld.IsFamilyOrAssembly || fld.IsFamily)
+                            continue;
+                        fld.Name = GetNewName(fld.Name);
+                    }
+                    foreach (PropertyDefinition pty in type.Properties)
+                    {
+                        if (pty.IsSpecialName || pty.IsRuntimeSpecialName)
+                            continue;
+                        pty.Name = GetNewName(pty.Name);
+                    }
+                    foreach (EventDefinition evt in type.Events)
+                    {
+                        if (evt.IsSpecialName || evt.IsRuntimeSpecialName)
+                            continue;
+                        evt.Name = GetNewName(evt.Name);
+                    }
+                }
+                else if (mem is MethodDefinition)
+                {
+                    MethodDefinition mtd = mem as MethodDefinition;
                     if (mtd.IsConstructor || mtd.IsPublic || mtd.IsFamilyOrAssembly || mtd.IsSpecialName || mtd.IsFamily)
                         continue;
                     PerformMethod(cr, mtd);
                 }
-                foreach (FieldDefinition fld in type.Fields)
+                else if (mem is FieldDefinition)
                 {
+                    FieldDefinition fld = mem as FieldDefinition;
                     if (fld.IsPublic || fld.IsFamilyOrAssembly || fld.IsSpecialName || fld.IsRuntimeSpecialName || fld.IsPublic || fld.IsFamilyOrAssembly || fld.IsFamily)
                         continue;
-                    cr.Log("<field name='" + fld.Name + "'/>");
                     fld.Name = GetNewName(fld.Name);
                 }
-                foreach (PropertyDefinition pty in type.Properties)
+                else if (mem is PropertyDefinition)
                 {
-                    if (pty.IsSpecialName || pty.IsRuntimeSpecialName)
+                    PropertyDefinition prop = mem as PropertyDefinition;
+                    if (prop.IsSpecialName || prop.IsRuntimeSpecialName)
                         continue;
-                    cr.Log("<property name='" + pty.Name + "'/>");
-                    pty.Name = GetNewName(pty.Name);
+                    prop.Name = GetNewName(prop.Name);
                 }
-                foreach (EventDefinition evt in type.Events)
+                else if (mem is EventDefinition)
                 {
+                    EventDefinition evt = mem as EventDefinition;
                     if (evt.IsSpecialName || evt.IsRuntimeSpecialName)
                         continue;
-                    cr.Log("<event name='" + evt.Name + "'/>");
                     evt.Name = GetNewName(evt.Name);
                 }
             }
-            cr.SubLv();
         }
+
         void PerformMethod(Confuser cr, MethodDefinition mtd)
         {
-            cr.Log("<method name='" + mtd.Name + "'/>");
             mtd.Name = GetNewName(mtd.Name);
-            cr.AddLv();
 
-            cr.Log("<params>");
-            cr.AddLv();
             foreach (ParameterDefinition para in mtd.Parameters)
             {
-                cr.Log("<param name='" + para.Name + "' />");
                 para.Name = GetNewName(para.Name);
             }
-            cr.SubLv();
-            cr.Log("</params>");
 
             if (mtd.HasBody)
             {
-                cr.Log("<vars>");
-                cr.AddLv();
                 foreach (VariableDefinition var in mtd.Body.Variables)
                 {
-                    cr.Log("<var name='" + var.Name + "' />");
                     var.Name = GetNewName(var.Name);
                 }
-                cr.SubLv();
-                cr.Log("</vars>");
             }
-
-            cr.SubLv();
-            cr.Log("</method>");
         }
         string GetNewName(string n)
         {
@@ -136,6 +131,16 @@ namespace Confuser.Core.Confusions
         public override bool StandardCompatible
         {
             get { return true; }
+        }
+
+        public override string Description
+        {
+            get { return "This confusion rename the members to unprintable name thus the decompiled source code can neither be compiled nor read."; }
+        }
+
+        public override Target Target
+        {
+            get { return Target.All; }
         }
     }
 }

@@ -102,10 +102,8 @@ namespace Mono.Cecil.PE {
 
 		Section GetImageResourceSection ()
 		{
-            if (!module.HasImage && module.rsrc == null)
+            if (!module.HasImage)
                 return null;
-            else if (module.rsrc != null)
-                return module.rsrc;
             
 			const string rsrc_section = ".rsrc";
 

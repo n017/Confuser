@@ -1,3 +1,4 @@
+﻿
 Microsoft Visual Studio Solution File, Format Version 10.00
 # Visual Studio 2008
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Confuser.Core", "Confuser.Core\Confuser.Core.csproj", "{FAD246BD-65C2-4379-8B1F-59C1BA71B8E9}"
@@ -5,6 +6,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mono.Cecil", "MonoCecil93\Mono.Cecil.csproj", "{D68133BD-1E63-496E-9EDE-4FBDBF77B486}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mono.Cecil.Rocks", "MonoCecil93\rocks\Mono.Cecil.Rocks.csproj", "{FBC6DD59-D09D-499C-B03C-99C1C78FF2AC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Confuser", "Confuser\Confuser.csproj", "{063E983E-5BE7-4675-97E4-3D8D9CEB3660}"
 EndProject
 Global
 	GlobalSection(TeamFoundationVersionControl) = preSolution
@@ -46,6 +49,12 @@ Global
 		{FBC6DD59-D09D-499C-B03C-99C1C78FF2AC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FBC6DD59-D09D-499C-B03C-99C1C78FF2AC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{FBC6DD59-D09D-499C-B03C-99C1C78FF2AC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{063E983E-5BE7-4675-97E4-3D8D9CEB3660}.Debug - No System.dll|Any CPU.ActiveCfg = Debug - No System.dll|Any CPU
+		{063E983E-5BE7-4675-97E4-3D8D9CEB3660}.Debug - No System.dll|Any CPU.Build.0 = Debug - No System.dll|Any CPU
+		{063E983E-5BE7-4675-97E4-3D8D9CEB3660}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{063E983E-5BE7-4675-97E4-3D8D9CEB3660}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{063E983E-5BE7-4675-97E4-3D8D9CEB3660}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{063E983E-5BE7-4675-97E4-3D8D9CEB3660}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
