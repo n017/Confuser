@@ -53,9 +53,13 @@ namespace Confuser
 			}
 			return AddIcon(FindResource(imgId) as ImageSource, txtEle);
 		}
-		
+
+        Dictionary<IMemberDefinition, TreeViewItem> dict;
+
 		public void LoadAssembly(AssemblyDefinition asm, Target display)
         {
+            dict = new Dictionary<IMemberDefinition, TreeViewItem>();
+
             asmViewer.BeginInit();
 
 			asmViewer.Items.Clear();
@@ -144,7 +148,8 @@ namespace Confuser
 					mtdItem.Header = GetHeader(mtd.IsConstructor ? "ctor" : "mtd", mtdName.ToString(), true, mtd.IsPublic);
 					mtdItem.Tag = mtd;
 					mtdItem.Focusable = false;
-					item.Items.Add(mtdItem);
+                    item.Items.Add(mtdItem);
+                    dict[mtd] = mtdItem;
 				}
 			}
 
@@ -160,7 +165,8 @@ namespace Confuser
 					propItem.Header = GetHeader("prop", propName.ToString(), true, true);
 					propItem.Tag = prop;
 					propItem.Focusable = false;
-					item.Items.Add(propItem);
+                    item.Items.Add(propItem);
+                    dict[prop] = propItem;
 				}
 			}
 
@@ -176,7 +182,8 @@ namespace Confuser
 					evtItem.Header = GetHeader("evt", evtName.ToString(), true, true);
 					evtItem.Tag = evt;
 					evtItem.Focusable = false;
-					item.Items.Add(evtItem);
+                    item.Items.Add(evtItem);
+                    dict[evt] = evtItem;
 				}
 			}
 
@@ -192,11 +199,13 @@ namespace Confuser
 					fldItem.Header = GetHeader("fld", fldName.ToString(), true, fld.IsPublic);
 					fldItem.Tag = fld;
 					fldItem.Focusable = false;
-					item.Items.Add(fldItem);
+                    item.Items.Add(fldItem);
+                    dict[fld] = fldItem;
 				}
 			}
 			
 			par.Items.Add(item);
+            dict[type] = item;
         }
 
         private void selAll_Click(object sender, RoutedEventArgs e)
@@ -247,6 +256,16 @@ namespace Confuser
                 Expand(c, val);
         }
 
+        private void expAll_Click(object sender, RoutedEventArgs e)
+        {
+            Expand(asmViewer.Items[0] as TreeViewItem, true);
+        }
+
+        private void colAll_Click(object sender, RoutedEventArgs e)
+        {
+            Expand(asmViewer.Items[0] as TreeViewItem, false);
+        }
+
         public IMemberDefinition[] GetSelections()
         {
             if (asmViewer.Items.Count == 0) return null;
@@ -265,14 +284,16 @@ namespace Confuser
                 GetSelections(child, sels);
         }
 
-        private void expAll_Click(object sender, RoutedEventArgs e)
+        public void SetSelection(IMemberDefinition[] defs)
         {
-            Expand(asmViewer.Items[0] as TreeViewItem, true);
-        }
-
-        private void colAll_Click(object sender, RoutedEventArgs e)
-        {
-            Expand(asmViewer.Items[0] as TreeViewItem, false);
+            foreach (IMemberDefinition def in defs)
+            {
+                if (!dict.ContainsKey(def)) continue;
+                TreeViewItem defItem = dict[def];
+                CheckBox bx;
+                if ((bx = (defItem.Header as StackPanel).Children[1] as CheckBox) != null)
+                    bx.IsChecked = true;
+            }
         }
 	}
 }

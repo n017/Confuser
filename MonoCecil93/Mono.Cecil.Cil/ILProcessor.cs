@@ -251,15 +251,17 @@ namespace Mono.Cecil.Cil {
 			instructions.Add (instruction);
 		}
 
-		public void Replace (Instruction target, Instruction instruction)
-		{
-			if (target == null)
-				throw new ArgumentNullException ("target");
-			if (instruction == null)
-				throw new ArgumentNullException ("instruction");
+        public void Replace(Instruction target, Instruction instruction)
+        {
+            if (target == null)
+                throw new ArgumentNullException("target");
+            if (instruction == null)
+                throw new ArgumentNullException("instruction");
 
             int index = instructions.IndexOf(target);
             instructions[index] = instruction;
+            if (index != 0) instructions[index - 1].next = instruction;
+            if (index != instructions.Count - 1) instructions[index + 1].previous = instruction;
             foreach (Instruction inst in instructions)
             {
                 if (inst.Operand is Instruction && inst.Operand == target)
@@ -273,7 +275,20 @@ namespace Mono.Cecil.Cil {
                     inst.Operand = s;
                 }
             }
-		}
+
+            if (body.exceptions != null)
+            {
+                foreach (ExceptionHandler eh in body.exceptions)
+                {
+                    if (eh.TryStart == target) eh.TryStart = instruction;
+                    if (eh.TryEnd == target) eh.TryEnd = instruction;
+                    if (eh.HandlerStart == target) eh.HandlerStart = instruction;
+                    if (eh.HandlerEnd == target) eh.HandlerEnd = instruction;
+                    if (eh.FilterStart == target) eh.FilterStart = instruction;
+                    if (eh.FilterEnd == target) eh.FilterEnd = instruction;
+                }
+            }
+        }
 
 		public void Remove (Instruction instruction)
 		{

@@ -149,18 +149,18 @@ namespace Confuser.Core.Confusions
             int p = -1;
             foreach (ExceptionHandler eh in bdy.ExceptionHandlers)
             {
-                lvs.Add(eh.TryStart.Offset, new Level() { Handler = eh, Type = LevelType.TryStart });
-                lvs.Add(eh.TryEnd.Previous.Offset, new Level() { Handler = eh, Type = LevelType.TryEnd });
-                lvs.Add(eh.HandlerStart.Offset, new Level() { Handler = eh, Type = LevelType.HandlerStart });
-                lvs.Add(eh.HandlerEnd.Previous.Offset, new Level() { Handler = eh, Type = LevelType.HandlerEnd });
+                lvs[eh.TryStart.Offset] = new Level() { Handler = eh, Type = LevelType.TryStart };
+                lvs[eh.TryEnd.Previous.Offset] = new Level() { Handler = eh, Type = LevelType.TryEnd };
+                lvs[eh.HandlerStart.Offset] = new Level() { Handler = eh, Type = LevelType.HandlerStart };
+                lvs[eh.HandlerEnd.Previous.Offset] = new Level() { Handler = eh, Type = LevelType.HandlerEnd };
                 p = eh.HandlerEnd.Previous.Offset;
                 if ((eh.HandlerType & ExceptionHandlerType.Filter) == ExceptionHandlerType.Filter)
                 {
-                    lvs.Add(eh.FilterStart.Offset, new Level() { Handler = eh, Type = LevelType.FilterStart });
-                    lvs.Add(eh.FilterEnd.Previous.Offset, new Level() { Handler = eh, Type = LevelType.FilterEnd });
+                    lvs[eh.FilterStart.Offset] = new Level() { Handler = eh, Type = LevelType.FilterStart };
+                    lvs[eh.FilterEnd.Previous.Offset] = new Level() { Handler = eh, Type = LevelType.FilterEnd };
                     p = eh.FilterEnd.Previous.Offset;
                 }
-            } 
+            }
             if (!lvs.ContainsKey(0))
                 lvs.Add(0, new Level() { Handler = null, Type = LevelType.None });
 

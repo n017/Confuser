@@ -50,12 +50,6 @@ namespace Confuser.Core
             ldr.MainModule.Types.Add(t);
             ldr.EntryPoint = t.Methods.FirstOrDefault(mtd => mtd.Name == "Main");
 
-            t.Name = Encoding.UTF8.GetString(Guid.NewGuid().ToByteArray());
-            foreach (MethodDefinition mtd in t.Methods)
-                mtd.Name = Encoding.UTF8.GetString(Guid.NewGuid().ToByteArray());
-            foreach (FieldDefinition fld in t.Fields)
-                fld.Name = Encoding.UTF8.GetString(Guid.NewGuid().ToByteArray());
-
             ldr.Write(dst);
         }
 

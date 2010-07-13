@@ -103,7 +103,7 @@ namespace Confuser.Core
                 {
                     foreach (Confusion i in from i in cs.Keys where (i is AdvancedConfusion) && ((i.Phases & Phases.Phase1) == Phases.Phase1) orderby i.Priority ascending select i)
                     {
-                        LogMessage("Preparing " + i.Name + "...");
+                        LogMessage("Executing " + i.Name + " Phase 1...");
                         (i as AdvancedConfusion).Confuse(1, this, accessor);
                     }
                 });
@@ -111,7 +111,7 @@ namespace Confuser.Core
                 {
                     foreach (Confusion i in from i in cs.Keys where (i is AdvancedConfusion) && ((i.Phases & Phases.Phase2) == Phases.Phase2) orderby i.Priority ascending select i)
                     {
-                        LogMessage("Executing " + i.Name + "...");
+                        LogMessage("Executing " + i.Name + " Phase 2...");
                         (i as AdvancedConfusion).Confuse(2, this, accessor);
                     }
                 });
@@ -119,7 +119,7 @@ namespace Confuser.Core
                 {
                     foreach (Confusion i in from i in cs.Keys where (i is AdvancedConfusion) && ((i.Phases & Phases.Phase3) == Phases.Phase3) orderby i.Priority ascending select i)
                     {
-                        LogMessage("Finalizing " + i.Name + "...");
+                        LogMessage("Executing " + i.Name + " Phase 3...");
                         (i as AdvancedConfusion).Confuse(3, this, accessor);
                     }
                 });

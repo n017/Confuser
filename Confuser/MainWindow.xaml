@@ -11,12 +11,15 @@
 	<Grid x:Name="LayoutRoot">
 		<Menu HorizontalAlignment="Stretch" VerticalAlignment="Top" Height="25">
 			<MenuItem Header="_File">
-				<MenuItem x:Name="load" Header="_Load" InputGestureText="Ctrl+L" Click="load_Click"/>
-				<MenuItem x:Name="close" Header="_Close" InputGestureText="Ctrl+C" Click="close_Click" IsEnabled="False"/>
-				<Separator/>
-				<MenuItem x:Name="exit" Header="_Exit" InputGestureText="Alt+Q" Click="exit_Click"/>
+                <MenuItem x:Name="load" Header="_Load Assembly" InputGestureText="Ctrl+L" Click="load_Click"/>
+                <MenuItem x:Name="close" Header="_Unload Assembly" InputGestureText="Ctrl+U" Click="close_Click" IsEnabled="False"/>
+                <Separator/>
+                <MenuItem x:Name="open" Header="_Open Configuration" InputGestureText="Ctrl+O" Click="open_Click"/>
+                <MenuItem x:Name="save" Header="_Save Configuration" InputGestureText="Ctrl+S" Click="save_Click" IsEnabled="False"/>
+                <Separator/>
+                <MenuItem x:Name="exit" Header="_Exit" InputGestureText="Alt+Q" Click="exit_Click"/>
 			</MenuItem>
-			<MenuItem x:Name="plugin" Header="_Plugins"/>
+			<MenuItem x:Name="plugin" Header="Load _Plugin..." Click="plugin_Click"/>
 		</Menu>
 		<Grid Margin="0,25,0,0">
 			<TabControl x:Name="mainTabCtrl" TabStripPlacement="Left" RenderTransformOrigin="0.5,0.5">

@@ -31,7 +31,7 @@ namespace Confuser.Core.Confusions
 
         public override void Confuse(int phase, Confuser cr, AssemblyDefinition asm, IMemberDefinition[] defs)
         {
-            if (phase == 1) throw new InvalidOperationException();
+            if (phase != 1) throw new InvalidOperationException();
             foreach (IMemberDefinition def in defs)
             {
                 if (def is TypeDefinition && (def as TypeDefinition).IsEnum)

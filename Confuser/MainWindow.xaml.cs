@@ -106,6 +106,9 @@ namespace Confuser
         }
         private void doConfuse_Click(object sender, RoutedEventArgs e)
         {
+            MemoryStream tempCfg = new MemoryStream();
+            SaveConfig(tempCfg);
+
             FileStream dst;
             try
             {
@@ -173,16 +176,15 @@ namespace Confuser
                 src.Dispose(); dst.Dispose();
                 this.Dispatcher.Invoke(new Action(delegate
                 {
-                    mainTabCtrl.IsHitTestVisible = true;
+                    try
+                    {
+                        mainTabCtrl.IsHitTestVisible = true;
+                        tempCfg.Position = 0;
+                        CloseAssembly();
+                        LoadConfig(tempCfg);
+                    }
+                    catch { }
                 }), null);
-
-                try
-                {
-                    CloseAssembly();
-                    asm = AssemblyDefinition.ReadAssembly(path, new ReaderParameters(ReadingMode.Immediate));
-                    InitalizeAssembly(asm);
-                }
-                catch { }
             });
 
             mainTabCtrl.IsHitTestVisible = false;
@@ -192,8 +194,11 @@ namespace Confuser
             cr.ConfuseAsync(asm, dst, parameters.ToArray());
         }
 
-        void LoadPluginAssembly(System.Reflection.Assembly asm)
+        internal List<System.Reflection.Assembly> Plugs = new List<System.Reflection.Assembly>();
+        internal void LoadPluginAssembly(System.Reflection.Assembly asm)
         {
+            if (Plugs.Contains(asm)) return;
+            Plugs.Add(asm);
             foreach (Type i in asm.GetTypes())
             {
                 if (i.IsSubclassOf(typeof(Confusion)) && !i.IsAbstract)
@@ -304,7 +309,9 @@ namespace Confuser
             this.Dispatcher.BeginInvoke(new Action(delegate
             {
                 load.IsEnabled = false;
+                open.IsEnabled = false;
                 close.IsEnabled = true;
+                save.IsEnabled = true;
                 plugin.IsEnabled = true;
                 HideNotice();
             }), System.Windows.Threading.DispatcherPriority.Render, null);
@@ -315,9 +322,117 @@ namespace Confuser
             {
                 asm = null;
                 load.IsEnabled = true;
+                open.IsEnabled = true;
                 close.IsEnabled = false;
+                save.IsEnabled = false;
+                plugin.IsEnabled = true;
                 asmInfo.Visibility = Visibility.Hidden;
             }), null);
+        }
+        void LoadConfig(Stream str)
+        {
+            Configuration cfg = new Configuration(this);
+            cfg.Load(str);
+            asm = cfg.Assembly;
+            InitalizeAssembly(asm);
+            path = cfg.Path;
+            compress.IsChecked = cfg.Compress;
+
+            this.Dispatcher.BeginInvoke(new Action(delegate
+            {
+                for (int i = 1; i < mainTabCtrl.Items.Count - 2; i++)
+                {
+                    Grid grid = (mainTabCtrl.Items[i] as TabItem).Content as Grid;
+
+                    Confusion cion = grid.DataContext as Confusion;
+                    (LogicalTreeHelper.FindLogicalNode(grid, "enable") as CheckBox).IsChecked = cfg.Parameters.ContainsKey(cion.GetType().FullName);
+                    if (!cfg.Parameters.ContainsKey(cion.GetType().FullName)) continue;
+
+                    Border border = LogicalTreeHelper.FindLogicalNode(grid, "setting") as Border;
+                    if (border.Child is AssemblyElementPicker)
+                        (border.Child as AssemblyElementPicker).SetSelection(cfg.Parameters[cion.GetType().FullName]);
+                }
+            }), System.Windows.Threading.DispatcherPriority.Render, null);
+        }
+        void SaveConfig(Stream str)
+        {
+            Configuration cfg = new Configuration(this);
+            cfg.Assembly = asm;
+            cfg.Path = path;
+            cfg.Compress = compress.IsChecked.GetValueOrDefault();
+
+            for (int i = 1; i < mainTabCtrl.Items.Count - 2; i++)
+            {
+                Grid grid = (mainTabCtrl.Items[i] as TabItem).Content as Grid;
+                CheckBox enable = LogicalTreeHelper.FindLogicalNode(grid, "enable") as CheckBox;
+                if (!enable.IsChecked.GetValueOrDefault()) continue;
+
+                Confusion cion = grid.DataContext as Confusion;
+                Border border = LogicalTreeHelper.FindLogicalNode(grid, "setting") as Border;
+
+                if (border.Child is AssemblyElementPicker)
+                {
+                    IMemberDefinition[] defs = (border.Child as AssemblyElementPicker).GetSelections();
+                    cfg.Parameters.Add(cion.GetType().FullName, defs);
+                }
+                else
+                {
+                    cfg.Parameters.Add(cion.GetType().FullName, new IMemberDefinition[0]);
+                }
+            }
+            cfg.Save(str);
+        }
+
+        private void plugin_Click(object sender, RoutedEventArgs e)
+        {
+            OpenFileDialog of = new OpenFileDialog();
+            of.Filter = "Assembly(*.exe, *.dll)|*.exe;*.dll";
+            if (of.ShowDialog().GetValueOrDefault())
+            {
+                try
+                {
+                    var plug = System.Reflection.Assembly.LoadFile(of.FileName);
+                    LoadPluginAssembly(plug);
+                }
+                catch
+                {
+                    MessageBox.Show("Cannot load the plugin!", "Confuser", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+
+        private void open_Click(object sender, RoutedEventArgs e)
+        {
+            OpenFileDialog of = new OpenFileDialog();
+            of.Filter = "Configuration(*.kfg)|*.kfg";
+            if (of.ShowDialog().GetValueOrDefault())
+            {
+                try
+                {
+                    LoadConfig(of.OpenFile());
+                }
+                catch
+                {
+                    MessageBox.Show("Cannot load the configration!", "Confuser", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+
+        private void save_Click(object sender, RoutedEventArgs e)
+        {
+            SaveFileDialog sf = new SaveFileDialog();
+            sf.Filter = "Configuration(*.kfg)|*.kfg";
+            if (sf.ShowDialog().GetValueOrDefault())
+            {
+                try
+                {
+                    SaveConfig(sf.OpenFile());
+                }
+                catch
+                {
+                    MessageBox.Show("Cannot save the configration!", "Confuser", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
         }
     }
 }

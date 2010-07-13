@@ -59,6 +59,7 @@ namespace Confuser.Core.Confusions
 
                     rand.NextBytes(n);
 
+                    MethodDefinition read7be = i.MainModule.GetType("Confuser.Core.Confusions.StringConfusion").Methods.FirstOrDefault(mtd => mtd.Name == "Read7BitEncodedInt");
                     strer.Body.SimplifyMacros();
                     for (int t = 0; t < strer.Body.Instructions.Count; t++)
                     {
@@ -69,13 +70,23 @@ namespace Confuser.Core.Confusions
                             inst.Operand = key0;
                         else if (inst.Operand is int && (int)inst.Operand == 87654321)
                             inst.Operand = key1;
-                        else if (inst.Operand is long && (long)inst.Operand == 6666666666666666)
+                        else if (inst.Operand is int && (int)inst.Operand == 123)
                         {
-                            Instruction[] expInsts = new CecilVisitor(exp, true,
-                                new Instruction[]{
-                                Instruction.Create(OpCodes.Ldloc, strer.Body.Variables.FirstOrDefault(var => var.VariableType.FullName == "System.IO.BinaryReader")),
-                                Instruction.Create(OpCodes.Callvirt, asm.MainModule.Import(typeof(BinaryReader).GetMethod("ReadInt64")))
-                                 }, false).GetInstructions();
+                            read7be.Body.SimplifyMacros();
+                            foreach (VariableDefinition var in read7be.Body.Variables)
+                                strer.Body.Variables.Add(var);
+                            Instruction[] arg = new Instruction[read7be.Body.Instructions.Count];
+                            for (int ii = 0; ii < arg.Length; ii++)
+                            {
+                                Instruction tmp = read7be.Body.Instructions[ii];
+                                if (tmp.Operand is ParameterReference)
+                                    tmp = Instruction.Create(OpCodes.Ldloc, strer.Body.Variables.FirstOrDefault(var => var.VariableType.FullName == "System.IO.BinaryReader"));
+                                else if (tmp.OpCode == OpCodes.Ret)
+                                    tmp = Instruction.Create(OpCodes.Conv_I8);
+                                arg[ii] = tmp;
+                            }
+
+                            Instruction[] expInsts = new CecilVisitor(exp, true, arg, false).GetInstructions();
                             ILProcessor psr = strer.Body.GetILProcessor();
                             psr.Replace(inst, expInsts[0]);
                             for (int ii = 1; ii < expInsts.Length; ii++)
@@ -83,7 +94,7 @@ namespace Confuser.Core.Confusions
                                 psr.InsertAfter(expInsts[ii - 1], expInsts[ii]);
                                 t++;
                             }
-                            psr.InsertAfter(expInsts[expInsts.Length - 1], Instruction.Create(OpCodes.Conv_I8));
+                            psr.InsertAfter(expInsts[expInsts.Length - 1], Instruction.Create(OpCodes.Conv_U1));
                         }
                     }
                     strer.Body.OptimizeMacros();
@@ -138,7 +149,7 @@ namespace Confuser.Core.Confusions
 
                     int id = (int)((idx + key0) ^ mtd.MetadataToken.ToUInt32());
                     int len;
-                    byte[] dat = Encrypt(val, mtd.MetadataToken.ToUInt32(), eval, out len);
+                    byte[] dat = Encrypt(val, eval, out len);
                     len = (int)~(len ^ key1);
 
                     byte[] final = new byte[dat.Length + 4];
@@ -153,47 +164,73 @@ namespace Confuser.Core.Confusions
                 }
             }
             bdy.OptimizeMacros();
+            bdy.ComputeHeader();
         }
 
-        private static byte[] Encrypt(string str, uint mdToken, ReflectionVisitor expEval, out int len)
+        private static byte[] Encrypt(string str, ReflectionVisitor expEval, out int len)
         {
             byte[] bs = Encoding.Unicode.GetBytes(str);
             byte[] tmp = new byte[(bs.Length + 7) & ~7];
             Buffer.BlockCopy(bs, 0, tmp, 0, bs.Length);
-            byte[] ret = new byte[(bs.Length + 7) & ~7];
             len = bs.Length;
 
-            Random rand = new Random((int)mdToken);
-            for (int i = 0; i < tmp.Length; i += 8)
+            MemoryStream ret = new MemoryStream();
+            using (BinaryWriter wtr = new BinaryWriter(ret))
             {
-                long en = (long)expEval.Eval(BitConverter.ToInt64(tmp, i) ^ rand.Next());
-                Debug.WriteLine(BitConverter.ToInt64(tmp, i).ToString() + " => " + en);
-                Buffer.BlockCopy(BitConverter.GetBytes(en), 0, ret, i, 8);
+                for (int i = 0; i < tmp.Length; i++)
+                {
+                    int en = (int)(long)expEval.Eval((long)tmp[i]);
+                    Write7BitEncodedInt(wtr, en);
+                }
             }
-            Debug.WriteLine("");
 
-            return ret;
+            return ret.ToArray();
         }
-        private static string Decrypt(byte[] bytes, uint mdToken, int len, ReflectionVisitor expEval)
+        private static string Decrypt(byte[] bytes, int len, ReflectionVisitor expEval)
         {
-            Random rand = new Random((int)mdToken);
-
             byte[] ret = new byte[(len + 7) & ~7];
 
             using (BinaryReader rdr = new BinaryReader(new MemoryStream(bytes)))
             {
-                for (int i = 0; i < ret.Length; i += 8)
+                for (int i = 0; i < ret.Length; i++)
                 {
-                    long r = rdr.ReadInt64();
-                    long de = (long)expEval.Eval(r) ^ rand.Next();
-                    Debug.WriteLine(r.ToString() + " => " + de);
-                    Buffer.BlockCopy(BitConverter.GetBytes(de), 0, ret, i, 8);
+                    int r = Read7BitEncodedInt(rdr);
+                    ret[i] = (byte)(long)expEval.Eval((long)r);
                 }
             }
             Debug.WriteLine("");
 
             return Encoding.Unicode.GetString(ret, 0, len);
         }
+        static void Write7BitEncodedInt(BinaryWriter wtr, int value)
+        {
+            // Write out an int 7 bits at a time. The high bit of the byte,
+            // when on, tells reader to continue reading more bytes.
+            uint v = (uint)value; // support negative numbers
+            while (v >= 0x80)
+            {
+                wtr.Write((byte)(v | 0x80));
+                v >>= 7;
+            }
+            wtr.Write((byte)v);
+        }
+
+        static int Read7BitEncodedInt(BinaryReader rdr)
+        {
+            // Read out an int 7 bits at a time. The high bit
+            // of the byte when on means to continue reading more bytes.
+            int count = 0;
+            int shift = 0;
+            byte b;
+            do
+            {
+                b = rdr.ReadByte();
+                count |= (b & 0x7F) << shift;
+                shift += 7;
+            } while ((b & 0x80) != 0);
+            return count;
+        }
+
         private static string Injection(int id)
         {
             Dictionary<int, string> hashTbl;
@@ -211,13 +248,12 @@ namespace Confuser.Core.Confusions
                     int len = (int)((~rdr.ReadUInt32()) ^ 87654321);
 
                     ///////////////////
-                    Random rand = new Random((int)mdTkn);
-
                     byte[] f = new byte[(len + 7) & ~7];
 
-                    for (int i = 0; i < f.Length; i += 8)
-                        Buffer.BlockCopy(BitConverter.GetBytes(6666666666666666 ^ rand.Next()), 0, f, i, 8);
-
+                    for (int i = 0; i < f.Length; i++)
+                    {
+                        f[i] = 123;
+                    }
 
                     hashTbl[id] = (ret = Encoding.Unicode.GetString(f, 0, len));
                     ///////////////////

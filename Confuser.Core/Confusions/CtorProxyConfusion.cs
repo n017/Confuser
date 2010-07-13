@@ -48,8 +48,8 @@ namespace Confuser.Core.Confusions
                         foreach (Instruction inst in bdy.Instructions)
                         {
                             if (inst.OpCode.Code == Code.Newobj &&
-                                !(inst.Operand as MethodReference).DeclaringType.Resolve().IsInterface &&
-                                !(inst.Operand as MethodReference).DeclaringType.Resolve().HasGenericParameters)
+                                !((inst.Operand as MethodReference).DeclaringType is GenericInstanceType) &&
+                                !(inst.Operand is GenericInstanceMethod))
                             {
                                 CreateDelegate(cr, mtd.Body, inst, inst.Operand as MethodReference, asm.MainModule);
                             }
@@ -82,28 +82,6 @@ namespace Confuser.Core.Confusions
         MethodDefinition proxy;
         private class Context { public MethodBody bdy; public Instruction inst; public FieldDefinition fld; public TypeDefinition dele; public MethodReference mtdRef;}
         List<Context> txts;
-        private void ProcessMethods(Confuser cr, TypeDefinition def, ModuleDefinition mod, Processer d)
-        {
-            foreach (MethodDefinition mtd in def.Methods)
-            {
-                ProcessMethod(cr, mtd, mod, d);
-            }
-        }
-        private void ProcessMethod(Confuser cr, MethodDefinition mtd, ModuleDefinition mod, Processer d)
-        {
-            if (!mtd.HasBody || mtd.DeclaringType.FullName == "<Module>") return;
-
-            MethodBody bdy = mtd.Body;
-            foreach(Instruction inst in bdy.Instructions)
-            {
-                if (inst.OpCode.Code == Code.Newobj &&
-                    !(inst.Operand as MethodReference).DeclaringType.Resolve().IsInterface &&
-                    !(inst.Operand as MethodReference).DeclaringType.Resolve().HasGenericParameters)
-                {
-                    d(cr, mtd.Body, inst, inst.Operand as MethodReference, mod);
-                }
-            }
-        }
 
         TypeReference mcd;
         TypeReference v;
@@ -112,9 +90,10 @@ namespace Confuser.Core.Confusions
         private void CreateDelegate(Confuser cr, MethodBody Bdy, Instruction Inst, MethodReference MtdRef, ModuleDefinition Mod)
         {
             //Limitation
-            if (MtdRef.DeclaringType.Resolve().BaseType.FullName == "System.MulticastDelegate" ||
-                MtdRef.DeclaringType.Resolve().BaseType.FullName == "System.Delegate" ||
-                MtdRef.HasGenericParameters)
+            TypeDefinition tmp = MtdRef.DeclaringType.Resolve();
+            if (tmp.BaseType != null &&
+                (tmp.BaseType.FullName == "System.MulticastDelegate" ||
+                tmp.BaseType.FullName == "System.Delegate"))
                 return;
 
             Context txt = new Context();

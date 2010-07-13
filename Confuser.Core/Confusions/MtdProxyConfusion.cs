@@ -50,7 +50,8 @@ namespace Confuser.Core.Confusions
                             if ((inst.OpCode.Code == Code.Call || inst.OpCode.Code == Code.Callvirt) &&
                                 (inst.Operand as MethodReference).Name != ".ctor" && (inst.Operand as MethodReference).Name != ".cctor" &&
                                 !(inst.Operand as MethodReference).DeclaringType.Resolve().IsInterface &&
-                                !(inst.Operand as MethodReference).DeclaringType.Resolve().HasGenericParameters)
+                                !((inst.Operand as MethodReference).DeclaringType is GenericInstanceType) &&
+                                (inst.Previous == null || inst.Previous.OpCode.OpCodeType != OpCodeType.Prefix))
                             {
                                 CreateDelegate(cr, mtd.Body, inst, inst.Operand as MethodReference, asm.MainModule);
                             }
@@ -92,7 +93,7 @@ namespace Confuser.Core.Confusions
         {
             //Limitation
             if ((MtdRef.HasThis && MtdRef.DeclaringType.IsValueType) ||
-                MtdRef.HasGenericParameters) return;
+                MtdRef is GenericInstanceMethod) return;
 
             Context txt = new Context();
             txt.inst = Inst;
