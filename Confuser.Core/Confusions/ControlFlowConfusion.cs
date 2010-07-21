@@ -29,45 +29,110 @@ namespace Confuser.Core.Confusions
 
         private enum LevelType
         {
-            Try,
-            TryStart,
-            TryEnd,
-            Handler,
-            HandlerStart,
-            HandlerEnd,
-            Filter,
-            FilterStart,
-            FilterEnd,
-            None
+            None = 1,
+            Try = 2,
+            TryStart = 3,
+            TryEnd = 4,
+            Handler = 5,
+            HandlerStart = 6,
+            HandlerEnd = 7,
+            Filter = 8,
+            FilterStart = 9,
+            FilterEnd = 10
         }
         private struct Level
         {
-            public ExceptionHandler Handler;
-            public LevelType Type;
+            public Level(ExceptionHandler eh, LevelType t)
+            {
+                Handler = new List<ExceptionHandler>() { eh };
+                Type = new List<LevelType>() { t };
+            }
+
+            public List<ExceptionHandler> Handler;
+            public List<LevelType> Type;
+
+            public int GetEndOffset()
+            {
+                int ret = -1;
+                foreach (ExceptionHandler eh in Handler)
+                {
+                    if (eh.TryEnd.Offset > ret) ret = eh.TryEnd.Offset;
+                    if (eh.HandlerEnd.Offset > ret) ret = eh.HandlerEnd.Offset;
+                    if (eh.FilterEnd != null && eh.FilterEnd.Offset > ret) ret = eh.FilterEnd.Offset;
+                }
+                return ret;
+            }
+            public LevelType GetOnlyLevelType()
+            {
+                if (Type.Count != 1) return 0;
+                return Type[0];
+            }
 
             public static bool operator ==(Level a, Level b)
             {
-                return a.Handler == b.Handler && a.Type == b.Type;
+                if (a.Handler.Count != b.Handler.Count ||
+                    a.Type.Count != b.Type.Count)
+                    return false;
+
+                for (int i = 0; i < a.Handler.Count; i++)
+                    if (a.Handler[i] != b.Handler[i])
+                        return false;
+                for (int i = 0; i < a.Type.Count; i++)
+                    if (a.Type[i] != b.Type[i])
+                        return false;
+                return true;
             }
 
             public static bool operator !=(Level a, Level b)
             {
-                return a.Handler != b.Handler || a.Type != b.Type;
+                if (a.Handler.Count != b.Handler.Count ||
+                    b.Type.Count != b.Type.Count)
+                    return true;
+
+                for (int i = 0; i < a.Handler.Count; i++)
+                    if (a.Handler[i] == b.Handler[i])
+                        return false;
+                for (int i = 0; i < a.Type.Count; i++)
+                    if (a.Type[i] == b.Type[i])
+                        return false;
+                return true;
+            }
+
+            public static Level operator +(Level a, Level b)
+            {
+                Level ret = new Level();
+                ret.Handler = new List<ExceptionHandler>();
+                ret.Handler.AddRange(a.Handler);
+                ret.Handler.AddRange(b.Handler);
+                ret.Type = new List<LevelType>();
+                ret.Type.AddRange(a.Type);
+                ret.Type.AddRange(b.Type);
+                return ret;
             }
 
             public override int GetHashCode()
             {
-                return Handler == null ? (int)Type : Handler.GetHashCode() * (int)Type;
+                int hash = base.GetHashCode();
+                foreach (ExceptionHandler eh in Handler)
+                    hash ^= eh.GetHashCode();
+                foreach (LevelType t in Type)
+                    hash ^= t.GetHashCode();
+                return hash;
             }
 
             public override bool Equals(object obj)
             {
-                return (obj is Level) && ((Level)obj).Handler == this.Handler && ((Level)obj).Type == this.Type;
+                return (obj is Level) && ((Level)obj) == this;
             }
 
             public override string ToString()
             {
-                return (Handler == null ? "00000000" : Handler.GetHashCode().ToString("X8")) + "_" + Type.ToString();
+                StringBuilder ret = new StringBuilder();
+                for (int i = 0; i < Handler.Count; i++)
+                {
+                    if (i != 0) ret.Append(",");
+                    ret.Append((Handler[i] == null ? "00000000" : Handler[i].GetHashCode().ToString("X8")) + "_" + Type[i].ToString());
+                } return ret.ToString();
             }
         }
 
@@ -80,7 +145,7 @@ namespace Confuser.Core.Confusions
                 ProcessMethod(cr, mtd as MethodDefinition);
         }
 
-        private void ProcessMethod(Confuser cr, MethodDefinition mtd)   
+        private void ProcessMethod(Confuser cr, MethodDefinition mtd)
         {
             if (!mtd.HasBody) return;
             MethodBody bdy = mtd.Body;
@@ -149,54 +214,109 @@ namespace Confuser.Core.Confusions
             int p = -1;
             foreach (ExceptionHandler eh in bdy.ExceptionHandlers)
             {
-                lvs[eh.TryStart.Offset] = new Level() { Handler = eh, Type = LevelType.TryStart };
-                lvs[eh.TryEnd.Previous.Offset] = new Level() { Handler = eh, Type = LevelType.TryEnd };
-                lvs[eh.HandlerStart.Offset] = new Level() { Handler = eh, Type = LevelType.HandlerStart };
-                lvs[eh.HandlerEnd.Previous.Offset] = new Level() { Handler = eh, Type = LevelType.HandlerEnd };
+                if (!lvs.ContainsKey(eh.TryStart.Offset))
+                    lvs[eh.TryStart.Offset] = new Level(eh, LevelType.TryStart);
+                else
+                    lvs[eh.TryStart.Offset] += new Level(eh, LevelType.TryStart);
+
+                if (!lvs.ContainsKey(eh.TryEnd.Previous.Offset))
+                    lvs[eh.TryEnd.Previous.Offset] = new Level(eh, LevelType.TryEnd);
+                else
+                    lvs[eh.TryEnd.Previous.Offset] += new Level(eh, LevelType.TryEnd);
+
+                if (!lvs.ContainsKey(eh.HandlerStart.Offset))
+                    lvs[eh.HandlerStart.Offset] = new Level(eh, LevelType.HandlerStart);
+                else
+                    lvs[eh.HandlerStart.Offset] += new Level(eh, LevelType.HandlerStart);
+
+                if (!lvs.ContainsKey(eh.HandlerEnd.Previous.Offset))
+                    lvs[eh.HandlerEnd.Previous.Offset] = new Level(eh, LevelType.HandlerEnd);
+                else
+                    lvs[eh.HandlerEnd.Previous.Offset] += new Level(eh, LevelType.HandlerEnd);
+
                 p = eh.HandlerEnd.Previous.Offset;
                 if ((eh.HandlerType & ExceptionHandlerType.Filter) == ExceptionHandlerType.Filter)
                 {
-                    lvs[eh.FilterStart.Offset] = new Level() { Handler = eh, Type = LevelType.FilterStart };
-                    lvs[eh.FilterEnd.Previous.Offset] = new Level() { Handler = eh, Type = LevelType.FilterEnd };
+                    if (!lvs.ContainsKey(eh.FilterStart.Offset))
+                        lvs[eh.FilterStart.Offset] = new Level(eh, LevelType.FilterStart);
+                    else
+                        lvs[eh.FilterStart.Offset] += new Level(eh, LevelType.FilterStart);
+
+                    if (!lvs.ContainsKey(eh.FilterEnd.Previous.Offset))
+                        lvs[eh.FilterEnd.Previous.Offset] = new Level(eh, LevelType.FilterEnd);
+                    else
+                        lvs[eh.FilterEnd.Previous.Offset] += new Level(eh, LevelType.FilterEnd);
+
                     p = eh.FilterEnd.Previous.Offset;
                 }
             }
             if (!lvs.ContainsKey(0))
-                lvs.Add(0, new Level() { Handler = null, Type = LevelType.None });
+                lvs[0] = new Level(null, LevelType.None);
 
             List<int> ks = lvs.Keys.ToList();
             for (int i = 0; i < ks.Count; i++)
             {
-                if (lvs[ks[i]].Handler != null)
+                if (lvs[ks[i]].Handler.Count >= 2 &&
+                    lvs[ks[i]].Handler[0] == lvs[ks[i]].Handler[1])
                 {
-                    int oo = (lvs[ks[i]].Handler.HandlerType & ExceptionHandlerType.Filter) == ExceptionHandlerType.Filter ? lvs[ks[i]].Handler.FilterEnd.Offset : lvs[ks[i]].Handler.HandlerEnd.Offset;
-                    if ((lvs[ks[i]].Type.ToString() == "FilterEnd" ||
-                        lvs[ks[i]].Type.ToString() == "HandlerEnd") &&
-                        !lvs.ContainsKey(oo))
+                    if (lvs[ks[i]].Type.Contains(LevelType.TryStart) && lvs[ks[i]].Type.Contains(LevelType.TryEnd))
                     {
-                        lvs.Add(oo, new Level() { Handler = lvs[ks[i]].Handler, Type = LevelType.None });
-                        ks.Add(oo);
-                        ks.Sort();
+                        lvs[ks[i]].Handler.RemoveAt(0);
+                        lvs[ks[i]].Type.Remove(LevelType.TryStart);
+                        lvs[ks[i]].Type.Remove(LevelType.TryEnd);
+                        lvs[ks[i]].Type.Add(LevelType.Try);
+                    }
+                    if (lvs[ks[i]].Type.Contains(LevelType.HandlerStart) && lvs[ks[i]].Type.Contains(LevelType.HandlerEnd))
+                    {
+                        lvs[ks[i]].Handler.RemoveAt(0);
+                        lvs[ks[i]].Type.Remove(LevelType.HandlerStart);
+                        lvs[ks[i]].Type.Remove(LevelType.HandlerEnd);
+                        lvs[ks[i]].Type.Add(LevelType.Handler);
+                    }
+                    if (lvs[ks[i]].Type.Contains(LevelType.FilterStart) && lvs[ks[i]].Type.Contains(LevelType.FilterEnd))
+                    {
+                        lvs[ks[i]].Handler.RemoveAt(0);
+                        lvs[ks[i]].Type.Remove(LevelType.FilterStart);
+                        lvs[ks[i]].Type.Remove(LevelType.FilterEnd);
+                        lvs[ks[i]].Type.Add(LevelType.Filter);
                     }
                 }
                 if (i != 0 &&
-                    lvs[ks[i - 1]].Type.ToString().EndsWith("Start") &&
-                    lvs[ks[i]].Type.ToString().EndsWith("End"))
+                    lvs[ks[i - 1]].GetOnlyLevelType().ToString().EndsWith("Start") &&
+                    lvs[ks[i]].GetOnlyLevelType().ToString().EndsWith("End"))
                 {
                     int o = ks[i - 1];
                     Level lv = lvs[o];
-                    switch (lv.Type)
+                    switch (lv.GetOnlyLevelType())
                     {
-                        case LevelType.TryStart: lv.Type = LevelType.Try; break;
-                        case LevelType.HandlerStart: lv.Type = LevelType.Handler; break;
-                        case LevelType.FilterStart: lv.Type = LevelType.Filter; break;
+                        case LevelType.TryStart:
+                            lv.Type.Clear();
+                            lv.Type.Add(LevelType.Try); break;
+                        case LevelType.HandlerStart:
+                            lv.Type.Clear();
+                            lv.Type.Add(LevelType.Handler); break;
+                        case LevelType.FilterStart:
+                            lv.Type.Clear();
+                            lv.Type.Add(LevelType.Filter); break;
                     }
-                    lvs.Remove(o);
                     lvs.Remove(ks[i]);
-                    lvs.Add(o, lv);
+                    lvs[o] = lv;
                     ks.Remove(ks[i]);
-                    ks.Remove(o);
                     i--;
+                }
+                if (lvs[ks[i]].Handler[0] != null)
+                {
+                    int oo = lvs[ks[i]].GetEndOffset();
+                    if ((lvs[ks[i]].GetOnlyLevelType().ToString() == "FilterEnd" ||
+                        lvs[ks[i]].GetOnlyLevelType().ToString() == "HandlerEnd" ||
+                        lvs[ks[i]].GetOnlyLevelType().ToString() == "Handler" ||
+                        lvs[ks[i]].GetOnlyLevelType().ToString() == "Filter") &&
+                        !lvs.ContainsKey(oo))
+                    {
+                        lvs.Add(oo, new Level() { Handler = lvs[ks[i]].Handler, Type = new List<LevelType> { LevelType.None } });
+                        ks.Add(oo);
+                        ks.Sort();
+                    }
                 }
             }
 
@@ -230,43 +350,46 @@ namespace Confuser.Core.Confusions
         }
         private void SetLvHandler(Level lv, MethodBody bdy, Instruction[][] blks)
         {
-            if (lv.Handler == null) return;
-            switch (lv.Type)
+            for (int i = 0; i < lv.Handler.Count; i++)
             {
-                case LevelType.TryStart:
-                    lv.Handler.TryStart = blks[0][0];
-                    break;
-                case LevelType.TryEnd:
-                    lv.Handler.TryEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
-                    break;
-                case LevelType.Try:
-                    lv.Handler.TryStart = blks[0][0];
-                    lv.Handler.TryEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
-                    break;
-                case LevelType.HandlerStart:
-                    lv.Handler.HandlerStart = blks[0][0];
-                    break;
-                case LevelType.HandlerEnd:
-                    lv.Handler.HandlerEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
-                    break;
-                case LevelType.Handler:
-                    lv.Handler.HandlerStart = blks[0][0];
-                    lv.Handler.HandlerEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
-                    break;
-                case LevelType.FilterStart:
-                    lv.Handler.FilterStart = blks[0][0];
-                    break;
-                case LevelType.FilterEnd:
-                    lv.Handler.FilterEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
-                    break;
-                case LevelType.Filter:
-                    lv.Handler.FilterStart = blks[0][0];
-                    lv.Handler.FilterEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
-                    break;
-                case LevelType.None:
-                    break;
-                default:
-                    throw new InvalidOperationException();
+                if (lv.Handler[i] == null) return;
+                switch (lv.Type[i])
+                {
+                    case LevelType.TryStart:
+                        lv.Handler[i].TryStart = blks[0][0];
+                        break;
+                    case LevelType.TryEnd:
+                        lv.Handler[i].TryEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
+                        break;
+                    case LevelType.Try:
+                        lv.Handler[i].TryStart = blks[0][0];
+                        lv.Handler[i].TryEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
+                        break;
+                    case LevelType.HandlerStart:
+                        lv.Handler[i].HandlerStart = blks[0][0];
+                        break;
+                    case LevelType.HandlerEnd:
+                        lv.Handler[i].HandlerEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
+                        break;
+                    case LevelType.Handler:
+                        lv.Handler[i].HandlerStart = blks[0][0];
+                        lv.Handler[i].HandlerEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
+                        break;
+                    case LevelType.FilterStart:
+                        lv.Handler[i].FilterStart = blks[0][0];
+                        break;
+                    case LevelType.FilterEnd:
+                        lv.Handler[i].FilterEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
+                        break;
+                    case LevelType.Filter:
+                        lv.Handler[i].FilterStart = blks[0][0];
+                        lv.Handler[i].FilterEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
+                        break;
+                    case LevelType.None:
+                        break;
+                    default:
+                        throw new InvalidOperationException();
+                }
             }
         }
 
@@ -298,13 +421,13 @@ namespace Confuser.Core.Confusions
         private void ProcessInstructions(MethodBody bdy, ref Instruction[][] blks)
         {
             List<Instruction[]> ret = new List<Instruction[]>();
-            if (blks.Length != 1) ret.Add(new Instruction[] { Instruction.Create(OpCodes.Br, blks[0][0]) });
+            //if (blks.Length != 1) ret.Add(new Instruction[] { Instruction.Create(OpCodes.Br, blks[0][0]) });
             for (int i = 0; i < blks.Length; i++)
             {
                 Instruction[] blk = blks[i];
                 List<Instruction> newBlk = new List<Instruction>();
                 for (int ii = 0; ii < blk.Length; ii++)
-                        newBlk.Add(blk[ii]);
+                    newBlk.Add(blk[ii]);
 
                 if (i + 1 < blks.Length)
                     AddJump(bdy.GetILProcessor(), newBlk, blks[i + 1][0]);

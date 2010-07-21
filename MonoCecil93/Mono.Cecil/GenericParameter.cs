@@ -122,7 +122,7 @@ namespace Mono.Cecil {
 		public override string Name {
 			get {
 				if (!string.IsNullOrEmpty (base.Name))
-					return base.Name;
+					return base.Name; 
 
 				return base.Name = (owner.GenericParameterType == GenericParameterType.Type ? "!" : "!!") + Position;
 			}
@@ -134,7 +134,7 @@ namespace Mono.Cecil {
 		}
 
 		public override string FullName {
-			get { return Name; }
+            get { return (owner.GenericParameterType == GenericParameterType.Type ? "!" : "!!") + Position; }
 		}
 
 		public override bool IsGenericParameter {

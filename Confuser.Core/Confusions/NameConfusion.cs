@@ -23,82 +23,160 @@ namespace Confuser.Core.Confusions
 
         public override Phases Phases
         {
-            get { return Phases.Phase1; }            //Sorting of TypeDef cause MetadataTokens changed
+            get { return Phases.Phase1 | Phases.Phase3; }            //Sorting of TypeDef cause MetadataTokens changed
+        }
+
+        Dictionary<TypeDefinition, Dictionary<string, string>> dict;
+        Dictionary<string, string> tDict;
+        void SetDictEntry(TypeDefinition type, string sig, string newName)
+        {
+            if (!dict.ContainsKey(type))
+                dict[type] = new Dictionary<string, string>();
+            dict[type][sig] = newName;
+        }
+        string GetDictEntry(TypeDefinition type, string sig)
+        {
+            if (!dict.ContainsKey(type)) return null;
+            string ret;
+            dict[type].TryGetValue(sig, out ret);
+            return ret;
+        }
+        string GetSig(MethodReference mtd)
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.Append(mtd.ReturnType.FullName);
+            sb.Append(" ");
+            sb.Append(mtd.Name);
+            sb.Append("(");
+            if (mtd.HasParameters)
+            {
+                for (int i = 0; i < mtd.Parameters.Count; i++)
+                {
+                    ParameterDefinition param = mtd.Parameters[i];
+                    if (i > 0)
+                    {
+                        sb.Append(",");
+                    }
+                    if (param.ParameterType.IsSentinel)
+                    {
+                        sb.Append("...,");
+                    }
+                    sb.Append(param.ParameterType.FullName);
+                }
+            }
+            sb.Append(")");
+            return sb.ToString();
+        }
+        string GetSig(FieldReference fld)
+        {
+            return fld.FieldType.FullName + " " + fld.Name;
         }
 
         public override void Confuse(int phase, Confuser cr, AssemblyDefinition asm, IMemberDefinition[] defs)
         {
-            if (phase != 1) throw new InvalidOperationException();
-            foreach (IMemberDefinition mem in defs)
+            switch (phase)
             {
-                if (mem is TypeDefinition)
-                {
-                    TypeDefinition type = mem as TypeDefinition;
-                    if (!(type.IsRuntimeSpecialName || type.IsSpecialName || type.IsPublic || type.IsNestedPublic || type.IsNestedFamilyOrAssembly))
+                case 1:
+                    dict = new Dictionary<TypeDefinition, Dictionary<string, string>>();
+                    tDict = new Dictionary<string, string>();
+                    foreach (IMemberDefinition mem in defs)
                     {
-                        type.Name = GetNewName(type.Name);
-                        type.Namespace = "";
+                        if (mem is TypeDefinition)
+                        {
+                            TypeDefinition type = mem as TypeDefinition;
+                            string o = type.FullName;
+                            if (type.Name == "<Module>")
+                                continue;
+                            type.Name = GetNewName(type.Name);
+                            type.Namespace = "";
+                            tDict[o] = type.FullName;
+                        }
+                        else if (mem is MethodDefinition)
+                        {
+                            MethodDefinition mtd = mem as MethodDefinition;
+                            PerformMethod(cr, asm, mtd);
+                        }
+                        else if (mem is FieldDefinition)
+                        {
+                            FieldDefinition fld = mem as FieldDefinition;
+                            if (fld.IsRuntimeSpecialName)
+                                continue;
+                            string sig = GetSig(fld);
+                            fld.Name = GetNewName(fld.Name);
+                            SetDictEntry(fld.DeclaringType, sig, fld.Name);
+                        }
+                        else if (mem is PropertyDefinition)
+                        {
+                            PropertyDefinition prop = mem as PropertyDefinition;
+                            if (prop.IsRuntimeSpecialName)
+                                continue;
+                            prop.Name = GetNewName(prop.Name);
+                        }
+                        else if (mem is EventDefinition)
+                        {
+                            EventDefinition evt = mem as EventDefinition;
+                            if (evt.IsRuntimeSpecialName)
+                                continue;
+                            evt.Name = GetNewName(evt.Name);
+                        }
                     }
-
-                    foreach (MethodDefinition mtd in type.Methods)
-                    {
-                        if (mtd.IsConstructor || mtd.IsPublic || mtd.IsFamilyOrAssembly || mtd.IsSpecialName || mtd.IsFamily)
-                            continue;
-                        PerformMethod(cr, mtd);
-                    }
-                    foreach (FieldDefinition fld in type.Fields)
-                    {
-                        if (fld.IsPublic || fld.IsFamilyOrAssembly || fld.IsSpecialName || fld.IsRuntimeSpecialName || fld.IsPublic || fld.IsFamilyOrAssembly || fld.IsFamily)
-                            continue;
-                        fld.Name = GetNewName(fld.Name);
-                    }
-                    foreach (PropertyDefinition pty in type.Properties)
-                    {
-                        if (pty.IsSpecialName || pty.IsRuntimeSpecialName)
-                            continue;
-                        pty.Name = GetNewName(pty.Name);
-                    }
-                    foreach (EventDefinition evt in type.Events)
-                    {
-                        if (evt.IsSpecialName || evt.IsRuntimeSpecialName)
-                            continue;
-                        evt.Name = GetNewName(evt.Name);
-                    }
-                }
-                else if (mem is MethodDefinition)
-                {
-                    MethodDefinition mtd = mem as MethodDefinition;
-                    if (mtd.IsConstructor || mtd.IsPublic || mtd.IsFamilyOrAssembly || mtd.IsSpecialName || mtd.IsFamily)
-                        continue;
-                    PerformMethod(cr, mtd);
-                }
-                else if (mem is FieldDefinition)
-                {
-                    FieldDefinition fld = mem as FieldDefinition;
-                    if (fld.IsPublic || fld.IsFamilyOrAssembly || fld.IsSpecialName || fld.IsRuntimeSpecialName || fld.IsPublic || fld.IsFamilyOrAssembly || fld.IsFamily)
-                        continue;
-                    fld.Name = GetNewName(fld.Name);
-                }
-                else if (mem is PropertyDefinition)
-                {
-                    PropertyDefinition prop = mem as PropertyDefinition;
-                    if (prop.IsSpecialName || prop.IsRuntimeSpecialName)
-                        continue;
-                    prop.Name = GetNewName(prop.Name);
-                }
-                else if (mem is EventDefinition)
-                {
-                    EventDefinition evt = mem as EventDefinition;
-                    if (evt.IsSpecialName || evt.IsRuntimeSpecialName)
-                        continue;
-                    evt.Name = GetNewName(evt.Name);
-                }
+                    break;
+                case 3:
+                    List<MemberReference> updated = new List<MemberReference>();
+                    foreach (TypeDefinition type in asm.MainModule.Types)
+                        UpdateType(type, updated);
+                    foreach (Resource res in asm.MainModule.Resources)
+                        if (res.Name.EndsWith(".resources"))
+                            res.Name = tDict.ContainsKey(res.Name.Substring(0, res.Name.LastIndexOf(".resources"))) ? tDict[res.Name.Substring(0, res.Name.LastIndexOf(".resources"))] + ".resources" : res.Name;
+                    break;
+                default:
+                    throw new InvalidOperationException();
             }
         }
 
-        void PerformMethod(Confuser cr, MethodDefinition mtd)
+        void PerformMethod(Confuser cr, AssemblyDefinition asm, MethodDefinition mtd)
         {
-            mtd.Name = GetNewName(mtd.Name);
+            if (!mtd.IsConstructor)
+            {
+                string sig;
+                if (mtd.DeclaringType.BaseType != null && !(mtd.DeclaringType.BaseType.GetElementType() is TypeDefinition))
+                {
+                    TypeDefinition bType = mtd.DeclaringType.BaseType.Resolve();
+                    MethodDefinition ovr = null;
+                    foreach (MethodDefinition bMtd in bType.Methods)
+                    {
+                        if (bMtd.Name == mtd.Name &&
+                            bMtd.ReturnType.FullName == mtd.ReturnType.FullName &&
+                            bMtd.Parameters.Count == mtd.Parameters.Count)
+                        {
+                            bool f = true;
+                            for (int i = 0; i < bMtd.Parameters.Count; i++)
+                                if (bMtd.Parameters[i].ParameterType.FullName != mtd.Parameters[i].ParameterType.FullName)
+                                {
+                                    f = false;
+                                    break;
+                                }
+                            if (f)
+                            {
+                                ovr = bMtd;
+                                break;
+                            }
+                        }
+                    }
+                    if (ovr == null)
+                    {
+                        sig = GetSig(mtd);
+                        mtd.Name = GetNewName(mtd.Name);
+                        SetDictEntry(mtd.DeclaringType, sig, mtd.Name);
+                    }
+                }
+                else
+                {
+                    sig = GetSig(mtd);
+                    mtd.Name = GetNewName(mtd.Name);
+                    SetDictEntry(mtd.DeclaringType, sig, mtd.Name);
+                }
+            }
 
             foreach (ParameterDefinition para in mtd.Parameters)
             {
@@ -128,6 +206,50 @@ namespace Confuser.Core.Confusions
             return ret.ToString();
         }
 
+        void UpdateType(TypeDefinition type, List<MemberReference> updated)
+        {
+            foreach (TypeDefinition nested in type.NestedTypes)
+                UpdateType(nested, updated);
+
+            foreach (MethodDefinition mtd in type.Methods)
+                if (mtd.HasBody)
+                    UpdateMethod(mtd, updated);
+        }
+        void UpdateMethod(MethodDefinition mtd, List<MemberReference> updated)
+        {
+            foreach (Instruction inst in mtd.Body.Instructions)
+            {
+                if ((inst.Operand is MethodReference ||
+                    inst.Operand is FieldReference) &&
+                    !updated.Contains(inst.Operand as MemberReference))
+                {
+                    TypeDefinition par;
+                    MethodSpecification mSpec = inst.Operand as MethodSpecification;
+                    if (mSpec != null && (par = mSpec.DeclaringType.GetElementType() as TypeDefinition) != null)
+                    {
+                        //mSpec.GetElementMethod().Name = GetDictEntry(par, GetSig(inst.Operand as MethodReference));
+                        //updated.Add(mSpec);
+                    }
+                    else
+                    {
+                        TypeSpecification tSpec = (inst.Operand as MemberReference).DeclaringType as TypeSpecification;
+                        if (tSpec != null && (par = tSpec.GetElementType() as TypeDefinition) != null)
+                        {
+                            if (inst.Operand is MethodReference)
+                            {
+                                (inst.Operand as MethodReference).Name = GetDictEntry(par, GetSig(inst.Operand as MethodReference)) ?? (inst.Operand as MethodReference).Name;
+                            }
+                            else
+                            {
+                                (inst.Operand as FieldReference).Name = GetDictEntry(par, GetSig(inst.Operand as FieldReference)) ?? (inst.Operand as FieldReference).Name;
+                            }
+                            updated.Add(inst.Operand as MemberReference);
+                        }
+                    }
+                }
+            }
+        }
+
         public override bool StandardCompatible
         {
             get { return true; }
@@ -140,7 +262,7 @@ namespace Confuser.Core.Confusions
 
         public override Target Target
         {
-            get { return Target.All; }
+            get { return Target.Types | Target.Fields | Target.Methods; }
         }
     }
 }

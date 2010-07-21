@@ -44,6 +44,16 @@ namespace Confuser.Core.Confusions
             wkr.InsertBefore(original, stackrecovering);
             wkr.InsertBefore(stackrecovering, stackundering);
             wkr.InsertBefore(stackundering, jmp);
+
+            foreach (ExceptionHandler eh in bdy.ExceptionHandlers)
+            {
+                if (eh.TryStart == original)
+                    eh.TryStart = jmp;
+                else if (eh.HandlerStart == original)
+                    eh.HandlerStart = jmp;
+                else if (eh.FilterStart == original)
+                    eh.FilterStart = jmp;
+            }
         }
 
 

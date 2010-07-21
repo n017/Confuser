@@ -42,7 +42,7 @@ namespace Confuser.Core.Confusions
                     txts = new List<Context>();
                     foreach (MethodDefinition mtd in defs)
                     {
-                        if (!mtd.HasBody || mtd.DeclaringType.FullName == "<Module>") return;
+                        if (!mtd.HasBody || mtd.DeclaringType.FullName == "<Module>") continue;
 
                         MethodBody bdy = mtd.Body;
                         foreach (Instruction inst in bdy.Instructions)
@@ -76,9 +76,6 @@ namespace Confuser.Core.Confusions
                 default: throw new InvalidOperationException();
             }
         }
-
-
-        private delegate void Processer(Confuser cr, MethodBody Bdy, Instruction Inst, MethodReference MtdRef, ModuleDefinition Mod);
 
         MethodDefinition proxy;
         private class Context { public MethodBody bdy; public bool isVirt; public Instruction inst; public FieldDefinition fld; public TypeDefinition dele; public MethodReference mtdRef;}
@@ -127,14 +124,14 @@ namespace Confuser.Core.Confusions
                     invoke.Parameters.Add(new ParameterDefinition(obj));
                     for (int i = 0; i < MtdRef.Parameters.Count; i++)
                     {
-                        invoke.Parameters.Add(new ParameterDefinition(GetNameO(MtdRef.Parameters[i]), MtdRef.Parameters[i].Attributes, MtdRef.Parameters[i].ParameterType));
+                        invoke.Parameters.Add(Clone(GetNameO(MtdRef.Parameters[i]), MtdRef.Parameters[i]));
                     }
                 }
                 else
                 {
                     for (int i = 0; i < MtdRef.Parameters.Count; i++)
                     {
-                        invoke.Parameters.Add(new ParameterDefinition(GetNameO(MtdRef.Parameters[i]), MtdRef.Parameters[i].Attributes, MtdRef.Parameters[i].ParameterType));
+                        invoke.Parameters.Add(Clone(GetNameO(MtdRef.Parameters[i]), MtdRef.Parameters[i]));
                     }
                 }
                 txt.dele.Methods.Add(invoke);
@@ -163,14 +160,14 @@ namespace Confuser.Core.Confusions
 
                         for (int i = 0; i < txt.mtdRef.Parameters.Count; i++)
                         {
-                            bdge.Parameters.Add(new ParameterDefinition(GetNameO(txt.mtdRef.Parameters[i]), txt.mtdRef.Parameters[i].Attributes, txt.mtdRef.Parameters[i].ParameterType));
+                            bdge.Parameters.Add(Clone(GetNameO(txt.mtdRef.Parameters[i]), txt.mtdRef.Parameters[i]));
                         }
                     }
                     else
                     {
                         for (int i = 0; i < txt.mtdRef.Parameters.Count; i++)
                         {
-                            bdge.Parameters.Add(new ParameterDefinition(GetNameO(txt.mtdRef.Parameters[i]), txt.mtdRef.Parameters[i].Attributes, txt.mtdRef.Parameters[i].ParameterType));
+                            bdge.Parameters.Add(Clone(GetNameO(txt.mtdRef.Parameters[i]), txt.mtdRef.Parameters[i]));
                         }
                     }
                     {
@@ -218,8 +215,26 @@ namespace Confuser.Core.Confusions
             cctor.Body.GetILProcessor().Emit(OpCodes.Ret);
         }
 
+        ParameterDefinition Clone(string n, ParameterDefinition param)
+        {
+            ParameterDefinition ret = new ParameterDefinition(n, param.Attributes, param.ParameterType);
+            if (param.HasConstant)
+            {
+                ret.Constant = param.Constant;
+                ret.HasConstant = true;
+            }
+            else
+                ret.HasConstant = false;
+
+            if (param.HasMarshalInfo)
+            {
+                ret.MarshalInfo = param.MarshalInfo;
+            }
+            return ret;
+        }
         string GetNameO(MethodReference mbr)
         {
+            return mbr.ToString();
             MD5 md5 = MD5.Create();
             byte[] b = md5.ComputeHash(Encoding.UTF8.GetBytes(mbr.ToString()));
             Random rand = new Random(mbr.ToString().GetHashCode());
@@ -234,6 +249,7 @@ namespace Confuser.Core.Confusions
         }
         string GetNameO(ParameterDefinition arg)
         {
+            return arg.Name;
             MD5 md5 = MD5.Create();
             byte[] b = md5.ComputeHash(Encoding.UTF8.GetBytes(arg.Name));
             Random rand = new Random(arg.ToString().GetHashCode());

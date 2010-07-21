@@ -5,7 +5,7 @@
 	xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 	mc:Ignorable="d"
 	x:Class="Confuser.AssemblyElementPicker">
-	<Panel.Resources>
+	<Grid.Resources>
 		<ResourceDictionary>
 			<ImageSource x:Key="asm">PickerIcons/assembly.png</ImageSource>
 			<ImageSource x:Key="mod">PickerIcons/module.png</ImageSource>
@@ -20,21 +20,16 @@
 			<ImageSource x:Key="fld">PickerIcons/field.png</ImageSource>
 			<ImageSource x:Key="prop">PickerIcons/property.png</ImageSource>
 			<ImageSource x:Key="evt">PickerIcons/event.png</ImageSource>
-		</ResourceDictionary>
-	</Panel.Resources>
-    <StackPanel Width="100" VerticalAlignment="Center" HorizontalAlignment="Left">
-        <Button x:Name="selAll" Margin="5,5,5,5" Content="Select All..." Height="25" Click="selAll_Click">
-            <Button.ContextMenu>
-                <ContextMenu x:Name="selMenu" Template="{DynamicResource contextMenu}">
-                    <MenuItem x:Name="selMem" Header="Members" Click="selMem_Click"/>
-                    <MenuItem x:Name="selPub" Header="Public Members" Click="selPub_Click"/>
-                    <MenuItem x:Name="selInt" Header="Internal Members" Click="selInt_Click"/>
-                </ContextMenu>
-            </Button.ContextMenu>
-        </Button>
-        <Button x:Name="unselAll" Margin="5,5,5,10" Content="Unselect All" Height="25" Click="unsel_Click"/>
-        <Button x:Name="expAll" Margin="5,10,5,5" Content="Expand All" Height="25" Click="expAll_Click" />
-        <Button x:Name="colAll" Margin="5,5,5,5" Content="Collapse All" Height="25" Click="colAll_Click"/>
-    </StackPanel>
-    <TreeView x:Name="asmViewer" Focusable="False" Margin="100,0,0,0" VirtualizingStackPanel.IsVirtualizing="True"/>
+            <ContextMenu x:Key="selMenu" Template="{DynamicResource contextMenu}">
+                <MenuItem Header="Select All Members" Click="selMem_Click"/>
+                <MenuItem Header="Select All Public Members" Click="selPub_Click"/>
+                <MenuItem Header="Select All Internal Members" Click="selInt_Click"/>
+                <MenuItem Header="Unselect All Members" Click="unsel_Click"/>
+                <Separator/>
+                <MenuItem Header="Expand All" Click="expAll_Click"/>
+                <MenuItem Header="Collapse All" Click="colAll_Click"/>
+            </ContextMenu>
+        </ResourceDictionary>
+	</Grid.Resources>
+    <TreeView x:Name="asmViewer" Focusable="False" Margin="0,0,0,0" VirtualizingStackPanel.IsVirtualizing="True"/>
 </Grid>
