@@ -90,7 +90,8 @@ namespace Confuser.Core.Confusions
         {
             //Limitation
             if ((MtdRef.HasThis && MtdRef.DeclaringType.IsValueType) ||
-                MtdRef is GenericInstanceMethod) return;
+                MtdRef is GenericInstanceMethod ||
+                MtdRef.DeclaringType.FullName == "<Module>") return;
 
             Context txt = new Context();
             txt.inst = Inst;
@@ -151,9 +152,9 @@ namespace Confuser.Core.Confusions
                 }
                 ////////////////Bridge
                 MethodDefinition bdge;
-                if ((bdge = Mod.GetType("<Module>").Methods.FirstOrDefault(mtd => mtd.Name == GetNameO(txt.mtdRef))) == null)
+                if ((bdge = Mod.GetType("<Module>").Methods.FirstOrDefault(mtd => mtd.Name == GetNameO(txt.inst.OpCode.Name == "callvirt", txt.mtdRef))) == null)
                 {
-                    bdge = new MethodDefinition(GetNameO(txt.mtdRef), MethodAttributes.Static | MethodAttributes.Assem, txt.mtdRef.ReturnType);
+                    bdge = new MethodDefinition(GetNameO(txt.inst.OpCode.Name == "callvirt", txt.mtdRef), MethodAttributes.Static | MethodAttributes.Assem, txt.mtdRef.ReturnType);
                     if (txt.mtdRef.HasThis)
                     {
                         bdge.Parameters.Add(new ParameterDefinition(Mod.Import(typeof(object))));
@@ -232,11 +233,10 @@ namespace Confuser.Core.Confusions
             }
             return ret;
         }
-        string GetNameO(MethodReference mbr)
+        string GetNameO(bool isVirt, MethodReference mbr)
         {
-            return mbr.ToString();
             MD5 md5 = MD5.Create();
-            byte[] b = md5.ComputeHash(Encoding.UTF8.GetBytes(mbr.ToString()));
+            byte[] b = md5.ComputeHash(Encoding.UTF8.GetBytes((isVirt ? "V>." : "") + mbr.ToString()));
             Random rand = new Random(mbr.ToString().GetHashCode());
             StringBuilder ret = new StringBuilder();
             for (int i = 0; i < b.Length; i += 2)
@@ -249,7 +249,6 @@ namespace Confuser.Core.Confusions
         }
         string GetNameO(ParameterDefinition arg)
         {
-            return arg.Name;
             MD5 md5 = MD5.Create();
             byte[] b = md5.ComputeHash(Encoding.UTF8.GetBytes(arg.Name));
             Random rand = new Random(arg.ToString().GetHashCode());
@@ -327,16 +326,16 @@ namespace Confuser.Core.Confusions
         {
             var fld = System.Reflection.FieldInfo.GetFieldFromHandle(f);
 
-            Console.WriteLine(fld.Name.Length);
-            Console.WriteLine(((int)fld.Name[0]).ToString("x2"));
-            Console.WriteLine(((int)fld.Name[1]).ToString("x2"));
-            Console.WriteLine(((int)fld.Name[2]).ToString("x2"));
-            Console.WriteLine(((int)fld.Name[3]).ToString("x2"));
+            string n = fld.Name;
 
             var asm = System.Reflection.Assembly.GetExecutingAssembly();
-            if (fld.Name[0] != (char)1)
-                asm = System.Reflection.Assembly.Load(asm.GetReferencedAssemblies()[(int)fld.Name[0] - 2]);
-            var mtd = asm.GetModules()[0].ResolveMethod(BitConverter.ToInt32(Encoding.Unicode.GetBytes(fld.Name.ToCharArray(), 2, 2), 0)) as System.Reflection.MethodInfo;
+            if (n[0] != (char)1)
+                asm = System.Reflection.Assembly.Load(asm.GetReferencedAssemblies()[(int)n[0] - 2]);
+            var mtd = asm.GetModules()[0].ResolveMethod(BitConverter.ToInt32(Encoding.Unicode.GetBytes(n.ToCharArray(), 2, 2), 0)) as System.Reflection.MethodInfo;
+
+            Console.WriteLine(asm.GetName().ToString());
+            Console.WriteLine(mtd.DeclaringType.FullName);
+            Console.WriteLine(mtd.ToString());
 
             if (mtd.IsStatic)
             {
@@ -357,10 +356,10 @@ namespace Confuser.Core.Confusions
                     dm = new System.Reflection.Emit.DynamicMethod("", mtd.ReturnType, arg, mtd.DeclaringType, true);
                 var gen = dm.GetILGenerator();
                 gen.Emit(System.Reflection.Emit.OpCodes.Ldarg_0);
-                gen.Emit(System.Reflection.Emit.OpCodes.Castclass, mtd.DeclaringType);
+                //gen.Emit(System.Reflection.Emit.OpCodes.Castclass, mtd.DeclaringType);
                 for (int i = 1; i < arg.Length; i++)
                     gen.Emit(System.Reflection.Emit.OpCodes.Ldarg_S, i);
-                gen.Emit((fld.Name[1] == '\r') ? System.Reflection.Emit.OpCodes.Callvirt : System.Reflection.Emit.OpCodes.Call, mtd);
+                gen.Emit((n[1] == '\r') ? System.Reflection.Emit.OpCodes.Callvirt : System.Reflection.Emit.OpCodes.Call, mtd);
                 gen.Emit(System.Reflection.Emit.OpCodes.Ret);
 
                 fld.SetValue(null, dm.CreateDelegate(fld.FieldType));

@@ -51,7 +51,7 @@ namespace Confuser.Core
         Fields = 4,
         Events = 8,
         Properties = 16,
-        All = 32,
+        All = 31,
         Whole = 64,
     }
     public abstract class Confusion

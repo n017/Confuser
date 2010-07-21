@@ -276,14 +276,14 @@ namespace Confuser
                     bx.IsChecked = val;
             }
             foreach (TreeViewItem c in item.Items)
-                this.Dispatcher.BeginInvoke(new Action<TreeViewItem, bool, int>(Check), System.Windows.Threading.DispatcherPriority.Loaded, c, val, type);
+                Check(c, val, type);
         }
 
         private void Expand(TreeViewItem item, bool val)
         {
             item.IsExpanded = val;
             foreach (TreeViewItem c in item.Items)
-                this.Dispatcher.BeginInvoke(new Action<TreeViewItem, bool>(Expand), System.Windows.Threading.DispatcherPriority.Loaded, c, val);
+                Expand(c, val);
         }
 
         public IMemberDefinition[] GetSelections()

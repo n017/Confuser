@@ -28,7 +28,9 @@
 
 namespace Mono.Cecil {
 
-	public abstract class MemberReference : IMetadataTokenProvider {
+    using System.Collections;
+
+	public abstract class MemberReference : IMetadataTokenProvider, IAnnotationProvider {
 
 		string name;
 		TypeReference declaring_type;
@@ -93,5 +95,17 @@ namespace Mono.Cecil {
 		{
 			return FullName;
 		}
-	}
+
+
+        IDictionary m_annotations;
+        IDictionary IAnnotationProvider.Annotations
+        {
+            get
+            {
+                if (m_annotations == null)
+                    m_annotations = new Hashtable();
+                return m_annotations;
+            }
+        }
+    }
 }
