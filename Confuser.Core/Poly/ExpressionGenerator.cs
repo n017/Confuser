@@ -45,7 +45,9 @@ namespace Confuser.Core.Poly
                 else
                 {
                     ret = new ConstantExpression();
-                    while ((ret as ConstantExpression).Value == 0)
+                    while ((ret as ConstantExpression).Value == 0||
+                           (ret as ConstantExpression).Value == -1 || 
+                           (ret as ConstantExpression).Value == 1)
                         (ret as ConstantExpression).Value = rand.Next(-10, 10);
                 }
             }

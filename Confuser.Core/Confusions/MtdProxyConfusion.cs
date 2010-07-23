@@ -64,7 +64,7 @@ namespace Confuser.Core.Confusions
                     proxy = CecilHelper.Inject(asm.MainModule, proxy);
                     mod.Methods.Add(proxy);
                     proxy.IsAssembly = true;
-                    proxy.Name = GetName("Proxy" + Guid.NewGuid().ToString());
+                    proxy.Name = ObfuscationHelper.GetNewName("Proxy" + Guid.NewGuid().ToString());
 
                     CreateFieldBridges(cr, asm.MainModule);
                     break;
@@ -235,46 +235,15 @@ namespace Confuser.Core.Confusions
         }
         string GetNameO(bool isVirt, MethodReference mbr)
         {
-            MD5 md5 = MD5.Create();
-            byte[] b = md5.ComputeHash(Encoding.UTF8.GetBytes((isVirt ? "V>." : "") + mbr.ToString()));
-            Random rand = new Random(mbr.ToString().GetHashCode());
-            StringBuilder ret = new StringBuilder();
-            for (int i = 0; i < b.Length; i += 2)
-            {
-                ret.Append((char)(((b[i] << 8) + b[i + 1]) ^ rand.Next()));
-                if (rand.NextDouble() > 0.75)
-                    ret.AppendLine();
-            }
-            return ret.ToString();
+            return ObfuscationHelper.GetNewName((isVirt ? "V>." : "") + mbr.ToString());
         }
         string GetNameO(ParameterDefinition arg)
         {
-            MD5 md5 = MD5.Create();
-            byte[] b = md5.ComputeHash(Encoding.UTF8.GetBytes(arg.Name));
-            Random rand = new Random(arg.ToString().GetHashCode());
-            StringBuilder ret = new StringBuilder();
-            for (int i = 0; i < b.Length; i += 2)
-            {
-                ret.Append((char)(((b[i] << 8) + b[i + 1]) ^ rand.Next()));
-                if (rand.NextDouble() > 0.75)
-                    ret.AppendLine();
-            }
-            return ret.ToString();
+            return ObfuscationHelper.GetNewName(arg.Name);
         }
         string GetSignatureO(MethodReference mbr)
         {
-            string sig = GetSignature(mbr);
-            MD5 md5 = MD5.Create();
-            byte[] b = md5.ComputeHash(Encoding.UTF8.GetBytes(sig));
-            Random rand = new Random(sig.GetHashCode());
-            StringBuilder ret = new StringBuilder();
-            for (int i = 0; i < b.Length; i += 2)
-            {
-                ret.Append((char)(((b[i] << 8) + b[i + 1]) ^ rand.Next()));
-                if (rand.NextDouble() > 0.75)
-                    ret.AppendLine();
-            }
-            return ret.ToString();
+            return ObfuscationHelper.GetNewName(GetSignature(mbr));
         }
         string GetSignature(MethodReference mbr)
         {
@@ -300,20 +269,6 @@ namespace Confuser.Core.Confusions
             }
             sig.Append(")");
             return sig.ToString();
-        }
-        string GetName(string n)
-        {
-            MD5 md5 = MD5.Create();
-            byte[] b = md5.ComputeHash(Encoding.UTF8.GetBytes(n));
-            Random rand = new Random(n.GetHashCode());
-            StringBuilder ret = new StringBuilder();
-            for (int i = 0; i < b.Length; i += 2)
-            {
-                ret.Append((char)(((b[i] << 8) + b[i + 1]) ^ rand.Next()));
-                if (rand.NextDouble() > 0.75)
-                    ret.AppendLine();
-            }
-            return ret.ToString();
         }
 
         private string GetId(ModuleDefinition mod, bool isVirt, MethodReference mtd)

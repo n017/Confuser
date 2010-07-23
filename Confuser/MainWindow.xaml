@@ -6,7 +6,8 @@
 	x:Class="Confuser.MainWindow"
 	x:Name="Window"
 	Title="Confuser" Icon="{StaticResource icon}"
-	Width="800" Height="600" Loaded="Window_Loaded">
+	Width="800" Height="600" Loaded="Window_Loaded"
+    AllowDrop="True" Drop="Window_Drop">
 
 	<Grid x:Name="LayoutRoot">
 		<Menu HorizontalAlignment="Stretch" VerticalAlignment="Top" Height="25">

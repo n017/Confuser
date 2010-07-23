@@ -14,6 +14,7 @@ using System.Windows.Media;
 using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 using Confuser.Core;
 using System.IO;
 
@@ -63,9 +64,10 @@ namespace Confuser
             {
                 ShowNotice("Loading...");
                 plugin.IsEnabled = false;
+                path = of.FileName;
+                output.Text = System.IO.Path.GetDirectoryName(path) + "\\Confused\\" + System.IO.Path.GetFileName(path);
                 new Thread(delegate()
                 {
-                    path = of.FileName;
                     try
                     {
                         asm = AssemblyDefinition.ReadAssembly(of.OpenFile(), new ReaderParameters(ReadingMode.Immediate));
@@ -95,6 +97,42 @@ namespace Confuser
         {
             Application.Current.Shutdown();
         }
+        private void Window_Drop(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                string[] file = e.Data.GetData(DataFormats.FileDrop, true) as string[];
+                if (file.Length == 1)
+                {
+                    asmTab.IsSelected = true;
+                    CloseAssembly();
+
+                    ShowNotice("Loading...");
+                    plugin.IsEnabled = false;
+                    path = file[0];
+                    output.Text = System.IO.Path.GetDirectoryName(path) + "\\Confused\\" + System.IO.Path.GetFileName(path);
+                    new Thread(delegate()
+                    {
+                        try
+                        {
+                            asm = AssemblyDefinition.ReadAssembly(path, new ReaderParameters(ReadingMode.Immediate));
+                        }
+                        catch
+                        {
+                            MessageBox.Show("Not a valid managed assembly!", "Confuser", MessageBoxButton.OK, MessageBoxImage.Error);
+                            return;
+                        }
+                        if ((asm.MainModule.Attributes & ModuleAttributes.ILOnly) == 0)
+                        {
+                            MessageBox.Show("Mixed mode assembly not supported!");
+                            return;
+                        }
+
+                        this.Dispatcher.Invoke(new Action<AssemblyDefinition>(InitalizeAssembly), asm);
+                    }).Start();
+                }
+            }
+        }
 
         private void output_sel_Click(object sender, RoutedEventArgs e)
         {
@@ -112,6 +150,8 @@ namespace Confuser
             FileStream dst;
             try
             {
+                if (!Directory.Exists(System.IO.Path.GetDirectoryName(output.Text)))
+                    Directory.CreateDirectory(System.IO.Path.GetDirectoryName(output.Text));
                 dst = File.Create(output.Text);
             }
             catch
@@ -165,10 +205,10 @@ namespace Confuser
 
             cr.Log += new LogEventHandler(delegate(object sdr, LogEventArgs ee)
             {
-                this.Dispatcher.Invoke(new Action(delegate
+                this.Dispatcher.BeginInvoke(new Action(delegate
                 {
                     log.AppendText(ee.Message + "\r\n");
-                }), null);
+                }), DispatcherPriority.Render, null);
             });
 
             cr.Finish += new EventHandler(delegate
@@ -400,7 +440,6 @@ namespace Confuser
                 }
             }
         }
-
         private void open_Click(object sender, RoutedEventArgs e)
         {
             OpenFileDialog of = new OpenFileDialog();
@@ -417,7 +456,6 @@ namespace Confuser
                 }
             }
         }
-
         private void save_Click(object sender, RoutedEventArgs e)
         {
             SaveFileDialog sf = new SaveFileDialog();

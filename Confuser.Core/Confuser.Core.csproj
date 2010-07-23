@@ -86,6 +86,7 @@
     <Compile Include="Confusions\AntiILDasmConfusion.cs" />
     <Compile Include="Confusions\StringConfusion.cs" />
     <Compile Include="Confusion.cs" />
+    <Compile Include="ObfuscationHelper.cs" />
     <Compile Include="Poly\Expressions\AddExpression.cs" />
     <Compile Include="Poly\Expressions\ConstantExpression.cs" />
     <Compile Include="Poly\Expressions\DivExpression.cs" />

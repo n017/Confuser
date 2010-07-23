@@ -73,6 +73,7 @@ namespace Confuser.Core.Confusions
                         else if (inst.Operand is int && (int)inst.Operand == 123)
                         {
                             read7be.Body.SimplifyMacros();
+                            ILProcessor read7bePsr = read7be.Body.GetILProcessor();
                             foreach (VariableDefinition var in read7be.Body.Variables)
                                 strer.Body.Variables.Add(var);
                             Instruction[] arg = new Instruction[read7be.Body.Instructions.Count];
@@ -80,9 +81,15 @@ namespace Confuser.Core.Confusions
                             {
                                 Instruction tmp = read7be.Body.Instructions[ii];
                                 if (tmp.Operand is ParameterReference)
-                                    tmp = Instruction.Create(OpCodes.Ldloc, strer.Body.Variables.FirstOrDefault(var => var.VariableType.FullName == "System.IO.BinaryReader"));
+                                {
+                                    read7bePsr.Replace(tmp, Instruction.Create(OpCodes.Ldloc, strer.Body.Variables.FirstOrDefault(var => var.VariableType.FullName == "System.IO.BinaryReader")));
+                                    tmp = tmp = read7be.Body.Instructions[ii];
+                                }
                                 else if (tmp.OpCode == OpCodes.Ret)
-                                    tmp = Instruction.Create(OpCodes.Conv_I8);
+                                {
+                                    read7bePsr.Replace(tmp, Instruction.Create(OpCodes.Conv_I8));
+                                    tmp = tmp = read7be.Body.Instructions[ii];
+                                }
                                 arg[ii] = tmp;
                             }
 

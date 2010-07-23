@@ -57,7 +57,7 @@ namespace Confuser
         void SetCMenu(TreeViewItem item)
         {
             item.ContextMenu = this.FindResource("selMenu") as ContextMenu;
-            item.MouseRightButtonUp += new MouseButtonEventHandler(menu_Click);
+            item.AddHandler(TreeViewItem.MouseRightButtonUpEvent, new RoutedEventHandler(menu_Click));
         }
 
         Dictionary<IMemberDefinition, TreeViewItem> dict;
@@ -88,7 +88,7 @@ namespace Confuser
             item.Tag = mod;
             SetCMenu(item);
 
-            Dictionary<string, TreeViewItem> nss = new Dictionary<string, TreeViewItem>();
+            SortedDictionary<string, TreeViewItem> nss = new SortedDictionary<string, TreeViewItem>();
             foreach (TypeDefinition t in mod.Types)
             {
                 if (!nss.ContainsKey(t.Namespace))
@@ -222,9 +222,11 @@ namespace Confuser
             dict[type] = item;
         }
 
-        void menu_Click(object sender, MouseButtonEventArgs e)
+        void menu_Click(object sender, RoutedEventArgs e)
         {
             (sender as TreeViewItem).ContextMenu.Tag = sender;
+            (sender as TreeViewItem).ContextMenu.IsOpen = true;
+            e.Handled = true;
         }
 
         private void selMem_Click(object sender, RoutedEventArgs e)

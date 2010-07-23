@@ -87,7 +87,7 @@ namespace Confuser.Core.Confusions
                             string o = type.FullName;
                             if (type.Name == "<Module>")
                                 continue;
-                            type.Name = GetNewName(type.Name);
+                            type.Name = ObfuscationHelper.GetNewName(type.Name);
                             type.Namespace = "";
                             tDict[o] = type.FullName;
                         }
@@ -102,7 +102,7 @@ namespace Confuser.Core.Confusions
                             if (fld.IsRuntimeSpecialName)
                                 continue;
                             string sig = GetSig(fld);
-                            fld.Name = GetNewName(fld.Name);
+                            fld.Name = ObfuscationHelper.GetNewName(fld.Name);
                             SetDictEntry(fld.DeclaringType, sig, fld.Name);
                         }
                         else if (mem is PropertyDefinition)
@@ -110,14 +110,14 @@ namespace Confuser.Core.Confusions
                             PropertyDefinition prop = mem as PropertyDefinition;
                             if (prop.IsRuntimeSpecialName)
                                 continue;
-                            prop.Name = GetNewName(prop.Name);
+                            prop.Name = ObfuscationHelper.GetNewName(prop.Name);
                         }
                         else if (mem is EventDefinition)
                         {
                             EventDefinition evt = mem as EventDefinition;
                             if (evt.IsRuntimeSpecialName)
                                 continue;
-                            evt.Name = GetNewName(evt.Name);
+                            evt.Name = ObfuscationHelper.GetNewName(evt.Name);
                         }
                     }
                     break;
@@ -142,68 +142,99 @@ namespace Confuser.Core.Confusions
                 if (mtd.DeclaringType.BaseType != null && !(mtd.DeclaringType.BaseType.GetElementType() is TypeDefinition))
                 {
                     TypeDefinition bType = mtd.DeclaringType.BaseType.Resolve();
-                    MethodDefinition ovr = null;
-                    foreach (MethodDefinition bMtd in bType.Methods)
+                    if (bType.FullName == "System.Delegate" ||
+                        bType.FullName == "System.MulticastDelegate")
                     {
-                        if (bMtd.Name == mtd.Name &&
-                            bMtd.ReturnType.FullName == mtd.ReturnType.FullName &&
-                            bMtd.Parameters.Count == mtd.Parameters.Count)
+                        //NOT TO RENAME
+                    }
+                    else if (bType.IsInterface)
+                    {
+                        TypeDefinition now = bType;
+                        do
                         {
-                            bool f = true;
-                            for (int i = 0; i < bMtd.Parameters.Count; i++)
-                                if (bMtd.Parameters[i].ParameterType.FullName != mtd.Parameters[i].ParameterType.FullName)
+                            MethodDefinition imple = null;
+                            foreach (MethodDefinition bMtd in bType.Methods)
+                            {
+                                if (bMtd.Name == mtd.Name &&
+                                    bMtd.ReturnType.FullName == mtd.ReturnType.FullName &&
+                                    bMtd.Parameters.Count == mtd.Parameters.Count)
                                 {
-                                    f = false;
+                                    bool f = true;
+                                    for (int i = 0; i < bMtd.Parameters.Count; i++)
+                                        if (bMtd.Parameters[i].ParameterType.FullName != mtd.Parameters[i].ParameterType.FullName)
+                                        {
+                                            f = false;
+                                            break;
+                                        }
+                                    if (f)
+                                    {
+                                        imple = bMtd;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (imple != null)
+                            {
+                                mtd.Overrides.Add(imple);
+                            }
+                            now = now.BaseType.Resolve();
+                        } while (now != null);
+
+                        sig = GetSig(mtd);
+                        mtd.Name = ObfuscationHelper.GetNewName(mtd.Name);
+                        SetDictEntry(mtd.DeclaringType, sig, mtd.Name);
+                    }
+                    else
+                    {
+                        MethodDefinition ovr = null;
+                        foreach (MethodDefinition bMtd in bType.Methods)
+                        {
+                            if (bMtd.Name == mtd.Name &&
+                                bMtd.ReturnType.FullName == mtd.ReturnType.FullName &&
+                                bMtd.Parameters.Count == mtd.Parameters.Count)
+                            {
+                                bool f = true;
+                                for (int i = 0; i < bMtd.Parameters.Count; i++)
+                                    if (bMtd.Parameters[i].ParameterType.FullName != mtd.Parameters[i].ParameterType.FullName)
+                                    {
+                                        f = false;
+                                        break;
+                                    }
+                                if (f)
+                                {
+                                    ovr = bMtd;
                                     break;
                                 }
-                            if (f)
-                            {
-                                ovr = bMtd;
-                                break;
                             }
                         }
-                    }
-                    if (ovr == null)
-                    {
-                        sig = GetSig(mtd);
-                        mtd.Name = GetNewName(mtd.Name);
-                        SetDictEntry(mtd.DeclaringType, sig, mtd.Name);
+                        if (ovr == null)
+                        {
+                            sig = GetSig(mtd);
+                            mtd.Name = ObfuscationHelper.GetNewName(mtd.Name);
+                            SetDictEntry(mtd.DeclaringType, sig, mtd.Name);
+                        }
                     }
                 }
                 else
                 {
                     sig = GetSig(mtd);
-                    mtd.Name = GetNewName(mtd.Name);
+                    mtd.Name = ObfuscationHelper.GetNewName(mtd.Name);
                     SetDictEntry(mtd.DeclaringType, sig, mtd.Name);
                 }
             }
 
             foreach (ParameterDefinition para in mtd.Parameters)
             {
-                para.Name = GetNewName(para.Name);
+                para.Name = ObfuscationHelper.GetNewName(para.Name);
             }
 
             if (mtd.HasBody)
             {
                 foreach (VariableDefinition var in mtd.Body.Variables)
                 {
-                    var.Name = GetNewName(var.Name);
+                    var.Name = ObfuscationHelper.GetNewName(var.Name);
                 }
             }
-        }
-        string GetNewName(string n)
-        {
-            MD5 md5 = MD5.Create();
-            byte[] b = md5.ComputeHash(Encoding.UTF8.GetBytes(n));
-            Random rand = new Random(n.GetHashCode());
-            StringBuilder ret = new StringBuilder();
-            for (int i = 0; i < b.Length; i += 2)
-            {
-                ret.Append((char)(((b[i] << 8) + b[i + 1]) ^ rand.Next()));
-                if (rand.NextDouble() > 0.75)
-                    ret.AppendLine();
-            }
-            return ret.ToString();
         }
 
         void UpdateType(TypeDefinition type, List<MemberReference> updated)
