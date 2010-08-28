@@ -303,8 +303,10 @@ namespace Confuser.Core
         }
         void FillAssembly(AssemblyDefinition asm, Dictionary<IConfusion, List<object>> mems)
         {
-            foreach (ConfusionSet cion in (asm as IAnnotationProvider).Annotations["ConfusionSets"] as List<ConfusionSet>)
-                mems[cion.Confusion].Add(asm);
+            List<ConfusionSet> sets = (asm as IAnnotationProvider).Annotations["ConfusionSets"] as List<ConfusionSet>;
+            if (sets != null)
+                foreach (ConfusionSet cion in sets)
+                    mems[cion.Confusion].Add(asm);
             foreach (ModuleDefinition mod in asm.Modules)
                 FillModule(mod, mems);
         }
@@ -312,8 +314,10 @@ namespace Confuser.Core
         {
             foreach (TypeDefinition type in mod.Types)
             {
-                foreach (ConfusionSet cion in (type as IAnnotationProvider).Annotations["ConfusionSets"] as List<ConfusionSet>)
-                    mems[cion.Confusion].Add(type);
+                List<ConfusionSet> sets = (type as IAnnotationProvider).Annotations["ConfusionSets"] as List<ConfusionSet>;
+                if (sets != null)
+                    foreach (ConfusionSet cion in sets)
+                        mems[cion.Confusion].Add(type);
                 FillType(type, mems);
             }
         }
@@ -321,22 +325,40 @@ namespace Confuser.Core
         {
             foreach (TypeDefinition nType in type.NestedTypes)
             {
-                foreach (ConfusionSet cion in (nType as IAnnotationProvider).Annotations["ConfusionSets"] as List<ConfusionSet>)
-                    mems[cion.Confusion].Add(nType);
+                List<ConfusionSet> sets = (nType as IAnnotationProvider).Annotations["ConfusionSets"] as List<ConfusionSet>;
+                if (sets != null)
+                    foreach (ConfusionSet cion in sets)
+                        mems[cion.Confusion].Add(nType);
                 FillType(nType, mems);
             }
             foreach (MethodDefinition mtd in type.Methods)
-                foreach (ConfusionSet cion in (mtd as IAnnotationProvider).Annotations["ConfusionSets"] as List<ConfusionSet>)
-                    mems[cion.Confusion].Add(mtd);
+            {
+                List<ConfusionSet> sets = (mtd as IAnnotationProvider).Annotations["ConfusionSets"] as List<ConfusionSet>;
+                if (sets != null)
+                    foreach (ConfusionSet cion in sets)
+                        mems[cion.Confusion].Add(mtd);
+            }
             foreach (FieldDefinition fld in type.Fields)
-                foreach (ConfusionSet cion in (fld as IAnnotationProvider).Annotations["ConfusionSets"] as List<ConfusionSet>)
-                    mems[cion.Confusion].Add(fld);
+            {
+                List<ConfusionSet> sets = (fld as IAnnotationProvider).Annotations["ConfusionSets"] as List<ConfusionSet>;
+                if (sets != null)
+                    foreach (ConfusionSet cion in sets)
+                        mems[cion.Confusion].Add(fld);
+            }
             foreach (EventDefinition evt in type.Events)
-                foreach (ConfusionSet cion in (evt as IAnnotationProvider).Annotations["ConfusionSets"] as List<ConfusionSet>)
-                    mems[cion.Confusion].Add(evt);
+            {
+                List<ConfusionSet> sets = (evt as IAnnotationProvider).Annotations["ConfusionSets"] as List<ConfusionSet>;
+                if (sets != null)
+                    foreach (ConfusionSet cion in sets)
+                        mems[cion.Confusion].Add(evt);
+            }
             foreach (PropertyDefinition prop in type.Properties)
-                foreach (ConfusionSet cion in (prop as IAnnotationProvider).Annotations["ConfusionSets"] as List<ConfusionSet>)
-                    mems[cion.Confusion].Add(prop);
+            {
+                List<ConfusionSet> sets = (prop as IAnnotationProvider).Annotations["ConfusionSets"] as List<ConfusionSet>;
+                if (sets != null)
+                    foreach (ConfusionSet cion in sets)
+                        mems[cion.Confusion].Add(prop);
+            }
         }
     }
 }

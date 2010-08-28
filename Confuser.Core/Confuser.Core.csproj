@@ -101,7 +101,6 @@
     <Compile Include="Poly\Visitors\ReflectionVisitor.cs" />
     <Compile Include="Poly\Expressions\VariableExpression.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Content Include="SDK.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Note.txt" />

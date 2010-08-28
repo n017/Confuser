@@ -13,6 +13,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 using System.Windows.Threading;
+using System.Threading;
 
 namespace Confuser
 {
@@ -106,15 +107,15 @@ namespace Confuser
             }
 
             double leftM;
-            if (cnt.Margin.Left >= this.ActualWidth / 2 && ScrollFactor > 0)
+            if (cnt.Margin.Left >= 50 && ScrollFactor > 0)
             {
                 ScrollFactor = 0;
-                leftM = this.ActualWidth - this.ActualWidth / 2;
+                leftM = 50;
             }
-            else if (cnt.Margin.Left <= -(cnt.ActualWidth - this.ActualWidth / 2) && ScrollFactor < 0)
+            else if (cnt.Margin.Left <= -(cnt.ActualWidth - 50) && ScrollFactor < 0)
             {
                 ScrollFactor = 0;
-                leftM = -(cnt.ActualWidth - this.ActualWidth / 2);
+                leftM = -(cnt.ActualWidth - 50);
             }
             else
             {
@@ -185,7 +186,7 @@ namespace Confuser
             ThicknessAnimation ani = new ThicknessAnimation();
             Storyboard.SetTarget(ani, cnt);
             Storyboard.SetTargetProperty(ani, new PropertyPath(FrameworkElement.MarginProperty));
-            ani.To = new Thickness(-(cnt.ActualWidth - this.ActualWidth / 2), cnt.Margin.Top, cnt.Margin.Right, cnt.Margin.Bottom);
+            ani.To = new Thickness(-(cnt.ActualWidth - 50), cnt.Margin.Top, cnt.Margin.Right, cnt.Margin.Bottom);
             ani.Duration = new Duration(TimeSpan.FromMilliseconds(100));
             sb.Children.Add(ani);
             sb.Begin();
@@ -198,7 +199,7 @@ namespace Confuser
             ThicknessAnimation ani = new ThicknessAnimation();
             Storyboard.SetTarget(ani, cnt);
             Storyboard.SetTargetProperty(ani, new PropertyPath(FrameworkElement.MarginProperty));
-            ani.To = new Thickness(this.ActualWidth / 2, cnt.Margin.Top, cnt.Margin.Right, cnt.Margin.Bottom);
+            ani.To = new Thickness(50, cnt.Margin.Top, cnt.Margin.Right, cnt.Margin.Bottom);
             ani.Duration = new Duration(TimeSpan.FromMilliseconds(100));
             sb.Children.Add(ani);
             sb.Begin();

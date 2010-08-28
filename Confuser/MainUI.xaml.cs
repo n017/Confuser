@@ -346,8 +346,8 @@ namespace Confuser
                     if (log != null) log.Clear();
                     pBar = FindChild<ProgressBar>(phase, null);
                     if (pBar != null) pBar.Value = 0;
-                    progress.ScrollToEnd();
                     Storyboard sb = this.Resources["showPhase"] as Storyboard;
+                    progress.ScrollToEnd();
                     Storyboard.SetTarget(sb.Children[0], phase);
                     Storyboard.SetTarget(sb.Children[1], phase);
                     sb.Completed += delegate
@@ -357,7 +357,7 @@ namespace Confuser
                     sb.Begin();
                 }), null);
                 lock (this) { }
-                Thread.Sleep(5);
+                Thread.Sleep(150);
             });
             param.Logger.Logging += new EventHandler<Core.LogEventArgs>((sender1, e1) =>
             {
@@ -389,8 +389,8 @@ namespace Confuser
                     FindChild<UIElement>(result, "resultFail").Visibility = Visibility.Visible;
                     FindChild<UIElement>(result, "resultOk").Visibility = Visibility.Hidden;
                     FindChild<TextBox>(result, null).Text = string.Format("Failed!\nException details : \n" + e1.Exception.ToString());
-                    progress.ScrollToEnd();
                     Storyboard sb = this.Resources["showPhase"] as Storyboard;
+                    progress.ScrollToEnd();
                     Storyboard.SetTarget(sb, result);
                     sb.Completed += delegate
                     {
@@ -410,8 +410,8 @@ namespace Confuser
                     FindChild<UIElement>(result, "resultOk").Visibility = Visibility.Visible;
                     FindChild<UIElement>(result, "resultFail").Visibility = Visibility.Hidden;
                     FindChild<TextBox>(result, null).Text = string.Format("Succeeded!\n" + e1.Message.ToString());
-                    progress.ScrollToEnd();
                     Storyboard sb = this.Resources["showPhase"] as Storyboard;
+                    progress.ScrollToEnd();
                     Storyboard.SetTarget(sb, result);
                     sb.Completed += delegate
                     {

@@ -31,7 +31,7 @@ namespace Confuser.Core
 
             public void StartLevel()
             {
-                if (inheritStack.Count != 0)
+                if (inheritStack.Count > 0)
                     CurrentConfusions = new List<ConfusionSet>(inheritStack.Peek());
                 else
                     CurrentConfusions = new List<ConfusionSet>();
@@ -40,6 +40,14 @@ namespace Confuser.Core
             public void LeaveLevel()
             {
                 inheritStack.Pop();
+            }
+            public void SkipLevel()
+            {
+                if (inheritStack.Count > 1)
+                    CurrentConfusions = new List<ConfusionSet>(inheritStack.ToArray()[inheritStack.Count - 2]);
+                else
+                    CurrentConfusions = new List<ConfusionSet>();
+                inheritStack.Push(CurrentConfusions);
             }
         }
 
@@ -57,11 +65,56 @@ namespace Confuser.Core
                 if (i.Preset <= preset)
                     cs.Add(new ConfusionSet() { Confusion = i });
         }
+
+        private bool ProcessAttribute(ICustomAttributeProvider provider, Settings setting)
+        {
+            CustomAttribute att = GetAttribute(provider.CustomAttributes);
+            if (att == null)
+            {
+                setting.StartLevel();
+                return false;
+            }
+
+            CustomAttributeNamedArgument excludeArg = att.Properties.FirstOrDefault(arg => arg.Name == "Exclude");
+            bool exclude = true;
+            if (!excludeArg.Equals(default(CustomAttributeNamedArgument)))
+                exclude = (bool)excludeArg.Argument.Value;
+
+            if (exclude)
+                setting.CurrentConfusions.Clear();
+
+            CustomAttributeNamedArgument applyToMembersArg = att.Properties.FirstOrDefault(arg => arg.Name == "ApplyToMembers");
+            bool applyToMembers = true;
+            if (!applyToMembersArg.Equals(default(CustomAttributeNamedArgument)))
+                applyToMembers = (bool)applyToMembersArg.Argument.Value;
+
+            if (applyToMembers)
+                setting.StartLevel();
+            else
+                setting.SkipLevel();
+
+            if (!exclude)
+            {
+                CustomAttributeNamedArgument featureArg = att.Properties.FirstOrDefault(arg => arg.Name == "Feature");
+                string feature = "all";
+                if (!featureArg.Equals(default(CustomAttributeNamedArgument)))
+                    feature = (string)featureArg.Argument.Value;
+
+                if (feature == "all")
+                    FillPreset(Preset.Maximum, setting.CurrentConfusions);
+                else if (feature == "default")
+                    FillPreset(Preset.Normal, setting.CurrentConfusions);
+                else
+                    ProcessFeature(feature, setting.CurrentConfusions);
+            }
+
+            return exclude && applyToMembers;
+        }
         private CustomAttribute GetAttribute(Collection<CustomAttribute> attributes)
         {
-            return attributes.FirstOrDefault((att) => att.AttributeType.FullName == "ConfuseAttribute");
+            return attributes.FirstOrDefault((att) => att.AttributeType.FullName == "System.Reflection.ObfuscationAttribute");
         }
-        private void ProcessConfig(string cfg, List<ConfusionSet> cs)
+        private void ProcessFeature(string cfg, List<ConfusionSet> cs)
         {
             if (cfg == "exclude")
             {
@@ -121,15 +174,9 @@ namespace Confuser.Core
         public void MarkAssembly(AssemblyDefinition asm, Preset preset)
         {
             Settings setting = new Settings();
-            setting.StartLevel();
-            FillPreset(preset, setting.CurrentConfusions);
+            bool exclude = ProcessAttribute(asm, setting);
 
-            CustomAttribute att = GetAttribute(asm.CustomAttributes);
-            if (att != null)
-            {
-                string cfg = att.Properties.FirstOrDefault(arg => arg.Name == "Configuration").Argument.Value as string;
-                ProcessConfig(cfg, setting.CurrentConfusions);
-            }
+            FillPreset(preset, setting.CurrentConfusions);
 
             List<ConfusionSet> now = new List<ConfusionSet>();
             foreach (ConfusionSet set in setting.CurrentConfusions)
@@ -137,39 +184,27 @@ namespace Confuser.Core
                     now.Add(set);
             (asm as IAnnotationProvider).Annotations["ConfusionSets"] = now;
 
-            foreach (ModuleDefinition mod in asm.Modules)
-                MarkModule(mod, setting);
+            if (!exclude)
+                foreach (ModuleDefinition mod in asm.Modules)
+                    MarkModule(mod, setting);
 
             setting.LeaveLevel();
         }
 
         private void MarkModule(ModuleDefinition mod, Settings setting)
         {
-            setting.StartLevel();
+            bool exclude = ProcessAttribute(mod, setting);
 
-            CustomAttribute att = GetAttribute(mod.CustomAttributes);
-            if (att != null)
-            {
-                string cfg = att.Properties.FirstOrDefault(arg => arg.Name == "Configuration").Argument.Value as string;
-                ProcessConfig(cfg, setting.CurrentConfusions);
-            }
-
-            foreach (TypeDefinition type in mod.Types)
-                MarkType(type, setting);
+            if (!exclude)
+                foreach (TypeDefinition type in mod.Types)
+                    MarkType(type, setting);
 
             setting.LeaveLevel();
         }
 
         private void MarkType(TypeDefinition type, Settings setting)
         {
-            setting.StartLevel();
-
-            CustomAttribute att = GetAttribute(type.CustomAttributes);
-            if (att != null)
-            {
-                string cfg = att.Properties.FirstOrDefault(arg => arg.Name == "Configuration").Argument.Value as string;
-                ProcessConfig(cfg, setting.CurrentConfusions);
-            }
+            bool exclude = ProcessAttribute(type, setting);
 
             List<ConfusionSet> now = new List<ConfusionSet>();
             foreach (ConfusionSet set in setting.CurrentConfusions)
@@ -177,36 +212,33 @@ namespace Confuser.Core
                     now.Add(set);
             (type as IAnnotationProvider).Annotations["ConfusionSets"] = now;
 
-            foreach (MethodDefinition mtd in type.Methods)
-                MarkMember(mtd, setting, Target.Methods);
 
-            foreach (FieldDefinition fld in type.Fields)
-                MarkMember(fld, setting, Target.Fields);
+            if (!exclude)
+            {
+                foreach (MethodDefinition mtd in type.Methods)
+                    MarkMember(mtd, setting, Target.Methods);
 
-            foreach (PropertyDefinition prop in type.Properties)
-                MarkMember(prop, setting, Target.Properties);
+                foreach (FieldDefinition fld in type.Fields)
+                    MarkMember(fld, setting, Target.Fields);
 
-            foreach (EventDefinition evt in type.Events)
-                MarkMember(evt, setting, Target.Events);
+                foreach (PropertyDefinition prop in type.Properties)
+                    MarkMember(prop, setting, Target.Properties);
+
+                foreach (EventDefinition evt in type.Events)
+                    MarkMember(evt, setting, Target.Events);
+            }
 
             setting.LeaveLevel();
         }
 
         private void MarkMember(IMemberDefinition mem, Settings setting, Target target)
         {
-            setting.StartLevel();
-
             if (target == Target.Methods && (mem as MethodDefinition).SemanticsAttributes != MethodSemanticsAttributes.None)
             {
                 return;
             }
 
-            CustomAttribute att = GetAttribute(mem.CustomAttributes);
-            if (att != null)
-            {
-                string cfg = att.Properties.FirstOrDefault(arg => arg.Name == "Configuration").Argument.Value as string;
-                ProcessConfig(cfg, setting.CurrentConfusions);
-            }
+            bool exclude = ProcessAttribute(mem, setting);
 
             List<ConfusionSet> now = new List<ConfusionSet>();
             foreach (ConfusionSet set in setting.CurrentConfusions)
@@ -214,68 +246,57 @@ namespace Confuser.Core
                     now.Add(set);
             (mem as IAnnotationProvider).Annotations["ConfusionSets"] = now;
 
-            if (target == Target.Properties)
-            {
-                PropertyDefinition prop = mem as PropertyDefinition;
-                List<MethodDefinition> sems = new List<MethodDefinition>();
-                if (prop.GetMethod != null)
-                    sems.Add(prop.GetMethod);
-                if (prop.SetMethod != null)
-                    sems.Add(prop.SetMethod);
-                if (prop.HasOtherMethods)
-                    sems.AddRange(prop.OtherMethods);
-                foreach (MethodDefinition mtd in sems)
+            if (!exclude)
+                if (target == Target.Properties)
                 {
-                    setting.StartLevel();
-
-                    CustomAttribute att1 = GetAttribute(mtd.CustomAttributes);
-                    if (att1 != null)
+                    PropertyDefinition prop = mem as PropertyDefinition;
+                    List<MethodDefinition> sems = new List<MethodDefinition>();
+                    if (prop.GetMethod != null)
+                        sems.Add(prop.GetMethod);
+                    if (prop.SetMethod != null)
+                        sems.Add(prop.SetMethod);
+                    if (prop.HasOtherMethods)
+                        sems.AddRange(prop.OtherMethods);
+                    foreach (MethodDefinition mtd in sems)
                     {
-                        string cfg1 = att1.Properties.FirstOrDefault(arg => arg.Name == "Configuration").Argument.Value as string;
-                        ProcessConfig(cfg1, setting.CurrentConfusions);
+                        setting.StartLevel();
+
+                        ProcessAttribute(mtd, setting);
+
+                        List<ConfusionSet> now1 = new List<ConfusionSet>();
+                        foreach (ConfusionSet set in setting.CurrentConfusions)
+                            if ((set.Confusion.Target & Target.Methods) == Target.Methods)
+                                now1.Add(set);
+                        (mtd as IAnnotationProvider).Annotations["ConfusionSets"] = now1;
+
+                        setting.LeaveLevel();
                     }
-
-                    List<ConfusionSet> now1 = new List<ConfusionSet>();
-                    foreach (ConfusionSet set in setting.CurrentConfusions)
-                        if ((set.Confusion.Target & Target.Methods) == Target.Methods)
-                            now1.Add(set);
-                    (mtd as IAnnotationProvider).Annotations["ConfusionSets"] = now1;
-
-                    setting.LeaveLevel();
                 }
-            }
-            else if (target == Target.Events)
-            {
-                EventDefinition evt = mem as EventDefinition;
-                List<MethodDefinition> sems = new List<MethodDefinition>();
-                if (evt.AddMethod != null)
-                    sems.Add(evt.AddMethod);
-                if (evt.RemoveMethod != null)
-                    sems.Add(evt.RemoveMethod);
-                if (evt.InvokeMethod != null)
-                    sems.Add(evt.InvokeMethod);
-                if (evt.HasOtherMethods)
-                    sems.AddRange(evt.OtherMethods);
-                foreach (MethodDefinition mtd in sems)
+                else if (target == Target.Events)
                 {
-                    setting.StartLevel();
-
-                    CustomAttribute att1 = GetAttribute(mtd.CustomAttributes);
-                    if (att1 != null)
+                    EventDefinition evt = mem as EventDefinition;
+                    List<MethodDefinition> sems = new List<MethodDefinition>();
+                    if (evt.AddMethod != null)
+                        sems.Add(evt.AddMethod);
+                    if (evt.RemoveMethod != null)
+                        sems.Add(evt.RemoveMethod);
+                    if (evt.InvokeMethod != null)
+                        sems.Add(evt.InvokeMethod);
+                    if (evt.HasOtherMethods)
+                        sems.AddRange(evt.OtherMethods);
+                    foreach (MethodDefinition mtd in sems)
                     {
-                        string cfg1 = att1.Properties.FirstOrDefault(arg => arg.Name == "Configuration").Argument.Value as string;
-                        ProcessConfig(cfg1, setting.CurrentConfusions);
+                        ProcessAttribute(mtd, setting);
+
+                        List<ConfusionSet> now1 = new List<ConfusionSet>();
+                        foreach (ConfusionSet set in setting.CurrentConfusions)
+                            if ((set.Confusion.Target & Target.Methods) == Target.Methods)
+                                now1.Add(set);
+                        (mtd as IAnnotationProvider).Annotations["ConfusionSets"] = now1;
+
+                        setting.LeaveLevel();
                     }
-
-                    List<ConfusionSet> now1 = new List<ConfusionSet>();
-                    foreach (ConfusionSet set in setting.CurrentConfusions)
-                        if ((set.Confusion.Target & Target.Methods) == Target.Methods)
-                            now1.Add(set);
-                    (mtd as IAnnotationProvider).Annotations["ConfusionSets"] = now1;
-
-                    setting.LeaveLevel();
                 }
-            }
 
             setting.LeaveLevel();
         }
