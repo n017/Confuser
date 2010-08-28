@@ -1435,8 +1435,8 @@
                         </Storyboard>
                         <Storyboard x:Key="IndeterminateOn">
                             <DoubleAnimationUsingKeyFrames Storyboard.TargetName="IndeterminateGradientFill" Storyboard.TargetProperty="(Shape.Fill).(LinearGradientBrush.Transform).(TransformGroup.Children)[0].X" RepeatBehavior="Forever">
-                                <SplineDoubleKeyFrame KeyTime="0" Value="0" />
-                                <SplineDoubleKeyFrame KeyTime="00:00:2.4" Value="145" />
+                                <SplineDoubleKeyFrame KeyTime="00:00:0.0" Value="0" />
+                                <SplineDoubleKeyFrame KeyTime="00:00:1.33" Value="80" />
                             </DoubleAnimationUsingKeyFrames>
 
                         </Storyboard>
@@ -1462,10 +1462,10 @@
                             </Border.Background>
                         </Border>
                         <Grid x:Name="IndeterminateRoot" Visibility="Collapsed">
-                            <Rectangle Margin="{TemplateBinding BorderThickness}" x:Name="IndeterminateSolidFill" Opacity="1" RenderTransformOrigin="0.5,0.5" RadiusX="2" RadiusY="2" Fill="{DynamicResource ControlBackgroundBrush}" Stroke="#FF448DCA" StrokeThickness="0" />
+                            <Rectangle Margin="{TemplateBinding BorderThickness}" x:Name="IndeterminateSolidFill" Opacity="1" RenderTransformOrigin="0.5,0.5" RadiusX="2" RadiusY="2" Fill="{TemplateBinding Foreground}" Stroke="#FF448DCA" StrokeThickness="0" />
                             <Rectangle Margin="{TemplateBinding BorderThickness}" x:Name="IndeterminateGradientFill" RadiusX="2" RadiusY="2" StrokeThickness="1">
                                 <Rectangle.Fill>
-                                    <LinearGradientBrush EndPoint="0.508,1.394" StartPoint="0.401,-0.394" SpreadMethod="Repeat">
+                                    <LinearGradientBrush EndPoint="0,1" StartPoint="80,1" MappingMode="Absolute" SpreadMethod="Repeat">
                                         <GradientStop Color="#00FFFFFF" />
                                         <GradientStop Color="#FEA1A1A1" Offset="1" />
                                         <GradientStop Color="#00FEFEFE" Offset="0.517" />
@@ -1473,6 +1473,7 @@
                                         <LinearGradientBrush.Transform>
                                             <TransformGroup>
                                                 <TranslateTransform X="0" />
+												<SkewTransform AngleX="-60"/>
                                             </TransformGroup>
                                         </LinearGradientBrush.Transform>
                                     </LinearGradientBrush>
@@ -1490,8 +1491,11 @@
                         </EventTrigger>
                         <Trigger Property="IsIndeterminate" Value="True">
                             <Trigger.EnterActions>
-                                <BeginStoryboard Storyboard="{StaticResource IndeterminateOn}" />
+                                <BeginStoryboard x:Name="beginIndeterminate" Storyboard="{StaticResource IndeterminateOn}" />
                             </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <StopStoryboard BeginStoryboardName="beginIndeterminate"/>
+                            </Trigger.ExitActions>
                             <Setter Property="Visibility" TargetName="IndeterminateRoot" Value="Visible"/>
                         </Trigger>
                     </ControlTemplate.Triggers>

@@ -8,25 +8,8 @@ using Mono.Cecil.Rocks;
 
 namespace Confuser.Core.Confusions
 {
-    public class ControlFlowConfusion : StructureConfusion
+    public class ControlFlowConfusion : StructurePhase, IConfusion
     {
-        public override Priority Priority
-        {
-            get { return Priority.MethodLevel; }
-        }
-        public override string Name
-        {
-            get { return "Control Flow Confusion"; }
-        }
-        public override Phases Phases
-        {
-            get { return Phases.Phase3; }
-        }
-        public override bool StandardCompatible
-        {
-            get { return false; }
-        }
-
         private enum LevelType
         {
             None = 1,
@@ -136,18 +119,77 @@ namespace Confuser.Core.Confusions
             }
         }
 
-        Random rad;
-        public override void Confuse(int phase, Confuser cr, AssemblyDefinition asm, IMemberDefinition[] defs)
+        public string Name
         {
-            if (phase != 3) throw new InvalidOperationException();
-            rad = new Random();
-            foreach (IMemberDefinition mtd in defs)
-                ProcessMethod(cr, mtd as MethodDefinition);
+            get { return "Control Flow Confusion"; }
+        }
+        public string Description
+        {
+            get { return "This confusion obfuscate the code in the methods so that decompilers cannot decompile the methods."; }
+        }
+        public string ID
+        {
+            get { return "ctrl flow"; }
+        }
+        public bool StandardCompatible
+        {
+            get { return false; }
+        }
+        public Target Target
+        {
+            get { return Target.Methods; }
+        }
+        public Preset Preset
+        {
+            get { return Preset.Aggressive; }
+        }
+        public Phase[] Phases
+        {
+            get { return new Phase[] { this }; }
         }
 
-        private void ProcessMethod(Confuser cr, MethodDefinition mtd)
+        public override Priority Priority
         {
+            get { return Priority.MethodLevel; }
+        }
+        public override IConfusion Confusion
+        {
+            get { return this; }
+        }
+        public override int PhaseID
+        {
+            get { return 3; }
+        }
+        public override bool WholeRun
+        {
+            get { return false; }
+        }
+        public override void Initialize(AssemblyDefinition asm)
+        {
+            rad = new Random();
+        }
+        public override void DeInitialize()
+        {
+            //
+        }
+
+        Random rad;
+        public override void Process(ConfusionParameter parameter)
+        {
+            MethodDefinition mtd = parameter.Target as MethodDefinition;
             if (!mtd.HasBody) return;
+
+            int slv = 5;
+            if (Array.IndexOf(parameter.Parameters.AllKeys, "level") != -1)
+            {
+                if (!int.TryParse(parameter.Parameters["level"], out slv) && (slv <= 0 || slv > 10))
+                {
+                    Log("Invaild level, 5 will be used.");
+                    slv = 5;
+                }
+            }
+            double trueLv = slv / 10.0;
+
             MethodBody bdy = mtd.Body;
             bdy.SimplifyMacros();
             bdy.ComputeHeader();
@@ -163,7 +205,7 @@ namespace Confuser.Core.Confusions
             for (int i = 0; i < blks.Count; i++)
             {
                 Instruction[] blk = blks[i];
-                Instruction[][] iblks = SplitInstructions(blk);
+                Instruction[][] iblks = SplitInstructions(blk, trueLv);
                 ProcessInstructions(bdy, ref iblks);
                 Reorder(ref iblks);
 
@@ -393,14 +435,14 @@ namespace Confuser.Core.Confusions
             }
         }
 
-        private Instruction[][] SplitInstructions(Instruction[] insts)
+        private Instruction[][] SplitInstructions(Instruction[] insts, double factor)
         {
             List<Instruction[]> ret = new List<Instruction[]>();
             List<Instruction> blk = new List<Instruction>();
             for (int i = 0; i < insts.Length; i++)
             {
                 blk.Add(insts[i]);
-                if ((rad.NextDouble() > 0.5 ||
+                if ((rad.NextDouble() > factor ||
                     insts[i].OpCode.Name.StartsWith("new") ||
                     insts[i].OpCode.Name == "pop" ||
                     insts[i].OpCode.Name.StartsWith("ldloc")) &&
@@ -421,7 +463,6 @@ namespace Confuser.Core.Confusions
         private void ProcessInstructions(MethodBody bdy, ref Instruction[][] blks)
         {
             List<Instruction[]> ret = new List<Instruction[]>();
-            //if (blks.Length != 1) ret.Add(new Instruction[] { Instruction.Create(OpCodes.Br, blks[0][0]) });
             for (int i = 0; i < blks.Length; i++)
             {
                 Instruction[] blk = blks[i];
@@ -476,16 +517,20 @@ namespace Confuser.Core.Confusions
                     insts.Add(wkr.Create(OpCodes.Br, target));
                     break;
             }
+            i = rad.Next(0, 3);
+            switch (i)
+            {
+                case 0:
+                    insts.Add(wkr.Create(OpCodes.Pop));
+                    break;
+                case 1:
+                    insts.Add(wkr.Create(OpCodes.Ldc_I4, rad.Next()));
+                    break;
+                case 2:
+                    insts.Add(wkr.Create(OpCodes.Ret));
+                    break;
+            }
         }
 
-        public override string Description
-        {
-            get { return "This confusion obfuscate the code in the methods so that decompilers cannot decompile the methods."; }
-        }
-
-        public override Target Target
-        {
-            get { return Target.Methods; }
-        }
     }
 }

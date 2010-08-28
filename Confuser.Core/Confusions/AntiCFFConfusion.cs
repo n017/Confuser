@@ -7,39 +7,69 @@ using Mono.Cecil.Metadata;
 
 namespace Confuser.Core.Confusions
 {
-    public class AntiCFFConfusion : AdvancedConfusion
+    public class AntiCFFConfusion : AdvancedPhase, IConfusion
     {
-        public override void Confuse(int phase, Confuser cr, MetadataProcessor.MetadataAccessor accessor)
+        public string Name
         {
-            if (phase != 2) throw new InvalidOperationException();
-            foreach (Row<ParameterAttributes, ushort, uint> r in accessor.TableHeap.GetTable<ParamTable>(Table.Param))
-                if (r != null)
-                    r.Col3 = 0x7fff7fff;
+            get { return "Anti CFF Explorer Confusion"; }
         }
+        public string Description
+        {
+            get { return "This confusion prevent CFF Explorer to view the metadata of the assembly."; }
+        }
+        public string ID
+        {
+            get { return "anti cff"; }
+        }
+        public bool StandardCompatible
+        {
+            get { return false; }
+        }
+        public Target Target
+        {
+            get { return Target.Assembly; }
+        }
+        public Preset Preset
+        {
+            get { return Preset.Aggressive; }
+        }
+        public Phase[] Phases
+        {
+            get { return new Phase[] { this }; }
+        }
+
 
         public override Priority Priority
         {
             get { return Priority.MetadataLevel; }
         }
-
-        public override string Name
+        public override IConfusion Confusion
         {
-            get { return "Anti CFF Explorer Confusion"; }
+            get { return this; }
+        }
+        public override int PhaseID
+        {
+            get { return 2; }
+        }
+        public override bool WholeRun
+        {
+            get { return true; }
+        }
+        public override void Initialize(AssemblyDefinition asm)
+        {
+            //
+        }
+        public override void DeInitialize()
+        {
+            //
         }
 
-        public override Phases Phases
-        {
-            get { return Phases.Phase2; }
-        }
 
-        public override bool StandardCompatible
+        public override void Process(MetadataProcessor.MetadataAccessor accessor)
         {
-            get { return false; }
-        }
-
-        public override string Description
-        {
-            get { return "This confusion prevent CFF Explorer to view the metadata of the assembly."; }
+            foreach (Row<ParameterAttributes, ushort, uint> r in accessor.TableHeap.GetTable<ParamTable>(Table.Param))
+                if (r != null)
+                    r.Col3 = 0x7fff7fff;
         }
     }
 }

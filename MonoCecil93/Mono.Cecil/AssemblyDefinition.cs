@@ -33,7 +33,7 @@ using Mono.Collections.Generic;
 
 namespace Mono.Cecil {
 
-	public sealed class AssemblyDefinition : ICustomAttributeProvider, ISecurityDeclarationProvider {
+	public sealed class AssemblyDefinition : ICustomAttributeProvider, ISecurityDeclarationProvider, IAnnotationProvider {
 
 		AssemblyNameDefinition name;
 
@@ -185,5 +185,17 @@ namespace Mono.Cecil {
 		{
 			return name != null ? name.FullName : string.Empty;
 		}
-	}
+
+
+        System.Collections.IDictionary m_annotations;
+        System.Collections.IDictionary IAnnotationProvider.Annotations
+        {
+            get
+            {
+                if (m_annotations == null)
+                    m_annotations = new System.Collections.Hashtable();
+                return m_annotations;
+            }
+        }
+    }
 }

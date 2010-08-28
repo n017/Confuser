@@ -86,6 +86,7 @@
     <Compile Include="Confusions\AntiILDasmConfusion.cs" />
     <Compile Include="Confusions\StringConfusion.cs" />
     <Compile Include="Confusion.cs" />
+    <Compile Include="Marker.cs" />
     <Compile Include="ObfuscationHelper.cs" />
     <Compile Include="Poly\Expressions\AddExpression.cs" />
     <Compile Include="Poly\Expressions\ConstantExpression.cs" />
@@ -100,6 +101,7 @@
     <Compile Include="Poly\Visitors\ReflectionVisitor.cs" />
     <Compile Include="Poly\Expressions\VariableExpression.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Content Include="SDK.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Note.txt" />

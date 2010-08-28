@@ -7,52 +7,79 @@ using System.Runtime.CompilerServices;
 
 namespace Confuser.Core.Confusions
 {
-    public class AntiILDasmConfusion : StructureConfusion
+    public class AntiILDasmConfusion : StructurePhase, IConfusion
     {
-        public override void Confuse(int phase, Confuser cr, AssemblyDefinition asm, IMemberDefinition[] defs)
+        public string Name
         {
-            if (phase != 1) throw new InvalidOperationException();
-            MethodReference ctor = asm.MainModule.Import(typeof(SuppressIldasmAttribute).GetConstructor(Type.EmptyTypes));
-            bool has = false;
-            foreach (CustomAttribute att in asm.MainModule.CustomAttributes)
-                if (att.Constructor.ToString() == ctor.ToString())
-                {
-                    has = true;
-                    break;
-                }
-
-            if (!has)
-                asm.MainModule.CustomAttributes.Add(new CustomAttribute(ctor));
+            get { return "Anti IL Dasm Confusion"; }
+        }
+        public string Description
+        {
+            get { return "This confusion marked the assembly with a attribute and ILDasm would not disassemble the assemblies with this attribute."; }
+        }
+        public string ID
+        {
+            get { return "anti ildasm"; }
+        }
+        public bool StandardCompatible
+        {
+            get { return true; }
+        }
+        public Target Target
+        {
+            get { return Target.Assembly; }
+        }
+        public Preset Preset
+        {
+            get { return Preset.Normal; }
+        }
+        public Phase[] Phases
+        {
+            get { return new Phase[] { this }; }
         }
 
         public override Priority Priority
         {
             get { return Priority.AssemblyLevel; }
         }
-
-        public override string Name
+        public override IConfusion Confusion
         {
-            get { return "Anti IL Dasm Confusion"; }
+            get { return this; }
         }
-
-        public override Phases Phases
+        public override int PhaseID
         {
-            get { return Phases.Phase1; }
+            get { return 1; }
         }
-
-        public override bool StandardCompatible
+        public override bool WholeRun
         {
             get { return true; }
         }
-
-        public override string Description
+        public override void Initialize(AssemblyDefinition asm)
         {
-            get { return "This confusion marked the assembly with a attribute and ILDasm would not disassemble the assemblies with this attribute."; }
+            this.asm = asm;
+        }
+        public override void DeInitialize()
+        {
+            //
         }
 
-        public override Target Target
+        AssemblyDefinition asm;
+        public override void Process(ConfusionParameter parameter)
         {
-            get { return Target.Whole; }
+            foreach (ModuleDefinition mod in asm.Modules)
+            {
+                MethodReference ctor = mod.Import(typeof(SuppressIldasmAttribute).GetConstructor(Type.EmptyTypes));
+                bool has = false;
+                foreach (CustomAttribute att in mod.CustomAttributes)
+                    if (att.Constructor.ToString() == ctor.ToString())
+                    {
+                        has = true;
+                        break;
+                    }
+
+                if (!has)
+                    mod.CustomAttributes.Add(new CustomAttribute(ctor));
+            }
         }
     }
 }

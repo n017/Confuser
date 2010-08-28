@@ -12,128 +12,119 @@ using System.IO.Compression;
 
 namespace Confuser.Core.Confusions
 {
-    public class CtorProxyConfusion : StructureConfusion
+    public class CtorProxyConfusion : IConfusion
     {
-        public override Priority Priority
+        class Phase1 : StructurePhase
         {
-            get { return Priority.TypeLevel; }
-        }
-        public override string Name
-        {
-            get { return "Constructor Proxy Confusion"; }
-        }
-        public override Phases Phases
-        {
-            get { return Phases.Phase1 | Phases.Phase2; }
-        }
-
-
-
-        public override void Confuse(int phase,Confuser cr, AssemblyDefinition asm, IMemberDefinition[] defs)
-        {
-            switch (phase)
+            CtorProxyConfusion cc;
+            public Phase1(CtorProxyConfusion cc) { this.cc = cc; }
+            public override IConfusion Confusion
             {
-                case 1:
-                    mcd = asm.MainModule.Import(typeof(MulticastDelegate));
-                    v = asm.MainModule.Import(typeof(void));
-                    obj = asm.MainModule.Import(typeof(object));
-                    ptr = asm.MainModule.Import(typeof(IntPtr));
-
-                    txts = new List<Context>();
-                    foreach (MethodDefinition mtd in defs)
-                    {
-                        if (!mtd.HasBody || mtd.DeclaringType.FullName == "<Module>") continue;
-
-                        MethodBody bdy = mtd.Body;
-                        foreach (Instruction inst in bdy.Instructions)
-                        {
-                            if (inst.OpCode.Code == Code.Newobj &&
-                                !((inst.Operand as MethodReference).DeclaringType is GenericInstanceType) &&
-                                !(inst.Operand is GenericInstanceMethod))
-                            {
-                                CreateDelegate(cr, mtd.Body, inst, inst.Operand as MethodReference, asm.MainModule);
-                            }
-                        }
-                    }
-
-                    TypeDefinition mod = asm.MainModule.GetType("<Module>");
-                    AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(CtorProxyConfusion).Assembly.Location);
-                    proxy = i.MainModule.GetType("Confuser.Core.Confusions.CtorProxyConfusion").Methods.FirstOrDefault(mtd => mtd.Name == "Injection");
-                    proxy = CecilHelper.Inject(asm.MainModule, proxy);
-                    mod.Methods.Add(proxy);
-                    proxy.IsAssembly = true;
-                    proxy.Name = ObfuscationHelper.GetNewName("Proxy" + Guid.NewGuid().ToString());
-
-                    CreateFieldBridges(cr, asm.MainModule);
-                    break;
-                case 2:
-                    InitModuleCctor(asm.MainModule);
-                    CreateCtors(cr, asm.MainModule);
-                    FinalizeModuleCctor(asm.MainModule);
-                    break;
-                default:
-                    throw new InvalidOperationException();
+                get { return cc; }
             }
-        }
 
-
-        private delegate void Processer(Confuser cr, MethodBody Bdy, Instruction Inst, MethodReference MtdRef, ModuleDefinition Mod);
-
-        MethodDefinition proxy;
-        private class Context { public MethodBody bdy; public Instruction inst; public FieldDefinition fld; public TypeDefinition dele; public MethodReference mtdRef;}
-        List<Context> txts;
-
-        TypeReference mcd;
-        TypeReference v;
-        TypeReference obj;
-        TypeReference ptr;
-        private void CreateDelegate(Confuser cr, MethodBody Bdy, Instruction Inst, MethodReference MtdRef, ModuleDefinition Mod)
-        {
-            //Limitation
-            TypeDefinition tmp = MtdRef.DeclaringType.Resolve();
-            if (tmp.BaseType != null &&
-                (tmp.BaseType.FullName == "System.MulticastDelegate" ||
-                tmp.BaseType.FullName == "System.Delegate"))
-                return;
-
-            Context txt = new Context();
-            txt.inst = Inst;
-            txt.bdy = Bdy;
-            txt.mtdRef = MtdRef;
-            if ((txt.dele = Mod.GetType(GetSignatureO(MtdRef))) == null)
+            public override int PhaseID
             {
-                txt.dele = new TypeDefinition("", GetSignatureO(MtdRef), TypeAttributes.NotPublic | TypeAttributes.Sealed, mcd);
-                Mod.Types.Add(txt.dele);
+                get { return 1; }
+            }
 
-                MethodDefinition cctor = new MethodDefinition(".ctor", 0, v);
-                cctor.IsRuntime = true;
-                cctor.HasThis = true;
-                cctor.IsHideBySig = true;
-                cctor.IsRuntimeSpecialName = true;
-                cctor.IsSpecialName = true;
-                cctor.IsPublic = true;
-                cctor.Parameters.Add(new ParameterDefinition(obj));
-                cctor.Parameters.Add(new ParameterDefinition(ptr));
-                txt.dele.Methods.Add(cctor);
+            public override Priority Priority
+            {
+                get { return Priority.TypeLevel; }
+            }
 
-                MethodDefinition invoke = new MethodDefinition("Invoke", 0, MtdRef.DeclaringType);
-                invoke.IsRuntime = true;
-                invoke.HasThis = true;
-                invoke.IsHideBySig = true;
-                invoke.IsVirtual = true;
-                invoke.IsPublic = true;
+            public override bool WholeRun
+            {
+                get { return false; }
+            }
 
-                for (int i = 0; i < MtdRef.Parameters.Count; i++)
+            AssemblyDefinition asm;
+            public override void Initialize(AssemblyDefinition asm)
+            {
+                this.asm = asm;
+
+                cc.mcd = asm.MainModule.Import(typeof(MulticastDelegate));
+                cc.v = asm.MainModule.Import(typeof(void));
+                cc.obj = asm.MainModule.Import(typeof(object));
+                cc.ptr = asm.MainModule.Import(typeof(IntPtr));
+
+                cc.txts = new List<Context>();
+            }
+            public override void DeInitialize()
+            {
+                TypeDefinition mod = asm.MainModule.GetType("<Module>");
+                AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(CtorProxyConfusion).Assembly.Location);
+                cc.proxy = i.MainModule.GetType("Confuser.Core.Confusions.CtorProxyConfusion").Methods.FirstOrDefault(mtd => mtd.Name == "Injection");
+                cc.proxy = CecilHelper.Inject(asm.MainModule, cc.proxy);
+                mod.Methods.Add(cc.proxy);
+                cc.proxy.IsAssembly = true;
+                cc.proxy.Name = ObfuscationHelper.GetNewName("Proxy" + Guid.NewGuid().ToString());
+            }
+
+            public override void Process(ConfusionParameter parameter)
+            {
+                MethodDefinition mtd = parameter.Target as MethodDefinition;
+
+                if (!mtd.HasBody || mtd.DeclaringType.FullName == "<Module>") return;
+
+                MethodBody bdy = mtd.Body;
+                foreach (Instruction inst in bdy.Instructions)
                 {
-                    invoke.Parameters.Add(new ParameterDefinition(GetNameO(MtdRef.Parameters[i]), MtdRef.Parameters[i].Attributes, MtdRef.Parameters[i].ParameterType));
+                    if (inst.OpCode.Code == Code.Newobj &&
+                        !((inst.Operand as MethodReference).DeclaringType is GenericInstanceType) &&
+                        !(inst.Operand is GenericInstanceMethod))
+                    {
+                        CreateDelegate(mtd.Body, inst, inst.Operand as MethodReference, asm.MainModule);
+                    }
                 }
-                txt.dele.Methods.Add(invoke);
             }
-            txts.Add(txt);
-        }
-        private void CreateFieldBridges(Confuser cr, ModuleDefinition Mod)
-        {
-            foreach (Context txt in txts)
+
+            private void CreateDelegate(MethodBody Bdy, Instruction Inst, MethodReference MtdRef, ModuleDefinition Mod)
+            {
+                //Limitation
+                TypeDefinition tmp = MtdRef.DeclaringType.Resolve();
+                if (tmp.BaseType != null &&
+                    (tmp.BaseType.FullName == "System.MulticastDelegate" ||
+                    tmp.BaseType.FullName == "System.Delegate"))
+                    return;
+
+                Context txt = new Context();
+                txt.inst = Inst;
+                txt.bdy = Bdy;
+                txt.mtdRef = MtdRef;
+                if ((txt.dele = Mod.GetType(GetSignatureO(MtdRef))) == null)
+                {
+                    txt.dele = new TypeDefinition("", GetSignatureO(MtdRef), TypeAttributes.NotPublic | TypeAttributes.Sealed, cc.mcd);
+                    Mod.Types.Add(txt.dele);
+
+                    MethodDefinition cctor = new MethodDefinition(".ctor", 0, cc.v);
+                    cctor.IsRuntime = true;
+                    cctor.HasThis = true;
+                    cctor.IsHideBySig = true;
+                    cctor.IsRuntimeSpecialName = true;
+                    cctor.IsSpecialName = true;
+                    cctor.IsPublic = true;
+                    cctor.Parameters.Add(new ParameterDefinition(cc.obj));
+                    cctor.Parameters.Add(new ParameterDefinition(cc.ptr));
+                    txt.dele.Methods.Add(cctor);
+
+                    MethodDefinition invoke = new MethodDefinition("Invoke", 0, MtdRef.DeclaringType);
+                    invoke.IsRuntime = true;
+                    invoke.HasThis = true;
+                    invoke.IsHideBySig = true;
+                    invoke.IsVirtual = true;
+                    invoke.IsPublic = true;
+
+                    for (int i = 0; i < MtdRef.Parameters.Count; i++)
+                    {
+                        invoke.Parameters.Add(new ParameterDefinition(GetNameO(MtdRef.Parameters[i]), MtdRef.Parameters[i].Attributes, MtdRef.Parameters[i].ParameterType));
+                    }
+                    txt.dele.Methods.Add(invoke);
+                }
+                cc.txts.Add(txt);
+                CreateFieldBridge(Mod, txt);
+            }
+            private void CreateFieldBridge(ModuleDefinition Mod, Context txt)
             {
                 ////////////////Field
                 if ((txt.fld = Mod.GetType("<Module>").Fields.FirstOrDefault(fld => fld.Name == GetId(Mod, txt.mtdRef))) == null)
@@ -168,45 +159,121 @@ namespace Confuser.Core.Confusions
                 txt.inst.Operand = bdge;
             }
         }
-        private void CreateCtors(Confuser cr, ModuleDefinition Mod)
+        class Phase2 : StructurePhase
         {
-            MethodDefinition cctor = Mod.GetType("<Module>").GetStaticConstructor();
-            ILProcessor wkr = cctor.Body.GetILProcessor();
-
-            foreach (Context txt in txts)
+            CtorProxyConfusion cc;
+            public Phase2(CtorProxyConfusion cc) { this.cc = cc; }
+            public override IConfusion Confusion
             {
-                ////////////////Cctor
-                txt.fld.Name = GetId(Mod, txt.mtdRef);
-                wkr.Emit(OpCodes.Ldtoken, txt.fld);
-                wkr.Emit(OpCodes.Call, proxy);
+                get { return cc; }
+            }
+
+            public override int PhaseID
+            {
+                get { return 2; }
+            }
+
+            public override Priority Priority
+            {
+                get { return Priority.TypeLevel; }
+            }
+
+            public override bool WholeRun
+            {
+                get { return true; }
+            }
+
+            AssemblyDefinition asm;
+            public override void Initialize(AssemblyDefinition asm)
+            {
+                this.asm = asm;
+
+                MethodDefinition cctor = asm.MainModule.GetType("<Module>").GetStaticConstructor();
+                MethodBody bdy = cctor.Body as MethodBody;
+                bdy.Instructions.RemoveAt(bdy.Instructions.Count - 1);
+            }
+            public override void DeInitialize()
+            {
+                MethodDefinition cctor = asm.MainModule.GetType("<Module>").GetStaticConstructor();
+                cctor.Body.GetILProcessor().Emit(OpCodes.Ret);
+            }
+            public override void Process(ConfusionParameter parameter)
+            {
+                MethodDefinition cctor = asm.MainModule.GetType("<Module>").GetStaticConstructor();
+                ILProcessor wkr = cctor.Body.GetILProcessor();
+
+                foreach (Context txt in cc.txts)
+                {
+                    ////////////////Cctor
+                    txt.fld.Name = GetId(asm.MainModule, txt.mtdRef);
+                    wkr.Emit(OpCodes.Ldtoken, txt.fld);
+                    wkr.Emit(OpCodes.Call, cc.proxy);
+                }
             }
         }
 
-        private void InitModuleCctor(ModuleDefinition mod)
+
+        public string ID
         {
-            MethodDefinition cctor = mod.GetType("<Module>").GetStaticConstructor();
-            MethodBody bdy = cctor.Body as MethodBody;
-            bdy.Instructions.RemoveAt(bdy.Instructions.Count - 1);
+            get { return "ctor proxy"; }
         }
-        private void FinalizeModuleCctor(ModuleDefinition mod)
+        public string Name
         {
-            MethodDefinition cctor = mod.GetType("<Module>").GetStaticConstructor();
-            cctor.Body.GetILProcessor().Emit(OpCodes.Ret);
+            get { return "Constructor Proxy Confusion"; }
+        }
+        public string Description
+        {
+            get
+            {
+                return @"This confusion create proxies between references of constructors and methods code.
+***This confusion could affect the startup performance***";
+            }
+        }
+        public Target Target
+        {
+            get { return Target.Methods; }
+        }
+        public Preset Preset
+        {
+            get { return Preset.Normal; }
+        }
+        public bool StandardCompatible
+        {
+            get { return true; }
         }
 
-        string GetNameO(MethodReference mbr)
+        Phase[] ps;
+        public Phase[] Phases
+        {
+            get
+            {
+                if (ps == null) ps = new Phase[] { new Phase1(this), new Phase2(this) };
+                return ps;
+            }
+        }
+
+
+        MethodDefinition proxy;
+        private class Context { public MethodBody bdy; public Instruction inst; public FieldDefinition fld; public TypeDefinition dele; public MethodReference mtdRef;}
+        List<Context> txts;
+        TypeReference mcd;
+        TypeReference v;
+        TypeReference obj;
+        TypeReference ptr;
+
+        static string GetNameO(MethodReference mbr)
         {
             return ObfuscationHelper.GetNewName(mbr.ToString());
         }
-        string GetNameO(ParameterDefinition arg)
+        static string GetNameO(ParameterDefinition arg)
         {
             return ObfuscationHelper.GetNewName(arg.Name);
         }
-        string GetSignatureO(MethodReference mbr)
+        static string GetSignatureO(MethodReference mbr)
         {
             return ObfuscationHelper.GetNewName(GetSignature(mbr));
         }
-        string GetSignature(MethodReference mbr)
+        static string GetSignature(MethodReference mbr)
         {
             StringBuilder sig = new StringBuilder();
             sig.Append(mbr.ReturnType.FullName);
@@ -232,7 +299,7 @@ namespace Confuser.Core.Confusions
             return sig.ToString();
         }
 
-        private string GetId(ModuleDefinition mod, MethodReference mtd)
+        private static string GetId(ModuleDefinition mod, MethodReference mtd)
         {
             char asmRef = (char)(mod.AssemblyReferences.IndexOf(mtd.DeclaringType.Scope as AssemblyNameReference) + 2);
             return asmRef + Encoding.Unicode.GetString(BitConverter.GetBytes(mtd.Resolve().MetadataToken.ToUInt32()));
@@ -260,22 +327,6 @@ namespace Confuser.Core.Confusions
             gen.Emit(System.Reflection.Emit.OpCodes.Ret);
 
             fld.SetValue(null, dm.CreateDelegate(fld.FieldType));
-        }
-
-        public override bool StandardCompatible
-        {
-            get { return true; }
-        }
-
-        public override string Description
-        {
-            get { return @"This confusion create proxies between references of constructors and methods code.
-***This confusion could affect the startup performance***"; }
-        }
-
-        public override Target Target
-        {
-            get { return Target.Methods; }
         }
     }
 }

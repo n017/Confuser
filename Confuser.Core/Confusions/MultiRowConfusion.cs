@@ -7,41 +7,71 @@ using Mono.Cecil.Metadata;
 
 namespace Confuser.Core.Confusions
 {
-    public class MultiRowConfusion : AdvancedConfusion
+    public class MultiRowConfusion : AdvancedPhase, IConfusion
     {
-        public override void Confuse(int phase, Confuser cr, MetadataProcessor.MetadataAccessor accessor)
+        public string Name
         {
-            if (phase != 1) return;
-            accessor.TableHeap.GetTable<ModuleTable>(Table.Module).AddRow(accessor.StringHeap.GetStringIndex(Guid.NewGuid().ToString()));
-
-            accessor.TableHeap.GetTable<AssemblyTable>(Table.Assembly).AddRow(new Row<AssemblyHashAlgorithm, ushort, ushort, ushort, ushort, AssemblyAttributes, uint, uint, uint>(
-                AssemblyHashAlgorithm.None, 0, 0, 0, 0, AssemblyAttributes.SideBySideCompatible, 0,
-                accessor.StringHeap.GetStringIndex(Guid.NewGuid().ToString()), 0));
+            get { return "Multiple Row Confusion"; }
         }
+        public string Description
+        {
+            get { return "This confusion generate invalid metadata into the assembly and cause trouble to the decompilers."; }
+        }
+        public string ID
+        {
+            get { return "multi row"; }
+        }
+        public bool StandardCompatible
+        {
+            get { return false; }
+        }
+        public Target Target
+        {
+            get { return Target.Assembly; }
+        }
+        public Preset Preset
+        {
+            get { return Preset.Aggressive; }
+        }
+        public Phase[] Phases
+        {
+            get { return new Phase[] { this }; }
+        }
+
 
         public override Priority Priority
         {
             get { return Priority.MetadataLevel; }
         }
-
-        public override string Name
+        public override IConfusion Confusion
         {
-            get { return "Multiple Row Confusion"; }
+            get { return this; }
+        }
+        public override int PhaseID
+        {
+            get { return 1; }
+        }
+        public override bool WholeRun
+        {
+            get { return true; }
+        }
+        public override void Initialize(AssemblyDefinition asm)
+        {
+            //
+        }
+        public override void DeInitialize()
+        {
+            //
         }
 
-        public override Phases Phases
-        {
-            get { return Phases.Phase1; }
-        }
 
-        public override bool StandardCompatible
+        public override void Process(MetadataProcessor.MetadataAccessor accessor)
         {
-            get { return false; }
-        }
+            accessor.TableHeap.GetTable<ModuleTable>(Table.Module).AddRow(accessor.StringHeap.GetStringIndex(Guid.NewGuid().ToString()));
 
-        public override string Description
-        {
-            get { return "This confusion generate invalid metadata into the assembly and cause trouble to the decompilers."; }
-        }
+            accessor.TableHeap.GetTable<AssemblyTable>(Table.Assembly).AddRow(new Row<AssemblyHashAlgorithm, ushort, ushort, ushort, ushort, AssemblyAttributes, uint, uint, uint>(
+                AssemblyHashAlgorithm.None, 0, 0, 0, 0, AssemblyAttributes.SideBySideCompatible, 0,
+                accessor.StringHeap.GetStringIndex(Guid.NewGuid().ToString()), 0));
+        }   
     }
 }

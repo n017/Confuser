@@ -4,45 +4,21 @@ using System.Linq;
 using System.Text;
 using System.Collections.ObjectModel;
 using Mono.Cecil;
+using System.Collections.Specialized;
 
 namespace Confuser.Core
 {
-    [Flags]
-    public enum Phases
-    {
-        Phase1 = 1,
-        Phase2 = 2,
-        Phase3 = 4
-    }
-    
     public enum Priority
     {
-        Safe,
-        CodeLevel,
-        FieldLevel,
-        MethodLevel,
-        TypeLevel,
-        AssemblyLevel,
-        MetadataLevel,
-        PELevel
+        Safe = 1,
+        CodeLevel = 2,
+        FieldLevel = 3,
+        MethodLevel = 4,
+        TypeLevel = 5,
+        AssemblyLevel = 6,
+        MetadataLevel = 7,
+        PELevel = 8
     }
-
-    public abstract class StructureConfusion : Confusion
-    {
-        public abstract void Confuse(int phase, Confuser cr, AssemblyDefinition asm, IMemberDefinition[] defs);
-    }
-    public abstract class AdvancedConfusion : Confusion
-    {
-        public abstract void Confuse(int phase, Confuser cr, MetadataProcessor.MetadataAccessor accessor);
-        public override Target Target
-		{
-			get
-			{
-                return Target.Whole;
-			}
-		}
-    }
-
     [Flags]
     public enum Target
     {
@@ -52,23 +28,58 @@ namespace Confuser.Core
         Events = 8,
         Properties = 16,
         All = 31,
-        Whole = 64,
+        Assembly = 64,
     }
-    public abstract class Confusion
+    public enum Preset
+    {
+        None = 0,
+        Minimum = 1,
+        Normal = 2,
+        Aggressive = 3,
+        Maximum = 4,
+    }
+
+    public class ConfusionParameter
+    {
+        object target;
+        NameValueCollection parameters = new NameValueCollection();
+
+        public object Target { get { return target; } set { target = value; } }
+        public NameValueCollection Parameters { get { return parameters; } internal set { parameters = value; } }
+    }
+
+    public interface IConfusion
+    {
+        Phase[] Phases { get; }
+
+        string ID { get; }
+        string Name { get; }
+        string Description { get; }
+
+        Target Target { get; }
+        Preset Preset { get; }
+        bool StandardCompatible { get; }
+    }
+
+    public abstract class Phase
     {
         Confuser cr;
         internal Confuser Confuser { get { return cr; } set { cr = value; } }
-        protected void Log(string message) { cr.LogMessage(message); }
+        protected void Log(string message) { cr.Log(message); }
 
+        public abstract IConfusion Confusion { get; }
+        public abstract int PhaseID { get; }
         public abstract Priority Priority { get; }
-        public abstract string Name { get; }
-        public abstract string Description { get; }
-        public abstract Phases Phases { get; }
-        public abstract bool StandardCompatible { get; }
-        public abstract Target Target { get; }
-        public override string ToString()
-        {
-            return Name;
-        }
+        public abstract bool WholeRun { get; }
+        public abstract void Initialize(AssemblyDefinition asm);
+        public abstract void DeInitialize();
+    }
+    public abstract class StructurePhase : Phase
+    {
+        public abstract void Process(ConfusionParameter parameter);
+    }
+    public abstract class AdvancedPhase : Phase
+    {
+        public abstract void Process(MetadataProcessor.MetadataAccessor accessor);
     }
 }

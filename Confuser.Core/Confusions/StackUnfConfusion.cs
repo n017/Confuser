@@ -8,19 +8,69 @@ using Mono.Cecil.Rocks;
 
 namespace Confuser.Core.Confusions
 {
-    public class StackUnfConfusion : StructureConfusion
+    public class StackUnfConfusion : StructurePhase, IConfusion
     {
-        Random rad;
-        public override void Confuse(int phase, Confuser cr, AssemblyDefinition asm, IMemberDefinition[] defs)
+        public string ID
         {
-            if (phase != 3) throw new InvalidOperationException();
-            rad = new Random();
-            foreach (MethodDefinition mtd in defs)
-                ProcessMethod(cr, mtd);
+            get { return "stack underflow"; }
+        }
+        public string Name
+        {
+            get { return "Stack Underflow Confusion"; }
+        }
+        public string Description
+        {
+            get { return "This confusion will add a piece of code in the front of the methods and cause decompilers to crash."; }
+        }
+        public Target Target
+        {
+            get { return Target.Methods; }
+        }
+        public Preset Preset
+        {
+            get { return Preset.Aggressive; }
+        }
+        public bool StandardCompatible
+        {
+            get { return false; }
+        }
+        public Phase[] Phases
+        {
+            get { return new Phase[] { this }; }
         }
 
-        private void ProcessMethod(Confuser cr, MethodDefinition mtd)
+
+        public override IConfusion Confusion
         {
+            get { return this; }
+        }
+        public override int PhaseID
+        {
+            get { return 3; }
+        }
+        public override Priority Priority
+        {
+            get { return Priority.CodeLevel; }
+        }
+        public override bool WholeRun
+        {
+            get { return false; }
+        }
+
+        public override void Initialize(AssemblyDefinition asm)
+        {
+            rad = new Random();
+        }
+        public override void DeInitialize()
+        {
+            //
+        }
+
+        Random rad;
+        public override void Process(ConfusionParameter parameter)
+        {
+            MethodDefinition mtd = parameter.Target as MethodDefinition;
+
             if (!mtd.HasBody) return;
             MethodBody bdy = mtd.Body;
             ILProcessor wkr = bdy.GetILProcessor();
@@ -54,37 +104,6 @@ namespace Confuser.Core.Confusions
                 else if (eh.FilterStart == original)
                     eh.FilterStart = jmp;
             }
-        }
-
-
-        public override Priority Priority
-        {
-            get { return Priority.CodeLevel; }
-        }
-
-        public override string Name
-        {
-            get { return "Stack Underflow Confusion"; }
-        }
-
-        public override Phases Phases
-        {
-            get { return Phases.Phase3; }
-        }
-
-        public override bool StandardCompatible
-        {
-            get { return false; }
-        }
-
-        public override string Description
-        {
-            get { return "This confusion will add a piece of code in the front of the methods and cause decompilers to crash."; }
-        }
-
-        public override Target Target
-        {
-            get { return Target.Methods; }
         }
     }
 }

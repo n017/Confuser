@@ -120,7 +120,7 @@ namespace Mono.Cecil {
 
 #endif
 
-	public sealed class ModuleDefinition : ModuleReference, ICustomAttributeProvider {
+	public sealed class ModuleDefinition : ModuleReference, ICustomAttributeProvider, IAnnotationProvider {
 
 		internal Image Image;
 		internal MetadataSystem MetadataSystem;
@@ -873,7 +873,17 @@ namespace Mono.Cecil {
 
 #endif
 
-	}
+        System.Collections.IDictionary m_annotations;
+        System.Collections.IDictionary IAnnotationProvider.Annotations
+        {
+            get
+            {
+                if (m_annotations == null)
+                    m_annotations = new System.Collections.Hashtable();
+                return m_annotations;
+            }
+        }
+    }
 
 	static partial class Mixin {
 
