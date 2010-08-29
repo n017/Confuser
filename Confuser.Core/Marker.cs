@@ -62,7 +62,7 @@ namespace Confuser.Core
         private void FillPreset(Preset preset, List<ConfusionSet> cs)
         {
             foreach (IConfusion i in cns.Values)
-                if (i.Preset <= preset)
+                if (i.Preset <= preset && (from ii in cs where ii.Confusion == i select ii).Count() == 0)
                     cs.Add(new ConfusionSet() { Confusion = i });
         }
 

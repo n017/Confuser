@@ -73,6 +73,7 @@ namespace Confuser.Core
         public abstract bool WholeRun { get; }
         public abstract void Initialize(AssemblyDefinition asm);
         public abstract void DeInitialize();
+        public virtual IEngine GetEngine() { return null; }
     }
     public abstract class StructurePhase : Phase
     {

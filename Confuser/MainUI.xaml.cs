@@ -369,7 +369,6 @@ namespace Confuser
                         log.ScrollToEnd();
                     }
                 }), null);
-                Thread.Sleep(5);
             });
             param.Logger.Progressing += new EventHandler<Core.ProgressEventArgs>((sender1, e1) =>
             {
@@ -378,7 +377,6 @@ namespace Confuser
                     if (pBar != null)
                         pBar.Value = e1.Progress;
                 }), null);
-                Thread.Sleep(5);
             });
             param.Logger.Fault += new EventHandler<Core.ExceptionEventArgs>((sender1, e1) =>
             {

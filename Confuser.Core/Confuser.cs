@@ -159,6 +159,18 @@ namespace Confuser.Core
                     cctor.Body.GetILProcessor().Emit(OpCodes.Ret);
                     asm.MainModule.GetType("<Module>").Methods.Add(cctor);
 
+                    List<IEngine> engines = new List<IEngine>();
+                    foreach (Phase phase in trueMems.Keys)
+                        if (phase.GetEngine() != null)
+                            engines.Add(phase.GetEngine());
+                    param.Logger.Log("Running analysis engines...");
+                    for (int i = 0; i < engines.Count; i++)
+                    {
+                        engines[i].Analysis(asm);
+                        param.Logger.Progress((double)(i + 1) / engines.Count);
+                    }
+
+
                     ConfusionParameter cParam = new ConfusionParameter();
                     bool end1 = false;
                     foreach (StructurePhase i in from i in trueMems.Keys where (i is StructurePhase) orderby (int)i.Priority + i.PhaseID * 10 ascending select i)
@@ -299,7 +311,7 @@ namespace Confuser.Core
         }
         AssemblyDefinition[] ExtractAssemblies(Stream src)
         {
-            return new AssemblyDefinition[] { AssemblyDefinition.ReadAssembly(src) };
+            return new AssemblyDefinition[] { AssemblyDefinition.ReadAssembly(src, new ReaderParameters(ReadingMode.Immediate)) };
         }
         void FillAssembly(AssemblyDefinition asm, Dictionary<IConfusion, List<object>> mems)
         {
