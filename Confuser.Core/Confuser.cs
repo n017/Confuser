@@ -7,6 +7,7 @@ using System.IO;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Metadata;
+using System.Collections.Specialized;
 
 namespace Confuser.Core
 {
@@ -35,7 +36,7 @@ namespace Confuser.Core
         public Exception Exception { get { return ex; } }
     }
 
-    public class Logger
+    public class Logger : IProgresser
     {
         public event EventHandler<PhaseEventArgs> BeginPhase;
         public event EventHandler<LogEventArgs> Logging;
@@ -68,6 +69,19 @@ namespace Confuser.Core
             if (End != null)
                 End(this, new LogEventArgs(message));
         }
+
+        void IProgresser.SetProgress(double precentage)
+        {
+            Progress(precentage);
+        }
+    }
+    public interface IProgresser
+    {
+        void SetProgress(double precentage);
+    }
+    public interface IProgressProvider
+    {
+        void SetProgresser(IProgresser progresser);
     }
 
     public class ConfuserParameter
@@ -183,35 +197,49 @@ namespace Confuser.Core
                             end1 = true;
                         }
 
+                        i.Confuser = this;
                         param.Logger.Log("Executing " + i.Confusion.Name + " Phase " + i.PhaseID + "...");
 
+                        i.Initialize(asm);
                         if (i.WholeRun == true)
                         {
-                            i.Initialize(asm);
-                            param.Logger.Progress(1 / 3.0);
                             i.Process(null);
-                            param.Logger.Progress(2 / 3.0);
-                            i.DeInitialize();
-                            param.Logger.Progress(3 / 3.0);
+                            param.Logger.Progress(1);
                         }
                         else
                         {
                             List<object> idk = trueMems[i];
                             if (idk.Count == 0)
                                 continue;
-                            double total = 1 + idk.Count;
-                            int now = 1;
-                            i.Initialize(asm); param.Logger.Progress(now / total); now++;
-                            foreach (object mem in trueMems[i])
+
+                            if (i is IProgressProvider)
                             {
-                                cParam.Parameters = (from set in (mem as IAnnotationProvider).Annotations["ConfusionSets"] as List<ConfusionSet> where set.Confusion.Phases.Contains(i) select set.Parameters).First();
-                                cParam.Target = mem;
+                                cParam.Parameters = new NameValueCollection();
+                                foreach (object mem in trueMems[i])
+                                {
+                                    NameValueCollection memParam = (from set in (mem as IAnnotationProvider).Annotations["ConfusionSets"] as List<ConfusionSet> where set.Confusion.Phases.Contains(i) select set.Parameters).First();
+                                    string hash=mem.GetHashCode().ToString("X8");
+                                    foreach (string pkey in memParam.AllKeys)
+                                        cParam.Parameters[hash + "_" + pkey] = memParam[pkey];
+                                }
+                                cParam.Target = trueMems[i];
+                                (i as IProgressProvider).SetProgresser(param.Logger);
                                 i.Process(cParam);
-                                param.Logger.Progress(now / total); now++;
                             }
-                            i.DeInitialize();
-                            param.Logger.Progress(now / total);
+                            else
+                            {
+                                double total = idk.Count;
+                                int now = 1;
+                                foreach (object mem in trueMems[i])
+                                {
+                                    cParam.Parameters = (from set in (mem as IAnnotationProvider).Annotations["ConfusionSets"] as List<ConfusionSet> where set.Confusion.Phases.Contains(i) select set.Parameters).First();
+                                    cParam.Target = mem;
+                                    i.Process(cParam);
+                                    param.Logger.Progress(now / total); now++;
+                                }
+                            }
                         }
+                        i.DeInitialize();
                     }
 
                     param.Logger.StartPhase(3);

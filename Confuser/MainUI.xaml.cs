@@ -234,8 +234,6 @@ namespace Confuser
                         IntPtr icoDat = LoadResource(hMod, icoRes);
                         IntPtr icoPtr = LockResource(icoDat);
                         int icoSize = SizeofResource(hMod, icoRes);
-                        Console.WriteLine(ptr.ToString("X8"));
-                        Console.WriteLine(size.ToString("X8"));
                         byte[] img = new byte[icoSize];
                         Marshal.Copy(icoPtr, img, 0, icoSize);
 
@@ -361,7 +359,7 @@ namespace Confuser
             });
             param.Logger.Logging += new EventHandler<Core.LogEventArgs>((sender1, e1) =>
             {
-                this.Dispatcher.Invoke(new Action(delegate
+                this.Dispatcher.BeginInvoke(new Action(delegate
                 {
                     if (log != null)
                     {
@@ -372,7 +370,7 @@ namespace Confuser
             });
             param.Logger.Progressing += new EventHandler<Core.ProgressEventArgs>((sender1, e1) =>
             {
-                this.Dispatcher.Invoke(new Action(delegate
+                this.Dispatcher.BeginInvoke(new Action(delegate
                 {
                     if (pBar != null)
                         pBar.Value = e1.Progress;

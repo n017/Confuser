@@ -14,7 +14,7 @@ namespace Confuser.Core.Confusions
 {
     public class CtorProxyConfusion : IConfusion
     {
-        class Phase1 : StructurePhase
+        class Phase1 : StructurePhase, IProgressProvider
         {
             CtorProxyConfusion cc;
             public Phase1(CtorProxyConfusion cc) { this.cc = cc; }
@@ -63,19 +63,29 @@ namespace Confuser.Core.Confusions
 
             public override void Process(ConfusionParameter parameter)
             {
-                MethodDefinition mtd = parameter.Target as MethodDefinition;
-
-                if (!mtd.HasBody || mtd.DeclaringType.FullName == "<Module>") return;
-
-                MethodBody bdy = mtd.Body;
-                foreach (Instruction inst in bdy.Instructions)
+                List<object> targets = parameter.Target as List<object>;
+                for (int i = 0; i < targets.Count; i++)
                 {
-                    if (inst.OpCode.Code == Code.Newobj &&
-                        !((inst.Operand as MethodReference).DeclaringType is GenericInstanceType) &&
-                        !(inst.Operand is GenericInstanceMethod))
+                    MethodDefinition mtd = targets[i] as MethodDefinition;
+                    if (!mtd.HasBody || mtd.DeclaringType.FullName == "<Module>") continue;
+
+                    MethodBody bdy = mtd.Body;
+                    foreach (Instruction inst in bdy.Instructions)
                     {
-                        CreateDelegate(mtd.Body, inst, inst.Operand as MethodReference, asm.MainModule);
+                        if (inst.OpCode.Code == Code.Newobj &&
+                            !((inst.Operand as MethodReference).DeclaringType is GenericInstanceType) &&
+                            !(inst.Operand is GenericInstanceMethod))
+                        {
+                            CreateDelegate(mtd.Body, inst, inst.Operand as MethodReference, asm.MainModule);
+                        }
                     }
+                    progresser.SetProgress((i + 1) / (double)targets.Count);
+                }
+                for (int i = 0; i < cc.txts.Count; i++)
+                {
+                    CreateFieldBridge(asm.MainModule, cc.txts[i]);
+                    if (i % 10 == 0 || i == cc.txts.Count - 1)
+                        progresser.SetProgress((i + 1) / (double)cc.txts.Count);
                 }
             }
 
@@ -122,7 +132,6 @@ namespace Confuser.Core.Confusions
                     txt.dele.Methods.Add(invoke);
                 }
                 cc.txts.Add(txt);
-                CreateFieldBridge(Mod, txt);
             }
             private void CreateFieldBridge(ModuleDefinition Mod, Context txt)
             {
@@ -158,8 +167,14 @@ namespace Confuser.Core.Confusions
                 txt.inst.OpCode = OpCodes.Call;
                 txt.inst.Operand = bdge;
             }
+
+            IProgresser progresser;
+            public void SetProgresser(IProgresser progresser)
+            {
+                this.progresser = progresser;
+            }
         }
-        class Phase2 : StructurePhase
+        class Phase2 : StructurePhase, IProgressProvider
         {
             CtorProxyConfusion cc;
             public Phase2(CtorProxyConfusion cc) { this.cc = cc; }
@@ -180,7 +195,7 @@ namespace Confuser.Core.Confusions
 
             public override bool WholeRun
             {
-                get { return true; }
+                get { return false; }
             }
 
             AssemblyDefinition asm;
@@ -202,13 +217,20 @@ namespace Confuser.Core.Confusions
                 MethodDefinition cctor = asm.MainModule.GetType("<Module>").GetStaticConstructor();
                 ILProcessor wkr = cctor.Body.GetILProcessor();
 
-                foreach (Context txt in cc.txts)
+                for (int i = 0; i < cc.txts.Count; i++)
                 {
                     ////////////////Cctor
-                    txt.fld.Name = GetId(asm.MainModule, txt.mtdRef);
-                    wkr.Emit(OpCodes.Ldtoken, txt.fld);
+                    cc.txts[i].fld.Name = GetId(asm.MainModule, cc.txts[i].mtdRef);
+                    wkr.Emit(OpCodes.Ldtoken, cc.txts[i].fld);
                     wkr.Emit(OpCodes.Call, cc.proxy);
+                    progresser.SetProgress((i + 1) / (double)cc.txts.Count);
                 }
+            }
+
+            IProgresser progresser;
+            public void SetProgresser(IProgresser progresser)
+            {
+                this.progresser = progresser;
             }
         }
 

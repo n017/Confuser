@@ -14,7 +14,7 @@ namespace Confuser.Core.Confusions
 {
     public class MtdProxyConfusion : IConfusion
     {
-        class Phase1 : StructurePhase
+        class Phase1 : StructurePhase, IProgressProvider
         {
             MtdProxyConfusion mc;
             public Phase1(MtdProxyConfusion mc) { this.mc = mc; }
@@ -63,21 +63,31 @@ namespace Confuser.Core.Confusions
 
             public override void Process(ConfusionParameter parameter)
             {
-                MethodDefinition mtd = parameter.Target as MethodDefinition;
-
-                if (!mtd.HasBody || mtd.DeclaringType.FullName == "<Module>") return;
-
-                MethodBody bdy = mtd.Body;
-                foreach (Instruction inst in bdy.Instructions)
+                List<object> targets = parameter.Target as List<object>;
+                for (int i = 0; i < targets.Count; i++)
                 {
-                    if ((inst.OpCode.Code == Code.Call || inst.OpCode.Code == Code.Callvirt) &&
-                        (inst.Operand as MethodReference).Name != ".ctor" && (inst.Operand as MethodReference).Name != ".cctor" &&
-                        !(inst.Operand as MethodReference).DeclaringType.Resolve().IsInterface &&
-                        !((inst.Operand as MethodReference).DeclaringType is GenericInstanceType) &&
-                        (inst.Previous == null || inst.Previous.OpCode.OpCodeType != OpCodeType.Prefix))
+                    MethodDefinition mtd = targets[i] as MethodDefinition;
+                    if (!mtd.HasBody || mtd.DeclaringType.FullName == "<Module>") continue;
+
+                    MethodBody bdy = mtd.Body;
+                    foreach (Instruction inst in bdy.Instructions)
                     {
-                        CreateDelegate(mtd.Body, inst, inst.Operand as MethodReference, asm.MainModule);
+                        if ((inst.OpCode.Code == Code.Call || inst.OpCode.Code == Code.Callvirt) &&
+                            (inst.Operand as MethodReference).Name != ".ctor" && (inst.Operand as MethodReference).Name != ".cctor" &&
+                            !(inst.Operand as MethodReference).DeclaringType.Resolve().IsInterface &&
+                            !((inst.Operand as MethodReference).DeclaringType is GenericInstanceType) &&
+                            (inst.Previous == null || inst.Previous.OpCode.OpCodeType != OpCodeType.Prefix))
+                        {
+                            CreateDelegate(mtd.Body, inst, inst.Operand as MethodReference, asm.MainModule);
+                        }
                     }
+                    progresser.SetProgress((i + 1) / (double)targets.Count);
+                }
+                for (int i = 0; i < mc.txts.Count; i++)
+                {
+                    CreateFieldBridge(asm.MainModule, mc.txts[i]);
+                    if (i % 10 == 0 || i == mc.txts.Count - 1)
+                        progresser.SetProgress((i + 1) / (double)mc.txts.Count);
                 }
             }
 
@@ -134,7 +144,6 @@ namespace Confuser.Core.Confusions
 
                 }
                 mc.txts.Add(txt);
-                CreateFieldBridge(Mod, txt);
             }
             private void CreateFieldBridge(ModuleDefinition Mod, Context txt)
             {
@@ -183,8 +192,14 @@ namespace Confuser.Core.Confusions
                 txt.inst.OpCode = OpCodes.Call;
                 txt.inst.Operand = bdge;
             }
+
+            IProgresser progresser;
+            void IProgressProvider.SetProgresser(IProgresser progresser)
+            {
+                this.progresser = progresser;
+            }
         }
-        class Phase2 : StructurePhase
+        class Phase2 : StructurePhase, IProgressProvider
         {
             MtdProxyConfusion mc;
             public Phase2(MtdProxyConfusion mc) { this.mc = mc; }
@@ -205,7 +220,7 @@ namespace Confuser.Core.Confusions
 
             public override bool WholeRun
             {
-                get { return true; }
+                get { return false; }
             }
 
             AssemblyDefinition asm;
@@ -227,13 +242,20 @@ namespace Confuser.Core.Confusions
                 MethodDefinition cctor = asm.MainModule.GetType("<Module>").GetStaticConstructor();
                 ILProcessor wkr = cctor.Body.GetILProcessor();
 
-                foreach (Context txt in mc.txts)
+                for (int i = 0; i < mc.txts.Count; i++)
                 {
                     ////////////////Cctor
-                    txt.fld.Name = GetId(asm.MainModule, txt.isVirt, txt.mtdRef);
-                    wkr.Emit(OpCodes.Ldtoken, txt.fld);
+                    mc.txts[i].fld.Name = GetId(asm.MainModule, mc.txts[i].isVirt, mc.txts[i].mtdRef);
+                    wkr.Emit(OpCodes.Ldtoken, mc.txts[i].fld);
                     wkr.Emit(OpCodes.Call, mc.proxy);
+                    progresser.SetProgress((i + 1) / (double)mc.txts.Count);
                 }
+            }
+
+            IProgresser progresser;
+            void IProgressProvider.SetProgresser(IProgresser progresser)
+            {
+                this.progresser = progresser;
             }
         }
 
@@ -276,7 +298,6 @@ namespace Confuser.Core.Confusions
                 return ps;
             }
         }
-
 
         MethodDefinition proxy;
         private class Context { public MethodBody bdy; public bool isVirt; public Instruction inst; public FieldDefinition fld; public TypeDefinition dele; public MethodReference mtdRef;}
