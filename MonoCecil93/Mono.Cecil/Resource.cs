@@ -34,7 +34,7 @@ namespace Mono.Cecil {
 		AssemblyLinked,
 	}
 
-	public abstract class Resource {
+	public abstract class Resource : IAnnotationProvider {
 
 		string name;
 		uint attributes;
@@ -71,6 +71,17 @@ namespace Mono.Cecil {
 		{
 			this.name = name;
 			this.attributes = (uint) attributes;
-		}
+        }
+
+        System.Collections.IDictionary m_annotations;
+        System.Collections.IDictionary IAnnotationProvider.Annotations
+        {
+            get
+            {
+                if (m_annotations == null)
+                    m_annotations = new System.Collections.Hashtable();
+                return m_annotations;
+            }
+        }
 	}
 }

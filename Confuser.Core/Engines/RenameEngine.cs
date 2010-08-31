@@ -97,6 +97,9 @@ CreateInstanceFrom[1:TargetType]
 System.AppDomain
 CreateInstance[2:TargetType]
 CreateInstanceFrom[2:TargetType]
+
+System.Resources.ResourceManager
+.ctor[0:TargetResource]
 =";
     }
 
@@ -119,6 +122,17 @@ CreateInstanceFrom[2:TargetType]
             public void UpdateReference(Identifier old, Identifier @new)
             {
                 res.Name = @new.typeName + ".resources";
+                foreach (IReference refer in (res as IAnnotationProvider).Annotations["RenRef"] as List<IReference>)
+                    refer.UpdateReference(old, @new);
+            }
+        }
+        class ResourceNameReference : IReference
+        {
+            public ResourceNameReference(Instruction inst) { this.inst = inst; }
+            Instruction inst;
+            public void UpdateReference(Identifier old, Identifier @new)
+            {
+                inst.Operand = @new.typeName;
             }
         }
         class SpecificationReference : IReference
@@ -164,6 +178,11 @@ CreateInstanceFrom[2:TargetType]
         {
             foreach (TypeDefinition type in mod.Types)
                 Init(type);
+            foreach (Resource res in mod.Resources)
+            {
+                (res as IAnnotationProvider).Annotations["RenId"] = new Identifier() { typeName = res.Name, hash = res.GetHashCode() };
+                (res as IAnnotationProvider).Annotations["RenRef"] = new List<IReference>();
+            }
         }
         void Init(TypeDefinition type)
         {
@@ -366,6 +385,8 @@ CreateInstanceFrom[2:TargetType]
         {
             memInst = null;
             int count = ((insts[idx].Operand as MethodReference).HasThis ? 1 : 0) + (insts[idx].Operand as MethodReference).Parameters.Count;
+            if (insts[idx].OpCode.Code == Code.Newobj)
+                count--;
             int c = 0;
             for (idx--; idx >= 0; idx--)
             {
@@ -381,11 +402,19 @@ CreateInstanceFrom[2:TargetType]
                         c++; break;
                     case Code.Call:
                     case Code.Callvirt:
-                        MethodReference target = (inst.Operand as MethodReference);
-                        c -= (target.HasThis ? 1 : 0) + target.Parameters.Count;
-                        if (target.ReturnType.FullName != "System.Void")
-                            c++;
-                        break;
+                        {
+                            MethodReference target = (inst.Operand as MethodReference);
+                            c -= (target.HasThis ? 1 : 0) + target.Parameters.Count;
+                            if (target.ReturnType.FullName != "System.Void")
+                                c++;
+                            break;
+                        }
+                    case Code.Newobj:
+                        {
+                            MethodReference target = (inst.Operand as MethodReference);
+                            c -= target.Parameters.Count - 1;
+                            break;
+                        }
                     case Code.Pop:
                         c--; break;
                     case Code.Ldarg:
@@ -428,13 +457,23 @@ CreateInstanceFrom[2:TargetType]
                         stack.Push(inst.Operand); break;
                     case Code.Call:
                     case Code.Callvirt:
-                        MethodReference target = (inst.Operand as MethodReference);
-                        int cc = -(target.HasThis ? 1 : 0) - target.Parameters.Count;
-                        for (int ii = cc; ii != 0; ii++)
-                            stack.Pop();
-                        if (target.ReturnType.FullName != "System.Void")
-                            stack.Push(target.ReturnType);
-                        break;
+                        {
+                            MethodReference target = (inst.Operand as MethodReference);
+                            int cc = -(target.HasThis ? 1 : 0) - target.Parameters.Count;
+                            for (int ii = cc; ii != 0; ii++)
+                                stack.Pop();
+                            if (target.ReturnType.FullName != "System.Void")
+                                stack.Push(target.ReturnType);
+                            break;
+                        }
+                    case Code.Newobj:
+                        {
+                            MethodReference target = (inst.Operand as MethodReference);
+                            for (int ii = -target.Parameters.Count; ii != 0; ii++)
+                                stack.Pop();
+                            stack.Push(target.DeclaringType);
+                            break;
+                        }
                     case Code.Pop:
                         stack.Pop(); break;
                     case Code.Ldarg:
@@ -461,6 +500,7 @@ CreateInstanceFrom[2:TargetType]
 
             string mem = null;
             TypeDefinition type = null;
+            Resource res = null;
             for (int i = 0; i < mtd.paramLoc.Length; i++)
             {
                 if (mtd.paramLoc[i] >= objs.Length) return null;
@@ -480,9 +520,20 @@ CreateInstanceFrom[2:TargetType]
                         if (!(param is string)) return null;
                         type = scope.GetType(param as string);
                         break;
+                    case "TargetResource":
+                        if (!(param is string)) return null;
+                        res = scope.Resources.FirstOrDefault((r) => (r.Name == param as string + ".resources"));
+                        memInst = StackTrace3(idx, c, insts, mtd.paramLoc[i]);
+                        break;
                 }
             }
-            if (mem == null || type == null) return null;
+            if ((mem == null || type == null) && res == null) return null;
+
+            if (res != null)
+            {
+                ((res as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new ResourceNameReference(memInst));
+                return null;
+            }
 
             foreach (FieldDefinition fld in type.Fields)
                 if (fld.Name == mem)
@@ -515,11 +566,19 @@ CreateInstanceFrom[2:TargetType]
                         count--; break;
                     case Code.Call:
                     case Code.Callvirt:
-                        MethodReference target = (inst.Operand as MethodReference);
-                        count += (target.HasThis ? 1 : 0) + target.Parameters.Count;
-                        if (target.ReturnType.FullName != "System.Void")
-                            count--;
-                        break;
+                        {
+                            MethodReference target = (inst.Operand as MethodReference);
+                            count += (target.HasThis ? 1 : 0) + target.Parameters.Count;
+                            if (target.ReturnType.FullName != "System.Void")
+                                count--;
+                            break;
+                        }
+                    case Code.Newobj:
+                        {
+                            MethodReference target = (inst.Operand as MethodReference);
+                            c += target.Parameters.Count - 1;
+                            break;
+                        }
                     case Code.Pop:
                         count++; break;
                     case Code.Ldarg:
