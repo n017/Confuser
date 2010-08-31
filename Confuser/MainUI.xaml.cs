@@ -463,6 +463,11 @@ namespace Confuser
 			
         	sb.Begin();
         }
+
+        private void AboutLoaded(object sender, RoutedEventArgs e)
+        {
+        	ver.Text = "v" + typeof(Core.Confuser).Assembly.GetName().Version.ToString();
+        }
     }
     class CultureConverter : IValueConverter
     {
