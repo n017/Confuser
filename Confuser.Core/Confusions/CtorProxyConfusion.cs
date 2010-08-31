@@ -49,6 +49,9 @@ namespace Confuser.Core.Confusions
                 cc.ptr = asm.MainModule.Import(typeof(IntPtr));
 
                 cc.txts = new List<Context>();
+                cc.delegates = new Dictionary<string, TypeDefinition>();
+                cc.fields = new Dictionary<string, FieldDefinition>();
+                cc.bridges = new Dictionary<string, MethodDefinition>();
             }
             public override void DeInitialize()
             {
@@ -81,11 +84,15 @@ namespace Confuser.Core.Confusions
                     }
                     progresser.SetProgress((i + 1) / (double)targets.Count);
                 }
+                double total = cc.txts.Count;
+                int interval = 1;
+                if (total > 1000)
+                    interval = (int)total / 100;
                 for (int i = 0; i < cc.txts.Count; i++)
                 {
                     CreateFieldBridge(asm.MainModule, cc.txts[i]);
-                    if (i % 10 == 0 || i == cc.txts.Count - 1)
-                        progresser.SetProgress((i + 1) / (double)cc.txts.Count);
+                    if (i % interval == 0 || i == cc.txts.Count - 1)
+                        progresser.SetProgress((i + 1) / total);
                 }
             }
 
@@ -102,21 +109,22 @@ namespace Confuser.Core.Confusions
                 txt.inst = Inst;
                 txt.bdy = Bdy;
                 txt.mtdRef = MtdRef;
-                if ((txt.dele = Mod.GetType(GetSignatureO(MtdRef))) == null)
+                string sign = GetSignatureO(MtdRef);
+                if (!cc.delegates.TryGetValue(sign, out txt.dele))
                 {
-                    txt.dele = new TypeDefinition("", GetSignatureO(MtdRef), TypeAttributes.NotPublic | TypeAttributes.Sealed, cc.mcd);
+                    txt.dele = new TypeDefinition("", sign, TypeAttributes.NotPublic | TypeAttributes.Sealed, cc.mcd);
                     Mod.Types.Add(txt.dele);
 
-                    MethodDefinition cctor = new MethodDefinition(".ctor", 0, cc.v);
-                    cctor.IsRuntime = true;
-                    cctor.HasThis = true;
-                    cctor.IsHideBySig = true;
-                    cctor.IsRuntimeSpecialName = true;
-                    cctor.IsSpecialName = true;
-                    cctor.IsPublic = true;
-                    cctor.Parameters.Add(new ParameterDefinition(cc.obj));
-                    cctor.Parameters.Add(new ParameterDefinition(cc.ptr));
-                    txt.dele.Methods.Add(cctor);
+                    MethodDefinition ctor = new MethodDefinition(".ctor", 0, cc.v);
+                    ctor.IsRuntime = true;
+                    ctor.HasThis = true;
+                    ctor.IsHideBySig = true;
+                    ctor.IsRuntimeSpecialName = true;
+                    ctor.IsSpecialName = true;
+                    ctor.IsPublic = true;
+                    ctor.Parameters.Add(new ParameterDefinition(cc.obj));
+                    ctor.Parameters.Add(new ParameterDefinition(cc.ptr));
+                    txt.dele.Methods.Add(ctor);
 
                     MethodDefinition invoke = new MethodDefinition("Invoke", 0, MtdRef.DeclaringType);
                     invoke.IsRuntime = true;
@@ -130,22 +138,26 @@ namespace Confuser.Core.Confusions
                         invoke.Parameters.Add(new ParameterDefinition(GetNameO(MtdRef.Parameters[i]), MtdRef.Parameters[i].Attributes, MtdRef.Parameters[i].ParameterType));
                     }
                     txt.dele.Methods.Add(invoke);
+                    cc.delegates.Add(sign, txt.dele);
                 }
                 cc.txts.Add(txt);
             }
             private void CreateFieldBridge(ModuleDefinition Mod, Context txt)
             {
                 ////////////////Field
-                if ((txt.fld = Mod.GetType("<Module>").Fields.FirstOrDefault(fld => fld.Name == GetId(Mod, txt.mtdRef))) == null)
+                string fldId = GetId(Mod, txt.mtdRef);
+                if (!cc.fields.TryGetValue(fldId, out txt.fld))
                 {
-                    txt.fld = new FieldDefinition(GetId(Mod, txt.mtdRef), FieldAttributes.Static | FieldAttributes.Assembly, txt.dele);
+                    txt.fld = new FieldDefinition(fldId, FieldAttributes.Static | FieldAttributes.Assembly, txt.dele);
                     Mod.GetType("<Module>").Fields.Add(txt.fld);
+                    cc.fields.Add(fldId, txt.fld);
                 }
                 ////////////////Bridge
+                string bridgeId = GetNameO(txt.mtdRef);
                 MethodDefinition bdge;
-                if ((bdge = Mod.GetType("<Module>").Methods.FirstOrDefault(mtd => mtd.Name == GetNameO(txt.mtdRef))) == null)
+                if (!cc.bridges.TryGetValue(bridgeId, out bdge))
                 {
-                    bdge = new MethodDefinition(GetNameO(txt.mtdRef), MethodAttributes.Static | MethodAttributes.Assem, txt.mtdRef.DeclaringType);
+                    bdge = new MethodDefinition(bridgeId, MethodAttributes.Static | MethodAttributes.Assem, txt.mtdRef.DeclaringType);
                     for (int i = 0; i < txt.mtdRef.Parameters.Count; i++)
                     {
                         bdge.Parameters.Add(new ParameterDefinition(GetNameO(txt.mtdRef.Parameters[i]), txt.mtdRef.Parameters[i].Attributes, txt.mtdRef.Parameters[i].ParameterType));
@@ -161,6 +173,7 @@ namespace Confuser.Core.Confusions
                         wkr.Emit(OpCodes.Ret);
                     }
                     Mod.GetType("<Module>").Methods.Add(bdge);
+                    cc.bridges.Add(bridgeId, bdge);
                 }
 
                 ////////////////Replace
@@ -217,13 +230,18 @@ namespace Confuser.Core.Confusions
                 MethodDefinition cctor = asm.MainModule.GetType("<Module>").GetStaticConstructor();
                 ILProcessor wkr = cctor.Body.GetILProcessor();
 
+                double total = cc.txts.Count;
+                int interval = 1;
+                if (total > 1000)
+                    interval = (int)total / 100;
                 for (int i = 0; i < cc.txts.Count; i++)
                 {
                     ////////////////Cctor
                     cc.txts[i].fld.Name = GetId(asm.MainModule, cc.txts[i].mtdRef);
                     wkr.Emit(OpCodes.Ldtoken, cc.txts[i].fld);
                     wkr.Emit(OpCodes.Call, cc.proxy);
-                    progresser.SetProgress((i + 1) / (double)cc.txts.Count);
+                    if (i % interval == 0 || i == cc.txts.Count - 1)
+                        progresser.SetProgress((i + 1) / total);
                 }
             }
 
@@ -274,7 +292,9 @@ namespace Confuser.Core.Confusions
             }
         }
 
-
+        Dictionary<string, TypeDefinition> delegates;
+        Dictionary<string, FieldDefinition> fields;
+        Dictionary<string, MethodDefinition> bridges;
         MethodDefinition proxy;
         private class Context { public MethodBody bdy; public Instruction inst; public FieldDefinition fld; public TypeDefinition dele; public MethodReference mtdRef;}
         List<Context> txts;
@@ -330,10 +350,12 @@ namespace Confuser.Core.Confusions
         {
             var fld = System.Reflection.FieldInfo.GetFieldFromHandle(f);
 
-            var asm=System.Reflection.Assembly.GetExecutingAssembly();
+            var asm = System.Reflection.Assembly.GetExecutingAssembly();
             if (fld.Name[0] != (char)1)
                 asm = System.Reflection.Assembly.Load(asm.GetReferencedAssemblies()[(int)fld.Name[0] - 2]);
 
+            Console.WriteLine(asm.FullName);
+            Console.WriteLine(BitConverter.ToInt32(Encoding.Unicode.GetBytes(fld.Name.ToCharArray(), 1, 2), 0));
             var mtd = asm.GetModules()[0].ResolveMethod(BitConverter.ToInt32(Encoding.Unicode.GetBytes(fld.Name.ToCharArray(), 1, 2), 0)) as System.Reflection.ConstructorInfo;
 
             var args = mtd.GetParameters();

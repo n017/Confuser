@@ -86,6 +86,9 @@ namespace Confuser.Core
 
     public class ConfuserParameter
     {
+        string refers;
+        public string ReferencesPath { get { return refers; } set { refers = value; } }
+
         IConfusion[] cions;
         public IConfusion[] Confusions { get { return cions; } set { cions = value; } }
 
@@ -161,6 +164,7 @@ namespace Confuser.Core
 
                     for (int i = 0; i < asm.MainModule.AssemblyReferences.Count; i++)
                     {
+                        (GlobalAssemblyResolver.Instance as BaseAssemblyResolver).AddSearchDirectory(param.ReferencesPath);
                         GlobalAssemblyResolver.Instance.Resolve(asm.MainModule.AssemblyReferences[i]);
                         param.Logger.Progress((double)(i + 1) / asm.MainModule.AssemblyReferences.Count);
                     }
@@ -215,27 +219,32 @@ namespace Confuser.Core
                             if (i is IProgressProvider)
                             {
                                 cParam.Parameters = new NameValueCollection();
-                                foreach (object mem in trueMems[i])
+                                foreach (object mem in idk)
                                 {
                                     NameValueCollection memParam = (from set in (mem as IAnnotationProvider).Annotations["ConfusionSets"] as List<ConfusionSet> where set.Confusion.Phases.Contains(i) select set.Parameters).First();
                                     string hash=mem.GetHashCode().ToString("X8");
                                     foreach (string pkey in memParam.AllKeys)
                                         cParam.Parameters[hash + "_" + pkey] = memParam[pkey];
                                 }
-                                cParam.Target = trueMems[i];
+                                cParam.Target = idk;
                                 (i as IProgressProvider).SetProgresser(param.Logger);
                                 i.Process(cParam);
                             }
                             else
                             {
                                 double total = idk.Count;
+                                int interval = 1;
+                                if (total > 1000)
+                                    interval = (int)total / 100;
                                 int now = 1;
-                                foreach (object mem in trueMems[i])
+                                foreach (object mem in idk)
                                 {
                                     cParam.Parameters = (from set in (mem as IAnnotationProvider).Annotations["ConfusionSets"] as List<ConfusionSet> where set.Confusion.Phases.Contains(i) select set.Parameters).First();
                                     cParam.Target = mem;
                                     i.Process(cParam);
-                                    param.Logger.Progress(now / total); now++;
+                                    if (now % interval == 0 || now == total - 1)
+                                        param.Logger.Progress(now / total);
+                                    now++;
                                 }
                             }
                         }
@@ -317,6 +326,7 @@ namespace Confuser.Core
         {
             Thread thread = new Thread(delegate() { Confuse(src, dst, param); });
             thread.IsBackground = true;
+            thread.Name = "Confuuusing";
             thread.Start();
             return thread;
         }

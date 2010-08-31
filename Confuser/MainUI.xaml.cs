@@ -17,6 +17,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Markup;
+using System.Windows.Threading;
 
 namespace Confuser
 {
@@ -330,6 +331,7 @@ namespace Confuser
                 return;
             }
             var param = new Core.ConfuserParameter();
+            param.ReferencesPath = System.IO.Path.GetDirectoryName(path);
             param.Confusions = ldConfusions.Values.ToArray();
             param.DefaultPreset = (Core.Preset)Enum.Parse(typeof(Core.Preset), (preset.SelectedItem as TextBlock).Text);
             param.CompressOutput = compress.IsChecked.GetValueOrDefault();
@@ -359,7 +361,7 @@ namespace Confuser
             });
             param.Logger.Logging += new EventHandler<Core.LogEventArgs>((sender1, e1) =>
             {
-                this.Dispatcher.BeginInvoke(new Action(delegate
+                this.Dispatcher.Invoke(new Action(delegate
                 {
                     if (log != null)
                     {
@@ -370,11 +372,7 @@ namespace Confuser
             });
             param.Logger.Progressing += new EventHandler<Core.ProgressEventArgs>((sender1, e1) =>
             {
-                this.Dispatcher.BeginInvoke(new Action(delegate
-                {
-                    if (pBar != null)
-                        pBar.Value = e1.Progress;
-                }), null);
+                value = e1.Progress;
             });
             param.Logger.Fault += new EventHandler<Core.ExceptionEventArgs>((sender1, e1) =>
             {
@@ -393,6 +391,7 @@ namespace Confuser
                         Monitor.Exit(this);
                     };
                     sb.Begin();
+                    value = -1;
                     doConfuse.Content = "Confuse!";
                 }), null);
                 lock (this) { }
@@ -414,6 +413,7 @@ namespace Confuser
                         Monitor.Exit(this);
                     };
                     sb.Begin();
+                    value = -1;
                     doConfuse.Content = "Confuse!";
                 }), null);
                 lock (this) { }
@@ -422,8 +422,22 @@ namespace Confuser
             (this.Resources["resetProgress"] as Storyboard).Begin();
             (this.Resources["showProgress"] as Storyboard).Begin();
             progress.ScrollToBeginning();
+            MoniterValue();
             confuser = cr.ConfuseAsync(src, dst, param);
             doConfuse.Content = "Cancel";
+        }
+
+        double value = 0;
+        void MoniterValue()
+        {
+            if (value == -1)
+            {
+                value = 0;
+                return;
+            }
+            if (pBar != null)
+                pBar.Value = value;
+            this.Dispatcher.BeginInvoke(new Action(MoniterValue), DispatcherPriority.Background, null);
         }
 
         private void confusionList_SelectionChanged(object sender, SelectionChangedEventArgs e)

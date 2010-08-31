@@ -31,7 +31,7 @@ namespace Confuser.Core.Confusions
         }
         public Preset Preset
         {
-            get { return Preset.Aggressive; }
+            get { return Preset.Maximum; }
         }
         public Phase[] Phases
         {

@@ -527,7 +527,7 @@ namespace Confuser.Core.Confusions
                     insts.Add(wkr.Create(OpCodes.Ldc_I4, rad.Next()));
                     break;
                 case 2:
-                    insts.Add(wkr.Create(OpCodes.Ret));
+                    insts.Add(wkr.Create(OpCodes.Dup));
                     break;
             }
         }

@@ -49,6 +49,9 @@ namespace Confuser.Core.Confusions
                 mc.ptr = asm.MainModule.Import(typeof(IntPtr));
 
                 mc.txts = new List<Context>();
+                mc.delegates = new Dictionary<string, TypeDefinition>();
+                mc.fields = new Dictionary<string, FieldDefinition>();
+                mc.bridges = new Dictionary<string, MethodDefinition>();
             }
             public override void DeInitialize()
             {
@@ -74,8 +77,8 @@ namespace Confuser.Core.Confusions
                     {
                         if ((inst.OpCode.Code == Code.Call || inst.OpCode.Code == Code.Callvirt) &&
                             (inst.Operand as MethodReference).Name != ".ctor" && (inst.Operand as MethodReference).Name != ".cctor" &&
-                            !(inst.Operand as MethodReference).DeclaringType.Resolve().IsInterface &&
                             !((inst.Operand as MethodReference).DeclaringType is GenericInstanceType) &&
+                            !(inst.Operand as MethodReference).DeclaringType.Resolve().IsInterface &&
                             (inst.Previous == null || inst.Previous.OpCode.OpCodeType != OpCodeType.Prefix))
                         {
                             CreateDelegate(mtd.Body, inst, inst.Operand as MethodReference, asm.MainModule);
@@ -83,11 +86,15 @@ namespace Confuser.Core.Confusions
                     }
                     progresser.SetProgress((i + 1) / (double)targets.Count);
                 }
+                double total = mc.txts.Count;
+                int interval = 1;
+                if (total > 1000)
+                    interval = (int)total / 100;
                 for (int i = 0; i < mc.txts.Count; i++)
                 {
                     CreateFieldBridge(asm.MainModule, mc.txts[i]);
-                    if (i % 10 == 0 || i == mc.txts.Count - 1)
-                        progresser.SetProgress((i + 1) / (double)mc.txts.Count);
+                    if (i % interval == 0 || i == mc.txts.Count - 1)
+                        progresser.SetProgress((i + 1) / total);
                 }
             }
 
@@ -102,21 +109,26 @@ namespace Confuser.Core.Confusions
                 txt.inst = Inst;
                 txt.bdy = Bdy;
                 txt.mtdRef = MtdRef;
-                if ((txt.dele = Mod.GetType(GetSignatureO(MtdRef))) == null)
+                string sign = GetSignatureO(MtdRef);
+                if (!mc.delegates.TryGetValue(sign, out txt.dele))
                 {
-                    txt.dele = new TypeDefinition("", GetSignatureO(MtdRef), TypeAttributes.NotPublic | TypeAttributes.Sealed, mc.mcd);
+                    txt.dele = new TypeDefinition("", sign, TypeAttributes.NotPublic | TypeAttributes.Sealed, mc.mcd);
                     Mod.Types.Add(txt.dele);
 
-                    MethodDefinition cctor = new MethodDefinition(".ctor", 0, mc.v);
-                    cctor.IsRuntime = true;
-                    cctor.HasThis = true;
-                    cctor.IsHideBySig = true;
-                    cctor.IsRuntimeSpecialName = true;
-                    cctor.IsSpecialName = true;
-                    cctor.IsPublic = true;
-                    cctor.Parameters.Add(new ParameterDefinition(mc.obj));
-                    cctor.Parameters.Add(new ParameterDefinition(mc.ptr));
+                    MethodDefinition cctor = new MethodDefinition(".cctor", MethodAttributes.Private | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.RTSpecialName | MethodAttributes.Static, mc.v);
+                    cctor.Body = new MethodBody(cctor);
                     txt.dele.Methods.Add(cctor);
+
+                    MethodDefinition ctor = new MethodDefinition(".ctor", 0, mc.v);
+                    ctor.IsRuntime = true;
+                    ctor.HasThis = true;
+                    ctor.IsHideBySig = true;
+                    ctor.IsRuntimeSpecialName = true;
+                    ctor.IsSpecialName = true;
+                    ctor.IsPublic = true;
+                    ctor.Parameters.Add(new ParameterDefinition(mc.obj));
+                    ctor.Parameters.Add(new ParameterDefinition(mc.ptr));
+                    txt.dele.Methods.Add(ctor);
 
                     MethodDefinition invoke = new MethodDefinition("Invoke", 0, MtdRef.ReturnType);
                     invoke.IsRuntime = true;
@@ -141,26 +153,29 @@ namespace Confuser.Core.Confusions
                         }
                     }
                     txt.dele.Methods.Add(invoke);
-
+                    mc.delegates.Add(sign, txt.dele);
                 }
                 mc.txts.Add(txt);
             }
             private void CreateFieldBridge(ModuleDefinition Mod, Context txt)
             {
                 ////////////////Field
-                if ((txt.fld = Mod.GetType("<Module>").Fields.FirstOrDefault(fld => fld.Name == GetId(Mod, txt.inst.OpCode.Name == "callvirt", txt.mtdRef))) == null)
+                string fldId = GetId(Mod, txt.inst.OpCode.Name == "callvirt", txt.mtdRef);
+                if (!mc.fields.TryGetValue(fldId, out txt.fld))
                 {
-                    txt.fld = new FieldDefinition(GetId(Mod, txt.inst.OpCode.Name == "callvirt", txt.mtdRef), FieldAttributes.Static | FieldAttributes.Assembly, txt.dele);
-                    Mod.GetType("<Module>").Fields.Add(txt.fld);
+                    txt.fld = new FieldDefinition(fldId, FieldAttributes.Static | FieldAttributes.Assembly, txt.dele);
+                    txt.dele.Fields.Add(txt.fld);
+                    mc.fields.Add(fldId, txt.fld);
                 }
                 ////////////////Bridge
+                string bridgeId = GetNameO(txt.inst.OpCode.Name == "callvirt", txt.mtdRef);
                 MethodDefinition bdge;
-                if ((bdge = Mod.GetType("<Module>").Methods.FirstOrDefault(mtd => mtd.Name == GetNameO(txt.inst.OpCode.Name == "callvirt", txt.mtdRef))) == null)
+                if (!mc.bridges.TryGetValue(bridgeId, out bdge))
                 {
-                    bdge = new MethodDefinition(GetNameO(txt.inst.OpCode.Name == "callvirt", txt.mtdRef), MethodAttributes.Static | MethodAttributes.Assem, txt.mtdRef.ReturnType);
+                    bdge = new MethodDefinition(bridgeId, MethodAttributes.Static | MethodAttributes.Assem, txt.mtdRef.ReturnType);
                     if (txt.mtdRef.HasThis)
                     {
-                        bdge.Parameters.Add(new ParameterDefinition(Mod.Import(typeof(object))));
+                        bdge.Parameters.Add(new ParameterDefinition(Mod.Import(mc.obj)));
 
                         for (int i = 0; i < txt.mtdRef.Parameters.Count; i++)
                         {
@@ -184,7 +199,8 @@ namespace Confuser.Core.Confusions
                         psr.Emit(txt.inst.OpCode, txt.dele.Methods.FirstOrDefault(mtd => mtd.Name == "Invoke"));
                         psr.Emit(OpCodes.Ret);
                     }
-                    Mod.GetType("<Module>").Methods.Add(bdge);
+                    txt.dele.Methods.Add(bdge);
+                    mc.bridges.Add(bridgeId, bdge);
                 }
 
                 ////////////////Replace
@@ -227,28 +243,43 @@ namespace Confuser.Core.Confusions
             public override void Initialize(AssemblyDefinition asm)
             {
                 this.asm = asm;
-
-                MethodDefinition cctor = asm.MainModule.GetType("<Module>").GetStaticConstructor();
-                MethodBody bdy = cctor.Body as MethodBody;
-                bdy.Instructions.RemoveAt(bdy.Instructions.Count - 1);
             }
             public override void DeInitialize()
             {
-                MethodDefinition cctor = asm.MainModule.GetType("<Module>").GetStaticConstructor();
-                cctor.Body.GetILProcessor().Emit(OpCodes.Ret);
+                //
             }
             public override void Process(ConfusionParameter parameter)
             {
-                MethodDefinition cctor = asm.MainModule.GetType("<Module>").GetStaticConstructor();
-                ILProcessor wkr = cctor.Body.GetILProcessor();
-
+                double total = mc.txts.Count;
+                int interval = 1;
+                if (total > 1000)
+                    interval = (int)total / 100;
                 for (int i = 0; i < mc.txts.Count; i++)
                 {
-                    ////////////////Cctor
-                    mc.txts[i].fld.Name = GetId(asm.MainModule, mc.txts[i].isVirt, mc.txts[i].mtdRef);
-                    wkr.Emit(OpCodes.Ldtoken, mc.txts[i].fld);
-                    wkr.Emit(OpCodes.Call, mc.proxy);
-                    progresser.SetProgress((i + 1) / (double)mc.txts.Count);
+                    Context txt = mc.txts[i];
+
+                    txt.fld.Name = GetId(asm.MainModule, txt.isVirt, txt.mtdRef);
+
+                    ILProcessor psr = txt.dele.GetStaticConstructor().Body.GetILProcessor();
+                    psr.Emit(OpCodes.Ldtoken, txt.fld);
+                    psr.Emit(OpCodes.Call, mc.proxy);
+
+                    if (i % interval == 0 || i == mc.txts.Count - 1)
+                        progresser.SetProgress((i + 1) / total);
+                }
+
+                total = mc.delegates.Count;
+                interval = 1;
+                if (total > 1000)
+                    interval = (int)total / 100;
+                IEnumerator<TypeDefinition> etor = mc.delegates.Values.GetEnumerator();
+                etor.MoveNext();
+                for (int i = 0; i < mc.delegates.Count; i++)
+                {
+                    etor.Current.GetStaticConstructor().Body.GetILProcessor().Emit(OpCodes.Ret);
+                    etor.MoveNext();
+                    if (i % interval == 0 || i == mc.txts.Count - 1)
+                        progresser.SetProgress((i + 1) / total);
                 }
             }
 
@@ -299,6 +330,9 @@ namespace Confuser.Core.Confusions
             }
         }
 
+        Dictionary<string, TypeDefinition> delegates ;
+        Dictionary<string, FieldDefinition> fields ;
+        Dictionary<string, MethodDefinition> bridges = new Dictionary<string, MethodDefinition>();
         MethodDefinition proxy;
         private class Context { public MethodBody bdy; public bool isVirt; public Instruction inst; public FieldDefinition fld; public TypeDefinition dele; public MethodReference mtdRef;}
         List<Context> txts;
@@ -377,6 +411,9 @@ namespace Confuser.Core.Confusions
             var asm = System.Reflection.Assembly.GetExecutingAssembly();
             if (n[0] != (char)1)
                 asm = System.Reflection.Assembly.Load(asm.GetReferencedAssemblies()[(int)n[0] - 2]);
+
+            Console.WriteLine(asm.FullName);
+            Console.WriteLine(BitConverter.ToInt32(Encoding.Unicode.GetBytes(n.ToCharArray(), 2, 2), 0));
             var mtd = asm.GetModules()[0].ResolveMethod(BitConverter.ToInt32(Encoding.Unicode.GetBytes(n.ToCharArray(), 2, 2), 0)) as System.Reflection.MethodInfo;
 
             Console.WriteLine(asm.GetName().ToString());

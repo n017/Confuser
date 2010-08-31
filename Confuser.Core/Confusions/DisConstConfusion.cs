@@ -38,7 +38,7 @@ namespace Confuser.Core.Confusions
         }
         public Preset Preset
         {
-            get { return Preset.Maximum; }
+            get { return Preset.Aggressive; }
         }
         public Phase[] Phases
         {
@@ -127,7 +127,6 @@ namespace Confuser.Core.Confusions
                 for (int ii = 1; ii < expInsts.Length; ii++)
                 {
                     txt.psr.InsertAfter(expInsts[ii - 1], expInsts[ii]);
-                    i++;
                 }
                 switch (op)
                 {

@@ -102,13 +102,15 @@ namespace Confuser.Core.Confusions
                             if (tmp.Operand is ParameterReference)
                             {
                                 read7bePsr.Replace(tmp, Instruction.Create(OpCodes.Ldloc, sc.strer.Body.Variables.FirstOrDefault(var => var.VariableType.FullName == "System.IO.BinaryReader")));
-                                tmp = tmp = read7be.Body.Instructions[ii];
+                                tmp = read7be.Body.Instructions[ii];
                             }
                             else if (tmp.OpCode == OpCodes.Ret)
                             {
                                 read7bePsr.Replace(tmp, Instruction.Create(OpCodes.Conv_I8));
-                                tmp = tmp = read7be.Body.Instructions[ii];
+                                tmp = read7be.Body.Instructions[ii];
                             }
+                            else if (tmp.Operand is MethodReference)
+                                tmp.Operand = asm.MainModule.Import(tmp.Operand as MethodReference);
                             arg[ii] = tmp;
                         }
 

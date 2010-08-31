@@ -75,6 +75,14 @@ namespace Confuser.Core
                 return false;
             }
 
+            CustomAttributeNamedArgument stripArg = att.Properties.FirstOrDefault(arg => arg.Name == "StripAfterObfuscation");
+            bool strip = true;
+            if (!stripArg.Equals(default(CustomAttributeNamedArgument)))
+                strip = (bool)stripArg.Argument.Value;
+
+            if (strip)
+                provider.CustomAttributes.Remove(att);
+
             CustomAttributeNamedArgument excludeArg = att.Properties.FirstOrDefault(arg => arg.Name == "Exclude");
             bool exclude = true;
             if (!excludeArg.Equals(default(CustomAttributeNamedArgument)))
@@ -215,6 +223,9 @@ namespace Confuser.Core
 
             if (!exclude)
             {
+                foreach (TypeDefinition nType in type.NestedTypes)
+                    MarkType(nType, setting);
+
                 foreach (MethodDefinition mtd in type.Methods)
                     MarkMember(mtd, setting, Target.Methods);
 
