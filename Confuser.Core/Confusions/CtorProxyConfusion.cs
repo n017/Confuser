@@ -57,7 +57,7 @@ namespace Confuser.Core.Confusions
             {
                 TypeDefinition mod = asm.MainModule.GetType("<Module>");
                 AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(CtorProxyConfusion).Assembly.Location);
-                cc.proxy = i.MainModule.GetType("Confuser.Core.Confusions.CtorProxyConfusion").Methods.FirstOrDefault(mtd => mtd.Name == "Injection");
+                cc.proxy = i.MainModule.GetType(typeof(CtorProxyConfusion).FullName).Methods.FirstOrDefault(mtd => mtd.Name == "Injection");
                 cc.proxy = CecilHelper.Inject(asm.MainModule, cc.proxy);
                 mod.Methods.Add(cc.proxy);
                 cc.proxy.IsAssembly = true;
@@ -115,6 +115,10 @@ namespace Confuser.Core.Confusions
                     txt.dele = new TypeDefinition("", sign, TypeAttributes.NotPublic | TypeAttributes.Sealed, cc.mcd);
                     Mod.Types.Add(txt.dele);
 
+                    MethodDefinition cctor = new MethodDefinition(".cctor", MethodAttributes.Private | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.RTSpecialName | MethodAttributes.Static, cc.v);
+                    cctor.Body = new MethodBody(cctor);
+                    txt.dele.Methods.Add(cctor);
+
                     MethodDefinition ctor = new MethodDefinition(".ctor", 0, cc.v);
                     ctor.IsRuntime = true;
                     ctor.HasThis = true;
@@ -149,7 +153,7 @@ namespace Confuser.Core.Confusions
                 if (!cc.fields.TryGetValue(fldId, out txt.fld))
                 {
                     txt.fld = new FieldDefinition(fldId, FieldAttributes.Static | FieldAttributes.Assembly, txt.dele);
-                    Mod.GetType("<Module>").Fields.Add(txt.fld);
+                    txt.dele.Fields.Add(txt.fld);
                     cc.fields.Add(fldId, txt.fld);
                 }
                 ////////////////Bridge
@@ -172,7 +176,7 @@ namespace Confuser.Core.Confusions
                         wkr.Emit(OpCodes.Call, txt.dele.Methods.FirstOrDefault(mtd => mtd.Name == "Invoke"));
                         wkr.Emit(OpCodes.Ret);
                     }
-                    Mod.GetType("<Module>").Methods.Add(bdge);
+                    txt.dele.Methods.Add(bdge);
                     cc.bridges.Add(bridgeId, bdge);
                 }
 
@@ -215,31 +219,44 @@ namespace Confuser.Core.Confusions
             public override void Initialize(AssemblyDefinition asm)
             {
                 this.asm = asm;
-
-                MethodDefinition cctor = asm.MainModule.GetType("<Module>").GetStaticConstructor();
-                MethodBody bdy = cctor.Body as MethodBody;
-                bdy.Instructions.RemoveAt(bdy.Instructions.Count - 1);
             }
             public override void DeInitialize()
             {
-                MethodDefinition cctor = asm.MainModule.GetType("<Module>").GetStaticConstructor();
-                cctor.Body.GetILProcessor().Emit(OpCodes.Ret);
+                //
             }
             public override void Process(ConfusionParameter parameter)
             {
-                MethodDefinition cctor = asm.MainModule.GetType("<Module>").GetStaticConstructor();
-                ILProcessor wkr = cctor.Body.GetILProcessor();
-
                 double total = cc.txts.Count;
                 int interval = 1;
                 if (total > 1000)
                     interval = (int)total / 100;
                 for (int i = 0; i < cc.txts.Count; i++)
                 {
-                    ////////////////Cctor
-                    cc.txts[i].fld.Name = GetId(asm.MainModule, cc.txts[i].mtdRef);
-                    wkr.Emit(OpCodes.Ldtoken, cc.txts[i].fld);
-                    wkr.Emit(OpCodes.Call, cc.proxy);
+                    Context txt = cc.txts[i];
+                    txt.fld.Name = GetId(txt.mtdRef.Module, txt.mtdRef);
+
+                    if (!(txt.fld as IAnnotationProvider).Annotations.Contains("CtorProxyCtored"))
+                    {
+                        ILProcessor psr = txt.dele.GetStaticConstructor().Body.GetILProcessor();
+                        psr.Emit(OpCodes.Ldtoken, txt.fld);
+                        psr.Emit(OpCodes.Call, cc.proxy);
+                        (txt.fld as IAnnotationProvider).Annotations["CtorProxyCtored"] = true;
+                    }
+
+                    if (i % interval == 0 || i == cc.txts.Count - 1)
+                        progresser.SetProgress((i + 1) / total);
+                }
+
+                total = cc.delegates.Count;
+                interval = 1;
+                if (total > 1000)
+                    interval = (int)total / 100;
+                IEnumerator<TypeDefinition> etor = cc.delegates.Values.GetEnumerator();
+                etor.MoveNext();
+                for (int i = 0; i < cc.delegates.Count; i++)
+                {
+                    etor.Current.GetStaticConstructor().Body.GetILProcessor().Emit(OpCodes.Ret);
+                    etor.MoveNext();
                     if (i % interval == 0 || i == cc.txts.Count - 1)
                         progresser.SetProgress((i + 1) / total);
                 }
@@ -249,6 +266,47 @@ namespace Confuser.Core.Confusions
             public void SetProgresser(IProgresser progresser)
             {
                 this.progresser = progresser;
+            }
+        }
+        class MetadataPhase : AdvancedPhase
+        {
+            CtorProxyConfusion cc;
+            public MetadataPhase(CtorProxyConfusion cc) { this.cc = cc; }
+            public override IConfusion Confusion
+            {
+                get { return cc; }
+            }
+
+            public override int PhaseID
+            {
+                get { return 1; }
+            }
+
+            public override Priority Priority
+            {
+                get { return Priority.TypeLevel; }
+            }
+
+            public override bool WholeRun
+            {
+                get { return true; }
+            }
+
+            public override void Initialize(AssemblyDefinition asm)
+            {
+                //
+            }
+            public override void DeInitialize()
+            {
+                //
+            }
+            public override void Process(MetadataProcessor.MetadataAccessor accessor)
+            {
+                foreach (Context txt in cc.txts)
+                {
+                    MetadataToken tkn = accessor.LookupToken(txt.mtdRef);
+                    txt.fld.Name = txt.fld.Name[0] + Encoding.Unicode.GetString(BitConverter.GetBytes(tkn.ToUInt32()));
+                }
             }
         }
 
@@ -287,7 +345,7 @@ namespace Confuser.Core.Confusions
         {
             get
             {
-                if (ps == null) ps = new Phase[] { new Phase1(this), new Phase2(this) };
+                if (ps == null) ps = new Phase[] { new Phase1(this), new Phase2(this), new MetadataPhase(this) };
                 return ps;
             }
         }
@@ -349,13 +407,7 @@ namespace Confuser.Core.Confusions
         private static void Injection(RuntimeFieldHandle f)
         {
             var fld = System.Reflection.FieldInfo.GetFieldFromHandle(f);
-
             var asm = System.Reflection.Assembly.GetExecutingAssembly();
-            if (fld.Name[0] != (char)1)
-                asm = System.Reflection.Assembly.Load(asm.GetReferencedAssemblies()[(int)fld.Name[0] - 2]);
-
-            Console.WriteLine(asm.FullName);
-            Console.WriteLine(BitConverter.ToInt32(Encoding.Unicode.GetBytes(fld.Name.ToCharArray(), 1, 2), 0));
             var mtd = asm.GetModules()[0].ResolveMethod(BitConverter.ToInt32(Encoding.Unicode.GetBytes(fld.Name.ToCharArray(), 1, 2), 0)) as System.Reflection.ConstructorInfo;
 
             var args = mtd.GetParameters();

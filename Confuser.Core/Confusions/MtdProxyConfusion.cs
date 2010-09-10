@@ -57,7 +57,7 @@ namespace Confuser.Core.Confusions
             {
                 TypeDefinition mod = asm.MainModule.GetType("<Module>");
                 AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(MtdProxyConfusion).Assembly.Location);
-                mc.proxy = i.MainModule.GetType("Confuser.Core.Confusions.MtdProxyConfusion").Methods.FirstOrDefault(mtd => mtd.Name == "Injection");
+                mc.proxy = i.MainModule.GetType(typeof(MtdProxyConfusion).FullName).Methods.FirstOrDefault(mtd => mtd.Name == "Injection");
                 mc.proxy = CecilHelper.Inject(asm.MainModule, mc.proxy);
                 mod.Methods.Add(mc.proxy);
                 mc.proxy.IsAssembly = true;
@@ -257,12 +257,15 @@ namespace Confuser.Core.Confusions
                 for (int i = 0; i < mc.txts.Count; i++)
                 {
                     Context txt = mc.txts[i];
+                    txt.fld.Name = GetId(txt.mtdRef.Module, txt.isVirt, txt.mtdRef);
 
-                    txt.fld.Name = GetId(asm.MainModule, txt.isVirt, txt.mtdRef);
-
-                    ILProcessor psr = txt.dele.GetStaticConstructor().Body.GetILProcessor();
-                    psr.Emit(OpCodes.Ldtoken, txt.fld);
-                    psr.Emit(OpCodes.Call, mc.proxy);
+                    if (!(txt.fld as IAnnotationProvider).Annotations.Contains("MtdProxyCtored"))
+                    {
+                        ILProcessor psr = txt.dele.GetStaticConstructor().Body.GetILProcessor();
+                        psr.Emit(OpCodes.Ldtoken, txt.fld);
+                        psr.Emit(OpCodes.Call, mc.proxy);
+                        (txt.fld as IAnnotationProvider).Annotations["MtdProxyCtored"] = true;
+                    }
 
                     if (i % interval == 0 || i == mc.txts.Count - 1)
                         progresser.SetProgress((i + 1) / total);
@@ -287,6 +290,47 @@ namespace Confuser.Core.Confusions
             void IProgressProvider.SetProgresser(IProgresser progresser)
             {
                 this.progresser = progresser;
+            }
+        }
+        class MetadataPhase : AdvancedPhase
+        {
+            MtdProxyConfusion mc;
+            public MetadataPhase(MtdProxyConfusion mc) { this.mc = mc; }
+            public override IConfusion Confusion
+            {
+                get { return mc; }
+            }
+
+            public override int PhaseID
+            {
+                get { return 1; }
+            }
+
+            public override Priority Priority
+            {
+                get { return Priority.TypeLevel; }
+            }
+
+            public override bool WholeRun
+            {
+                get { return true; }
+            }
+
+            public override void Initialize(AssemblyDefinition asm)
+            {
+                //
+            }
+            public override void DeInitialize()
+            {
+                //
+            }
+            public override void Process(MetadataProcessor.MetadataAccessor accessor)
+            {
+                foreach (Context txt in mc.txts)
+                {
+                    MetadataToken tkn = accessor.LookupToken(txt.mtdRef);
+                    txt.fld.Name = new string(new char[] { txt.fld.Name[0] , txt.fld.Name[1] }) + Encoding.Unicode.GetString(BitConverter.GetBytes(tkn.ToUInt32()));
+                }
             }
         }
 
@@ -325,15 +369,16 @@ namespace Confuser.Core.Confusions
         {
             get
             {
-                if (ps == null) ps = new Phase[] { new Phase1(this), new Phase2(this) };
+                if (ps == null) ps = new Phase[] { new Phase1(this), new Phase2(this), new MetadataPhase(this) };
                 return ps;
             }
         }
 
-        Dictionary<string, TypeDefinition> delegates ;
-        Dictionary<string, FieldDefinition> fields ;
-        Dictionary<string, MethodDefinition> bridges = new Dictionary<string, MethodDefinition>();
+        Dictionary<string, TypeDefinition> delegates;
+        Dictionary<string, FieldDefinition> fields;
+        Dictionary<string, MethodDefinition> bridges;
         MethodDefinition proxy;
+        MethodDefinition holder;
         private class Context { public MethodBody bdy; public bool isVirt; public Instruction inst; public FieldDefinition fld; public TypeDefinition dele; public MethodReference mtdRef;}
         List<Context> txts;
         TypeReference mcd;
@@ -400,25 +445,13 @@ namespace Confuser.Core.Confusions
         {
             string virt = isVirt ? "\r" : "\n";
             char asmRef = (char)(mod.AssemblyReferences.IndexOf(mtd.DeclaringType.Scope as AssemblyNameReference) + 2);
-            return asmRef + virt + Encoding.Unicode.GetString(BitConverter.GetBytes(mtd.Resolve().MetadataToken.ToUInt32()));
+            return asmRef + virt + mtd.ToString().GetHashCode();
         }
         private static void Injection(RuntimeFieldHandle f)
         {
             var fld = System.Reflection.FieldInfo.GetFieldFromHandle(f);
-
-            string n = fld.Name;
-
             var asm = System.Reflection.Assembly.GetExecutingAssembly();
-            if (n[0] != (char)1)
-                asm = System.Reflection.Assembly.Load(asm.GetReferencedAssemblies()[(int)n[0] - 2]);
-
-            Console.WriteLine(asm.FullName);
-            Console.WriteLine(BitConverter.ToInt32(Encoding.Unicode.GetBytes(n.ToCharArray(), 2, 2), 0));
-            var mtd = asm.GetModules()[0].ResolveMethod(BitConverter.ToInt32(Encoding.Unicode.GetBytes(n.ToCharArray(), 2, 2), 0)) as System.Reflection.MethodInfo;
-
-            Console.WriteLine(asm.GetName().ToString());
-            Console.WriteLine(mtd.DeclaringType.FullName);
-            Console.WriteLine(mtd.ToString());
+            var mtd = asm.GetModules()[0].ResolveMethod(BitConverter.ToInt32(Encoding.Unicode.GetBytes(fld.Name.ToCharArray(), 2, 2), 0)) as System.Reflection.MethodInfo;
 
             if (mtd.IsStatic)
             {
@@ -442,7 +475,7 @@ namespace Confuser.Core.Confusions
                 //gen.Emit(System.Reflection.Emit.OpCodes.Castclass, mtd.DeclaringType);
                 for (int i = 1; i < arg.Length; i++)
                     gen.Emit(System.Reflection.Emit.OpCodes.Ldarg_S, i);
-                gen.Emit((n[1] == '\r') ? System.Reflection.Emit.OpCodes.Callvirt : System.Reflection.Emit.OpCodes.Call, mtd);
+                gen.Emit((fld.Name[1] == '\r') ? System.Reflection.Emit.OpCodes.Callvirt : System.Reflection.Emit.OpCodes.Call, mtd);
                 gen.Emit(System.Reflection.Emit.OpCodes.Ret);
 
                 fld.SetValue(null, dm.CreateDelegate(fld.FieldType));

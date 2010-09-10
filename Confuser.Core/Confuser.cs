@@ -131,6 +131,7 @@ namespace Confuser.Core
                 else
                     sn = new System.Reflection.StrongNameKeyPair(new FileStream(param.StrongNameKeyPath, FileMode.Open));
 
+                (GlobalAssemblyResolver.Instance as DefaultAssemblyResolver).AssemblyCache.Clear();
                 AssemblyDefinition[] asms = ExtractAssemblies(src);
 
                 Marker mkr = new Marker(param.Confusions);
@@ -236,17 +237,18 @@ namespace Confuser.Core
                                 int interval = 1;
                                 if (total > 1000)
                                     interval = (int)total / 100;
-                                int now = 1;
+                                int now = 0;
                                 foreach (object mem in idk)
                                 {
                                     cParam.Parameters = (from set in (mem as IAnnotationProvider).Annotations["ConfusionSets"] as List<ConfusionSet> where set.Confusion.Phases.Contains(i) select set.Parameters).First();
                                     cParam.Target = mem;
                                     i.Process(cParam);
                                     if (now % interval == 0 || now == total - 1)
-                                        param.Logger.Progress(now / total);
+                                        param.Logger.Progress((now + 1) / total);
                                     now++;
                                 }
                             }
+                            param.Logger.Progress(1);
                         }
                         i.DeInitialize();
                     }

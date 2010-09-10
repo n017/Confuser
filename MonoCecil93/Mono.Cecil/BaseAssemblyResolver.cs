@@ -98,44 +98,47 @@ namespace Mono.Cecil {
 			return ModuleDefinition.ReadModule (file, new ReaderParameters { AssemblyResolver = this}).Assembly;
 		}
 
-		public virtual AssemblyDefinition Resolve (AssemblyNameReference name)
-		{
-			var assembly = SearchDirectory (name, directories);
-			if (assembly != null)
-				return assembly;
+        public virtual AssemblyDefinition Resolve(AssemblyNameReference name)
+        {
+            var assembly = SearchDirectory(name, directories);
+            if (assembly != null)
+                return assembly;
 
 #if !SILVERLIGHT && !CF
-			var framework_dir = Path.GetDirectoryName (typeof (object).Module.FullyQualifiedName);
+            var framework_dir = Path.GetDirectoryName(typeof(object).Module.FullyQualifiedName);
 
-			if (IsZero (name.Version)) {
-				assembly = SearchDirectory (name, new [] { framework_dir });
-				if (assembly != null)
-					return assembly;
-			}
+            if (IsZero(name.Version))
+            {
+                assembly = SearchDirectory(name, new[] { framework_dir });
+                if (assembly != null)
+                    return assembly;
+            }
 
-			if (name.Name == "mscorlib") {
-				assembly = GetCorlib (name);
-				if (assembly != null)
-					return assembly;
-			}
+            if (name.Name == "mscorlib")
+            {
+                assembly = GetCorlib(name);
+                if (assembly != null)
+                    return assembly;
+            }
 
-			assembly = GetAssemblyInGac (name);
-			if (assembly != null)
-				return assembly;
+            assembly = GetAssemblyInGac(name);
+            if (assembly != null)
+                return assembly;
 
-			assembly = SearchDirectory (name, new [] { framework_dir });
-			if (assembly != null)
-				return assembly;
+            assembly = SearchDirectory(name, new[] { framework_dir });
+            if (assembly != null || assembly.Name.FullName != name.FullName)
+                return assembly;
 #endif
 
-			if (ResolveFailure != null) {
-				assembly = ResolveFailure (this, name);
-				if (assembly != null)
-					return assembly;
-			}
+            if (ResolveFailure != null)
+            {
+                assembly = ResolveFailure(this, name);
+                if (assembly != null)
+                    return assembly;
+            }
 
-			throw new FileNotFoundException ("Could not resolve: " + name);
-		}
+            throw new FileNotFoundException("Could not resolve: " + name);
+        }
 
 		AssemblyDefinition SearchDirectory (AssemblyNameReference name, IEnumerable<string> directories)
 		{

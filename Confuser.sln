@@ -11,9 +11,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Confuser", "Confuser\Confus
 EndProject
 Global
 	GlobalSection(TeamFoundationVersionControl) = preSolution
-		SccNumberOfProjects = 4
+		SccNumberOfProjects = 5
 		SccEnterpriseProvider = {4CA58AB2-18FA-4F8D-95D4-32DDF27D184C}
-		SccTeamFoundationServer = https://tfs09.codeplex.com/
+		SccTeamFoundationServer = https://tfs.codeplex.com/tfs/TFS09
 		SccLocalPath0 = .
 		SccProjectUniqueName1 = Confuser.Core\\Confuser.Core.csproj
 		SccProjectName1 = Confuser.Core
@@ -24,6 +24,9 @@ Global
 		SccProjectUniqueName3 = MonoCecil93\\rocks\\Mono.Cecil.Rocks.csproj
 		SccProjectName3 = MonoCecil93/rocks
 		SccLocalPath3 = MonoCecil93\\rocks
+		SccProjectUniqueName4 = Confuser\\Confuser.csproj
+		SccProjectName4 = Confuser
+		SccLocalPath4 = Confuser
 	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug - No System.dll|Any CPU = Debug - No System.dll|Any CPU

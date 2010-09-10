@@ -36,14 +36,23 @@ namespace Confuser.Core.Confusions
                 get { return false; }
             }
 
+            AssemblyDefinition asm;
             public override void Initialize(AssemblyDefinition asm)
             {
-                //
+                this.asm = asm;
             }
 
             public override void DeInitialize()
             {
-                //
+                foreach(ModuleDefinition mod in asm.Modules)
+                    foreach (Resource res in mod.Resources)
+                    {
+                        Identifier id = new Identifier() { typeName = res.Name };
+                        foreach (IReference refer in (res as IAnnotationProvider).Annotations["RenRef"] as List<IReference>)
+                        {
+                            refer.UpdateReference(id, id);
+                        }
+                    }
             }
 
             public override void Process(ConfusionParameter parameter)
@@ -101,14 +110,14 @@ namespace Confuser.Core.Confusions
 
                 foreach (ParameterDefinition para in mtd.Parameters)
                 {
-                    //para.Name = ObfuscationHelper.GetNewName(para.Name);
+                    para.Name = ObfuscationHelper.GetNewName(para.Name);
                 }
 
                 if (mtd.HasBody)
                 {
                     foreach (VariableDefinition var in mtd.Body.Variables)
                     {
-                        //var.Name = ObfuscationHelper.GetNewName(var.Name);
+                        var.Name = ObfuscationHelper.GetNewName(var.Name);
                     }
                 }
             }

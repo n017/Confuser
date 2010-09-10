@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Resources;
 using System.Text;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
@@ -166,6 +168,54 @@ System.Resources.ResourceManager
                     ldstr.Operand = @new.typeName;
             }
         }
+        class BamlReference : IReference
+        {
+            public BamlReference(BamlDocument doc, TypeDeclaration type) { this.doc = doc; this.type = type; }
+
+            BamlDocument doc;
+            TypeDeclaration type;
+
+            public void UpdateReference(Identifier old, Identifier @new)
+            {
+                int index = @new.typeName.LastIndexOf('.');
+                if (index != -1)
+                {
+                    type.Name = @new.typeName.Substring(index + 1);
+                    type.Namespace = @new.typeName.Substring(0, index);
+                }
+                else
+                {
+                    type.Namespace = "";
+                    type.Name = @new.typeName;
+                }
+            }
+        }
+        class SaveBamlsReference : IReference
+        {
+            public SaveBamlsReference(ModuleDefinition mod, int resId) { this.mod = mod; this.resId = resId; }
+
+            ModuleDefinition mod;
+            int resId;
+
+            public void UpdateReference(Identifier old, Identifier @new)
+            {
+                EmbeddedResource res = mod.Resources[resId] as EmbeddedResource;
+                foreach (KeyValuePair<string, BamlDocument> pair in (res as IAnnotationProvider).Annotations["Gbamls"] as Dictionary<string, BamlDocument>)
+                {
+                    Stream src = ((res as IAnnotationProvider).Annotations["Gresources"] as Dictionary<string, object>)[pair.Key] as Stream;
+                    src.Position = 0;
+                    Stream dst = new MemoryStream();
+                    new BamlCopyer(src, dst, pair.Value);
+                    ((res as IAnnotationProvider).Annotations["Gresources"] as Dictionary<string, object>)[pair.Key] = dst;
+                }
+                MemoryStream newRes = new MemoryStream();
+                ResourceWriter wtr = new ResourceWriter(newRes);
+                foreach (KeyValuePair<string, object> pair in (res as IAnnotationProvider).Annotations["Gresources"] as Dictionary<string, object>)
+                    wtr.AddResource(pair.Key, pair.Value);
+                wtr.Generate(); 
+                mod.Resources[resId] = new EmbeddedResource(res.Name, res.Attributes, newRes.ToArray());
+            }
+        }
 
         public void Analysis(AssemblyDefinition asm)
         {
@@ -207,12 +257,15 @@ System.Resources.ResourceManager
 
         void Analysis(ModuleDefinition mod)
         {
+            for (int i = 0; i < mod.Resources.Count; i++)
+                if (mod.Resources[i].Name.EndsWith(".g.resources") && mod.Resources[i] is EmbeddedResource)
+                    AnalysisResource(mod, i);
             foreach (TypeDefinition type in mod.Types)
                 Analysis(type);
         }
         void Analysis(TypeDefinition type)
         {
-            if (type.Name == "<Module>" || type.IsNestedFamily || type.IsNestedFamilyAndAssembly || type.IsNestedFamilyOrAssembly || type.IsNestedPublic || type.IsPublic)
+            if (type.Name == "<Module>" || IsTypePublic(type))
                 (type as IAnnotationProvider).Annotations["RenOk"] = false;
             foreach (Resource res in (type.Scope as ModuleDefinition).Resources)
                 if (res.Name == type.FullName + ".resources")
@@ -228,7 +281,7 @@ System.Resources.ResourceManager
         }
         void Analysis(MethodDefinition mtd)
         {
-            if (mtd.IsConstructor || ((mtd.DeclaringType.IsPublic||mtd.DeclaringType.IsNestedFamily||mtd.DeclaringType.IsNestedFamilyAndAssembly||mtd.DeclaringType.IsNestedFamilyOrAssembly||mtd.DeclaringType.IsNestedPublic||mtd.DeclaringType.IsPublic)&&
+            if (mtd.DeclaringType.IsInterface || mtd.IsConstructor || (IsTypePublic(mtd.DeclaringType) &&
                 (mtd.IsFamily || mtd.IsFamilyAndAssembly || mtd.IsFamilyOrAssembly || mtd.IsPublic)))
                 (mtd as IAnnotationProvider).Annotations["RenOk"] = false;
             else if (mtd.DeclaringType.BaseType != null)
@@ -270,7 +323,7 @@ System.Resources.ResourceManager
                         else
                             now = null;
                     } while (now != null);
-                    if (ovr != null && ovr.Module != mtd.Module)
+                    if (ovr != null && (ovr.Module != mtd.Module || IsTypePublic(ovr.DeclaringType)))
                     {
                         (mtd as IAnnotationProvider).Annotations["RenOk"] = false;
                     }
@@ -285,7 +338,12 @@ System.Resources.ResourceManager
                 do
                 {
                     TypeDefinition now = q.Dequeue();
-                    if (now.IsInterface)
+                    if (now.HasGenericParameters && now.IsInterface)
+                    {
+                        (mtd as IAnnotationProvider).Annotations["RenOk"] = false;
+                        break;
+                    }
+                    else if (now.IsInterface)
                     {
                         MethodDefinition imple = null;
                         foreach (MethodDefinition bMtd in now.Methods)
@@ -349,6 +407,48 @@ System.Resources.ResourceManager
                 (fld.IsFamily || fld.IsFamilyAndAssembly || fld.IsFamilyOrAssembly || fld.IsPublic)))
                 (fld as IAnnotationProvider).Annotations["RenOk"] = false;
         }
+        void AnalysisResource(ModuleDefinition mod, int resId)
+        {
+            EmbeddedResource res = mod.Resources[resId] as EmbeddedResource;
+            ResourceReader resRdr = new ResourceReader(res.GetResourceStream());
+            Dictionary<string, object> ress;
+            Dictionary<string, BamlDocument> bamls;
+            (res as IAnnotationProvider).Annotations["Gresources"] = ress = new Dictionary<string, object>();
+            (res as IAnnotationProvider).Annotations["Gbamls"] = bamls = new Dictionary<string, BamlDocument>();
+            int cc = 0;
+            foreach (DictionaryEntry entry in resRdr)
+            {
+                Stream stream = null;
+                if (entry.Value is Stream)
+                {
+                    byte[] buff = new byte[(entry.Value as Stream).Length];
+                    (entry.Value as Stream).Position = 0;
+                    (entry.Value as Stream).Read(buff, 0, buff.Length);
+                    ress.Add(entry.Key as string, stream = new MemoryStream(buff));
+                }
+                else
+                    ress.Add(entry.Key as string, entry.Value);
+                if (stream != null && (entry.Key as string).EndsWith(".baml"))
+                {
+                    BamlDocument doc = new BamlReader(stream).Document;
+                    int c = 0;
+                    foreach (TypeDeclaration decl in doc.TypeTable.Values)
+                        if (decl.Assembly == mod.Assembly.Name.FullName)
+                        {
+                            TypeDefinition type = mod.GetType(decl.Namespace, decl.Name);
+                            if (type != null)
+                            {
+                                ((type as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new BamlReference(doc, decl));
+                                c++; cc++;
+                            }
+                        }
+                    if (c != 0)
+                        bamls.Add(entry.Key as string, doc);
+                }
+            }
+            if (cc != 0)
+                ((res as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new SaveBamlsReference(mod, resId));
+        }
         void AnalysisCodes(MethodDefinition mtd)
         {
             for (int i = 0; i < mtd.Body.Instructions.Count; i++)
@@ -379,6 +479,17 @@ System.Resources.ResourceManager
                     }
                 }
             }
+        }
+
+        bool IsTypePublic(TypeDefinition type)
+        {
+            do
+            {
+                if (!type.IsPublic && !type.IsNestedFamily && !type.IsNestedFamilyAndAssembly && !type.IsNestedFamilyOrAssembly && !type.IsNestedPublic && !type.IsPublic)
+                    return false;
+                type = type.DeclaringType;
+            } while (type != null);
+            return true;
         }
 
         MemberReference StackTrace(int idx, Collection<Instruction> insts, ReflectionMethod mtd, ModuleDefinition scope, out Instruction memInst)
@@ -432,7 +543,7 @@ System.Resources.ResourceManager
                     case Code.Ldtoken:
                         c++; break;
                     default:
-                        FollowStack(inst.OpCode, c); break;
+                        FollowStack(inst.OpCode, ref c); break;
                 }
             }
 
@@ -597,7 +708,7 @@ System.Resources.ResourceManager
                         count--; break;
                     default:
                         int cc = count;
-                        FollowStack(inst.OpCode, count);
+                        FollowStack(inst.OpCode, ref count);
                         count -= count - cc;
                         break;
                 }
@@ -649,7 +760,7 @@ System.Resources.ResourceManager
                     throw new InvalidOperationException();
             }
         }
-        void FollowStack(OpCode op, int stack)
+        void FollowStack(OpCode op, ref int stack)
         {
             switch (op.StackBehaviourPop)
             {

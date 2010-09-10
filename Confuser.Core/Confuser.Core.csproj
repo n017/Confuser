@@ -86,6 +86,9 @@
     <Compile Include="Confusions\AntiILDasmConfusion.cs" />
     <Compile Include="Confusions\StringConfusion.cs" />
     <Compile Include="Confusion.cs" />
+    <Compile Include="Engines\Baml\BamlDocument.cs" />
+    <Compile Include="Engines\Baml\BamlReader.cs" />
+    <Compile Include="Engines\Baml\BamlCopyer.cs" />
     <Compile Include="Engines\RenameEngine.cs" />
     <Compile Include="IEngine.cs" />
     <Compile Include="Marker.cs" />

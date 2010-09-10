@@ -1504,8 +1504,8 @@ namespace Mono.Cecil {
             public override void BuildMetadata()
             {
                 MetadataAccessor accessor = new MetadataAccessor(this);
-                BuildModule();
                 psr.PrePs(accessor);
+                BuildModule();
                 psr.DoPs(accessor);
                 table_heap.WriteTableHeap();
                 psr.PostPs(accessor);
@@ -1520,6 +1520,11 @@ namespace Mono.Cecil {
             public UserStringHeapBuffer USHeap { get { return psr.user_string_heap; } }
             public StringHeapBuffer StringHeap { get { return psr.string_heap; } }
             public TableHeapBuffer TableHeap { get { return psr.table_heap; } }
+
+            public MetadataToken LookupToken(IMetadataTokenProvider provider)
+            {
+                return psr.LookupToken(provider);
+            }
         }
     }
     ////////////

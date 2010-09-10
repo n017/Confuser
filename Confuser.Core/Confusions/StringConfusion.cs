@@ -128,12 +128,10 @@ namespace Confuser.Core.Confusions
                 sc.strer.Body.OptimizeMacros();
                 sc.strer.Body.ComputeOffsets();
 
-                EmbeddedResource res = new EmbeddedResource(Encoding.UTF8.GetString(n), ManifestResourceAttributes.Private, (byte[])null);
-                sc.resId = asm.MainModule.Resources.Count;
-                asm.MainModule.Resources.Add(res);
+                sc.resId = Encoding.UTF8.GetString(n);
             }
         }
-        class Phase3 : StructurePhase
+        class Phase3 : StructurePhase, IProgressProvider
         {
             public Phase3(StringConfusion sc) { this.sc = sc; }
             StringConfusion sc;
@@ -170,45 +168,64 @@ namespace Confuser.Core.Confusions
                     foreach (byte[] b in sc.dats)
                         wtr.Write(b);
                 }
-                asm.MainModule.Resources[sc.resId] = new EmbeddedResource(asm.MainModule.Resources[sc.resId].Name, ManifestResourceAttributes.Private, str.ToArray());
+                asm.MainModule.Resources.Add(new EmbeddedResource(sc.resId, ManifestResourceAttributes.Private, str.ToArray()));
             }
 
+            struct Context { public MethodDefinition mtd; public ILProcessor psr; public Instruction str;}
             AssemblyDefinition asm;
             public override void Process(ConfusionParameter parameter)
             {
-                MethodDefinition mtd = parameter.Target as MethodDefinition;
-                if (mtd == sc.strer || !mtd.HasBody) return;
 
-                var bdy = mtd.Body;
-                bdy.SimplifyMacros();
-                var insts = bdy.Instructions;
-                ILProcessor psr = bdy.GetILProcessor();
-                for (int i = 0; i < insts.Count; i++)
+                List<Context> txts = new List<Context>();
+
+                foreach (MethodDefinition mtd in parameter.Target as List<object>)
                 {
-                    if (insts[i].OpCode.Code == Code.Ldstr)
+                    if (mtd == sc.strer || !mtd.HasBody) continue;
+                    var bdy = mtd.Body;
+                    bdy.SimplifyMacros();
+                    var insts = bdy.Instructions;
+                    ILProcessor psr = bdy.GetILProcessor();
+                    for (int i = 0; i < insts.Count; i++)
                     {
-                        string val = insts[i].Operand as string;
-                        if (val == "") continue;
-
-                        int id = (int)((sc.idx + sc.key0) ^ mtd.MetadataToken.ToUInt32());
-                        int len;
-                        byte[] dat = StringConfusion.Encrypt(val, sc.eval, out len);
-                        len = (int)~(len ^ sc.key1);
-
-                        byte[] final = new byte[dat.Length + 4];
-                        Buffer.BlockCopy(dat, 0, final, 4, dat.Length);
-                        Buffer.BlockCopy(BitConverter.GetBytes(len), 0, final, 0, 4);
-                        sc.dats.Add(final);
-                        sc.idx += final.Length;
-
-                        Instruction now = insts[i];
-                        psr.InsertAfter(now, psr.Create(OpCodes.Call, sc.strer));
-                        psr.Replace(now, psr.Create(OpCodes.Ldc_I4, id));
+                        if (insts[i].OpCode.Code == Code.Ldstr)
+                            txts.Add(new Context() { mtd = mtd, psr = psr, str = insts[i] });
                     }
+                    bdy.OptimizeMacros();
+                    bdy.ComputeHeader();
                 }
-                bdy.OptimizeMacros();
-                bdy.ComputeHeader();
 
+                double total = txts.Count;
+                int interval = 1;
+                if (total > 1000)
+                    interval = (int)total / 100;
+                for (int i = 0; i < txts.Count; i++)
+                {
+                    string val = txts[i].str.Operand as string;
+                    if (val == "") continue;
+
+                    int id = (int)((sc.idx + sc.key0) ^ txts[i].mtd.MetadataToken.ToUInt32());
+                    int len;
+                    byte[] dat = StringConfusion.Encrypt(val, sc.eval, out len);
+                    len = (int)~(len ^ sc.key1);
+
+                    byte[] final = new byte[dat.Length + 4];
+                    Buffer.BlockCopy(dat, 0, final, 4, dat.Length);
+                    Buffer.BlockCopy(BitConverter.GetBytes(len), 0, final, 0, 4);
+                    sc.dats.Add(final);
+                    sc.idx += final.Length;
+
+                    Instruction now = txts[i].str;
+                    txts[i].psr.InsertAfter(now, txts[i].psr.Create(OpCodes.Call, sc.strer));
+                    txts[i].psr.Replace(now, txts[i].psr.Create(OpCodes.Ldc_I4, id));
+                    if (i % interval == 0 || i == txts.Count - 1)
+                        progresser.SetProgress((i + 1) / total);
+                }
+            }
+
+            IProgresser progresser;
+            public void SetProgresser(IProgresser progresser)
+            {
+                this.progresser = progresser;
             }
         }
 
@@ -216,7 +233,7 @@ namespace Confuser.Core.Confusions
         List<byte[]> dats;
         int idx = 0;
 
-        int resId;
+        string resId;
         int key0;
         int key1;
         MethodDefinition strer;
