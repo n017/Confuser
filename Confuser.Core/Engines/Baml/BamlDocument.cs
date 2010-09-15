@@ -120,6 +120,10 @@ namespace Confuser.Core.Engines
             {
                 return this.name;
             }
+            set
+            {
+                this.name = value;
+            }
         }
 
         public override string ToString()
@@ -145,13 +149,27 @@ namespace Confuser.Core.Engines
     }
     class Property : Connection
     {
+        private Element element;
         private PropertyType propertyType;
         private PropertyDeclaration propertyDeclaration;
+        private TypeDeclaration converter;
         private object value;
 
         public Property(PropertyType propertyType)
         {
             this.propertyType = propertyType;
+        }
+
+        public Element DeclaringElement
+        {
+            get
+            {
+                return this.element;
+            }
+            set
+            {
+                this.element = value;
+            }
         }
 
         public PropertyType PropertyType
@@ -185,6 +203,19 @@ namespace Confuser.Core.Engines
             set
             {
                 this.value = value;
+            }
+        }
+
+        public TypeDeclaration Converter
+        {
+            get
+            {
+                return this.converter;
+            }
+
+            set
+            {
+                this.converter = value;
             }
         }
 
@@ -242,13 +273,17 @@ namespace Confuser.Core.Engines
         Dictionary<short, PropertyDeclaration> propertyTable = new Dictionary<short, PropertyDeclaration>();
         List<object> staticResourceTable = new List<object>();
         Element element;
+        List<Element> elements = new List<Element>();
+        List<Property> properties = new List<Property>();
 
-        public Dictionary<short, string> AssemblyTable { get { return assemblyTable; } }
-        public Dictionary<short, string> StringTable { get { return stringTable; } }
-        public Dictionary<short, TypeDeclaration> TypeTable { get { return typeTable; } }
-        public Dictionary<short, PropertyDeclaration> PropertyTable { get { return propertyTable; } }
-        public List<object> StaticResourceTable { get { return staticResourceTable; } }
+        public IDictionary<short, string> AssemblyTable { get { return assemblyTable; } }
+        public IDictionary<short, string> StringTable { get { return stringTable; } }
+        public IDictionary<short, TypeDeclaration> TypeTable { get { return typeTable; } }
+        public IDictionary<short, PropertyDeclaration> PropertyTable { get { return propertyTable; } }
+        public IList<object> StaticResourceTable { get { return staticResourceTable; } }
         public Element RootElement { get { return element; } internal set { element = value; } }
+        public IList<Element> Elements { get { return elements; } }
+        public IList<Property> Properties { get { return properties; } }
 
         bool loadAsync;
         int maxAsyncRecords;

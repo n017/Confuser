@@ -49,7 +49,7 @@ namespace Confuser.Core.Confusions
         }
         public override int PhaseID
         {
-            get { return 1; }
+            get { return 2; }
         }
         public override bool WholeRun
         {

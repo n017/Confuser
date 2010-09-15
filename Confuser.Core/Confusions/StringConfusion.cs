@@ -54,6 +54,11 @@ namespace Confuser.Core.Confusions
             AssemblyDefinition asm;
             public override void Process(ConfusionParameter parameter)
             {
+                if (Array.IndexOf(parameter.GlobalParameters.AllKeys, "safe") != -1)
+                {
+                    ProcessSafe(parameter); return;
+                }
+
                 sc.dats = new List<byte[]>();
                 sc.idx = 0;
 
@@ -126,6 +131,41 @@ namespace Confuser.Core.Confusions
                     }
                 }
                 sc.strer.Body.OptimizeMacros();
+
+                sc.resId = Encoding.UTF8.GetString(n);
+            }
+            private void ProcessSafe(ConfusionParameter parameter)
+            {
+                sc.dats = new List<byte[]>();
+                sc.idx = 0;
+
+                Random rand = new Random();
+                TypeDefinition mod = asm.MainModule.GetType("<Module>");
+
+                AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(StringConfusion).Assembly.Location);
+                sc.strer = i.MainModule.GetType("Confuser.Core.Confusions.StringConfusion").Methods.FirstOrDefault(mtd => mtd.Name == "InjectionSafe");
+                sc.strer = CecilHelper.Inject(asm.MainModule, sc.strer);
+                mod.Methods.Add(sc.strer);
+                byte[] n = new byte[0x10]; rand.NextBytes(n);
+                sc.strer.Name = Encoding.UTF8.GetString(n);
+                sc.strer.IsAssembly = true;
+
+                sc.key0 = (int)(rand.NextDouble() * int.MaxValue);
+                sc.key1 = (int)(rand.NextDouble() * int.MaxValue);
+
+                rand.NextBytes(n);
+
+                sc.strer.Body.SimplifyMacros();
+                foreach (Instruction inst in sc.strer.Body.Instructions)
+                {
+                    if ((inst.Operand as string) == "PADDINGPADDINGPADDING")
+                        inst.Operand = Encoding.UTF8.GetString(n);
+                    else if (inst.Operand is int && (int)inst.Operand == 12345678)
+                        inst.Operand = sc.key0;
+                    else if (inst.Operand is int && (int)inst.Operand == 87654321)
+                        inst.Operand = sc.key1;
+                }
+                sc.strer.Body.OptimizeMacros();
                 sc.strer.Body.ComputeOffsets();
 
                 sc.resId = Encoding.UTF8.GetString(n);
@@ -175,6 +215,10 @@ namespace Confuser.Core.Confusions
             AssemblyDefinition asm;
             public override void Process(ConfusionParameter parameter)
             {
+                if (Array.IndexOf(parameter.GlobalParameters.AllKeys, "safe") != -1)
+                {
+                    ProcessSafe(parameter); return;
+                }
 
                 List<Context> txts = new List<Context>();
 
@@ -190,8 +234,6 @@ namespace Confuser.Core.Confusions
                         if (insts[i].OpCode.Code == Code.Ldstr)
                             txts.Add(new Context() { mtd = mtd, psr = psr, str = insts[i] });
                     }
-                    bdy.OptimizeMacros();
-                    bdy.ComputeHeader();
                 }
 
                 double total = txts.Count;
@@ -200,6 +242,7 @@ namespace Confuser.Core.Confusions
                     interval = (int)total / 100;
                 for (int i = 0; i < txts.Count; i++)
                 {
+                    int idx = txts[i].mtd.Body.Instructions.IndexOf(txts[i].str);
                     string val = txts[i].str.Operand as string;
                     if (val == "") continue;
 
@@ -215,10 +258,78 @@ namespace Confuser.Core.Confusions
                     sc.idx += final.Length;
 
                     Instruction now = txts[i].str;
-                    txts[i].psr.InsertAfter(now, txts[i].psr.Create(OpCodes.Call, sc.strer));
-                    txts[i].psr.Replace(now, txts[i].psr.Create(OpCodes.Ldc_I4, id));
+                    txts[i].psr.InsertAfter(idx, txts[i].psr.Create(OpCodes.Call, sc.strer));
+                    txts[i].psr.Replace(idx, txts[i].psr.Create(OpCodes.Ldc_I4, id));
                     if (i % interval == 0 || i == txts.Count - 1)
                         progresser.SetProgress((i + 1) / total);
+                }
+
+                List<int> hashs = new List<int>();
+                for (int i = 0; i < txts.Count; i++)
+                {
+                    if (hashs.IndexOf(txts[i].mtd.GetHashCode()) == -1)
+                    {
+                        txts[i].mtd.Body.OptimizeMacros();
+                        txts[i].mtd.Body.ComputeHeader();
+                        hashs.Add(txts[i].mtd.GetHashCode());
+                    }
+                }
+            }
+            void ProcessSafe(ConfusionParameter parameter)
+            {
+                List<Context> txts = new List<Context>();
+
+                foreach (MethodDefinition mtd in parameter.Target as List<object>)
+                {
+                    if (mtd == sc.strer || !mtd.HasBody) continue;
+                    var bdy = mtd.Body;
+                    bdy.SimplifyMacros();
+                    var insts = bdy.Instructions;
+                    ILProcessor psr = bdy.GetILProcessor();
+                    for (int i = 0; i < insts.Count; i++)
+                    {
+                        if (insts[i].OpCode.Code == Code.Ldstr)
+                            txts.Add(new Context() { mtd = mtd, psr = psr, str = insts[i] });
+                    }
+                }
+
+                double total = txts.Count;
+                int interval = 1;
+                if (total > 1000)
+                    interval = (int)total / 100;
+                for (int i = 0; i < txts.Count; i++)
+                {
+                    int idx = txts[i].mtd.Body.Instructions.IndexOf(txts[i].str);
+                    string val = txts[i].str.Operand as string;
+                    if (val == "") continue;
+                    byte[] dat = EncryptSafe(val, txts[i].mtd.MetadataToken.ToUInt32());
+
+                    int id = (int)((sc.idx + sc.key0) ^ txts[i].mtd.MetadataToken.ToUInt32());
+                    int len = (int)~(dat.Length ^ sc.key1);
+
+                    byte[] final = new byte[dat.Length + 4];
+                    Buffer.BlockCopy(dat, 0, final, 4, dat.Length);
+                    Buffer.BlockCopy(BitConverter.GetBytes(len), 0, final, 0, 4);
+                    sc.dats.Add(final);
+
+                    Instruction now = txts[i].str;
+                    txts[i].psr.InsertAfter(idx, txts[i].psr.Create(OpCodes.Call, sc.strer));
+                    txts[i].psr.Replace(idx, txts[i].psr.Create(OpCodes.Ldc_I4, id));
+                    sc.idx += final.Length;
+
+                    if (i % interval == 0 || i == txts.Count - 1)
+                        progresser.SetProgress((i + 1) / total);
+                }
+
+                List<int> hashs = new List<int>();
+                for (int i = 0; i < txts.Count; i++)
+                {
+                    if (hashs.IndexOf(txts[i].mtd.GetHashCode()) == -1)
+                    {
+                        txts[i].mtd.Body.OptimizeMacros();
+                        txts[i].mtd.Body.ComputeHeader();
+                        hashs.Add(txts[i].mtd.GetHashCode());
+                    }
                 }
             }
 
@@ -340,7 +451,6 @@ namespace Confuser.Core.Confusions
             } while ((b & 0x80) != 0);
             return count;
         }
-
         private static string Injection(int id)
         {
             Dictionary<int, string> hashTbl;
@@ -366,6 +476,67 @@ namespace Confuser.Core.Confusions
                     }
 
                     hashTbl[id] = (ret = Encoding.Unicode.GetString(f, 0, len));
+                    ///////////////////
+                }
+            }
+            return ret;
+        }
+
+        private static byte[] EncryptSafe(string str, uint mdToken)
+        {
+            Random rand = new Random((int)mdToken);
+            byte[] bs = Encoding.UTF8.GetBytes(str);
+
+            int key = 0;
+            for (int i = 0; i < bs.Length; i++)
+            {
+                bs[i] = (byte)(bs[i] ^ (rand.Next() & key));
+                key += bs[i];
+            }
+
+            return bs;
+        }
+        private static string DecryptSafe(byte[] bytes, uint mdToken)
+        {
+            Random rand = new Random((int)mdToken);
+
+            int key = 0;
+            for (int i = 0; i < bytes.Length; i++)
+            {
+                byte o = bytes[i];
+                bytes[i] = (byte)(bytes[i] ^ (rand.Next() & key));
+                key += o;
+            }
+            return Encoding.UTF8.GetString(bytes);
+        }
+        private static string InjectionSafe(int id)
+        {
+            Dictionary<int, string> hashTbl;
+            if ((hashTbl = AppDomain.CurrentDomain.GetData("PADDINGPADDINGPADDING") as Dictionary<int, string>) == null)
+                AppDomain.CurrentDomain.SetData("PADDINGPADDINGPADDING", hashTbl = new Dictionary<int, string>());
+            string ret;
+            if (!hashTbl.TryGetValue(id, out ret))
+            {
+                System.Reflection.Assembly asm = System.Reflection.Assembly.GetCallingAssembly();
+                Stream str = asm.GetManifestResourceStream("PADDINGPADDINGPADDING");
+                int mdTkn = new StackFrame(1).GetMethod().MetadataToken;
+                using (BinaryReader rdr = new BinaryReader(new DeflateStream(str, CompressionMode.Decompress)))
+                {
+                    rdr.ReadBytes((mdTkn ^ id) - 12345678);
+                    int len = (int)((~rdr.ReadUInt32()) ^ 87654321);
+                    byte[] b = rdr.ReadBytes(len);
+
+                    ///////////////////
+                    Random rand = new Random((int)mdTkn);
+
+                    int key = 0;
+                    for (int i = 0; i < b.Length; i++)
+                    {
+                        byte o = b[i];
+                        b[i] = (byte)(b[i] ^ (rand.Next() & key));
+                        key += o;
+                    }
+                    return Encoding.UTF8.GetString(b);
                     ///////////////////
                 }
             }

@@ -1,11 +1,11 @@
-﻿<Grid
+﻿<TreeView
 	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 	xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-	mc:Ignorable="d"
-	x:Class="Confuser.AssemblyElementPicker">
-	<Grid.Resources>
+	mc:Ignorable="d" x:Name="asmViewer" VirtualizingStackPanel.IsVirtualizing="True"
+	x:Class="Confuser.AssemblyElementPicker" Style="{DynamicResource {x:Type TreeView}}">
+	<TreeView.Resources>
 		<ResourceDictionary>
 			<ImageSource x:Key="asm">PickerIcons/assembly.png</ImageSource>
 			<ImageSource x:Key="mod">PickerIcons/module.png</ImageSource>
@@ -21,15 +21,9 @@
 			<ImageSource x:Key="prop">PickerIcons/property.png</ImageSource>
 			<ImageSource x:Key="evt">PickerIcons/event.png</ImageSource>
             <ContextMenu x:Key="selMenu" Template="{DynamicResource contextMenu}">
-                <MenuItem Header="Select All Members" Click="selMem_Click"/>
-                <MenuItem Header="Select All Public Members" Click="selPub_Click"/>
-                <MenuItem Header="Select All Internal Members" Click="selInt_Click"/>
-                <MenuItem Header="Unselect All Members" Click="unsel_Click"/>
-                <Separator/>
                 <MenuItem Header="Expand All" Click="expAll_Click"/>
                 <MenuItem Header="Collapse All" Click="colAll_Click"/>
             </ContextMenu>
         </ResourceDictionary>
-	</Grid.Resources>
-    <TreeView x:Name="asmViewer" Focusable="False" Margin="0,0,0,0" VirtualizingStackPanel.IsVirtualizing="True"/>
-</Grid>
+	</TreeView.Resources>
+</TreeView>

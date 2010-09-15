@@ -168,9 +168,9 @@ System.Resources.ResourceManager
                     ldstr.Operand = @new.typeName;
             }
         }
-        class BamlReference : IReference
+        class BamlTypeReference : IReference
         {
-            public BamlReference(BamlDocument doc, TypeDeclaration type) { this.doc = doc; this.type = type; }
+            public BamlTypeReference(BamlDocument doc, TypeDeclaration type) { this.doc = doc; this.type = type; }
 
             BamlDocument doc;
             TypeDeclaration type;
@@ -188,6 +188,30 @@ System.Resources.ResourceManager
                     type.Namespace = "";
                     type.Name = @new.typeName;
                 }
+            }
+        }
+        class BamlMemberDeclReference : IReference
+        {
+            public BamlMemberDeclReference(BamlDocument doc, PropertyDeclaration prop) { this.doc = doc; this.prop = prop; }
+
+            BamlDocument doc;
+            PropertyDeclaration prop;
+
+            public void UpdateReference(Identifier old, Identifier @new)
+            {
+                prop.Name = @new.memberName;
+            }
+        }
+        class BamlMemberReference : IReference
+        {
+            public BamlMemberReference(BamlDocument doc, Property prop) { this.doc = doc; this.prop = prop; }
+
+            BamlDocument doc;
+            Property prop;
+
+            public void UpdateReference(Identifier old, Identifier @new)
+            {
+                prop.Value = @new.memberName;
             }
         }
         class SaveBamlsReference : IReference
@@ -253,6 +277,18 @@ System.Resources.ResourceManager
                 (fld as IAnnotationProvider).Annotations["RenRef"] = new List<IReference>();
                 (fld as IAnnotationProvider).Annotations["RenOk"] = true;
             }
+            foreach (PropertyDefinition prop in type.Properties)
+            {
+                (prop as IAnnotationProvider).Annotations["RenId"] = new Identifier() { typeName = type.FullName, memberName = prop.Name, hash = prop.GetHashCode() };
+                (prop as IAnnotationProvider).Annotations["RenRef"] = new List<IReference>();
+                (prop as IAnnotationProvider).Annotations["RenOk"] = true;
+            }
+            foreach (EventDefinition evt in type.Events)
+            {
+                (evt as IAnnotationProvider).Annotations["RenId"] = new Identifier() { typeName = type.FullName, memberName = evt.Name, hash = evt.GetHashCode() };
+                (evt as IAnnotationProvider).Annotations["RenRef"] = new List<IReference>();
+                (evt as IAnnotationProvider).Annotations["RenOk"] = true;
+            }
         }
 
         void Analysis(ModuleDefinition mod)
@@ -277,6 +313,10 @@ System.Resources.ResourceManager
                 Analysis(mtd);
             foreach (FieldDefinition fld in type.Fields)
                 Analysis(fld);
+            foreach (PropertyDefinition prop in type.Properties)
+                Analysis(prop);
+            foreach (EventDefinition evt in type.Events)
+                Analysis(evt);
 
         }
         void Analysis(MethodDefinition mtd)
@@ -403,9 +443,19 @@ System.Resources.ResourceManager
         }
         void Analysis(FieldDefinition fld)
         {
-            if (fld.IsRuntimeSpecialName || ((fld.DeclaringType.IsPublic || fld.DeclaringType.IsNestedFamily || fld.DeclaringType.IsNestedFamilyAndAssembly || fld.DeclaringType.IsNestedFamilyOrAssembly || fld.DeclaringType.IsNestedPublic || fld.DeclaringType.IsPublic) &&
+            if (fld.IsRuntimeSpecialName || (IsTypePublic(fld.DeclaringType) &&
                 (fld.IsFamily || fld.IsFamilyAndAssembly || fld.IsFamilyOrAssembly || fld.IsPublic)))
                 (fld as IAnnotationProvider).Annotations["RenOk"] = false;
+        }
+        void Analysis(PropertyDefinition prop)
+        {
+            if (prop.IsRuntimeSpecialName || IsTypePublic(prop.DeclaringType))
+                (prop as IAnnotationProvider).Annotations["RenOk"] = false;
+        }
+        void Analysis(EventDefinition evt)
+        {
+            if (evt.IsRuntimeSpecialName || IsTypePublic(evt.DeclaringType))
+                (evt as IAnnotationProvider).Annotations["RenOk"] = false;
         }
         void AnalysisResource(ModuleDefinition mod, int resId)
         {
@@ -432,16 +482,53 @@ System.Resources.ResourceManager
                 {
                     BamlDocument doc = new BamlReader(stream).Document;
                     int c = 0;
+
+                    Dictionary<TypeDeclaration, TypeDefinition> ts = new Dictionary<TypeDeclaration, TypeDefinition>();
                     foreach (TypeDeclaration decl in doc.TypeTable.Values)
                         if (decl.Assembly == mod.Assembly.Name.FullName)
                         {
                             TypeDefinition type = mod.GetType(decl.Namespace, decl.Name);
                             if (type != null)
                             {
-                                ((type as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new BamlReference(doc, decl));
+                                ts.Add(decl, type);
+                                ((type as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new BamlTypeReference(doc, decl));
                                 c++; cc++;
                             }
                         }
+
+                    Dictionary<PropertyDeclaration, PropertyDefinition> ps = new Dictionary<PropertyDeclaration, PropertyDefinition>();
+                    foreach (PropertyDeclaration decl in doc.PropertyTable.Values)
+                        if (ts.ContainsKey(decl.DeclaringType))
+                        {
+                            PropertyDefinition prop = ts[decl.DeclaringType].Properties.FirstOrDefault(p => p.Name == decl.Name);
+                            if (prop != null)
+                            {
+                                ((prop as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new BamlMemberDeclReference(doc, decl));
+                                c++; cc++;
+                            }
+                        }
+                    if (ts.ContainsKey(doc.RootElement.TypeDeclaration))
+                    {
+                        TypeDefinition root = mod.GetType(doc.RootElement.TypeDeclaration.Namespace, doc.RootElement.TypeDeclaration.Name);
+                        Dictionary<string, IMemberDefinition> mems = new Dictionary<string, IMemberDefinition>();
+                        foreach (PropertyDefinition prop in root.Properties)
+                            mems.Add(prop.Name, prop);
+                        foreach (EventDefinition evt in root.Events)
+                            mems.Add(evt.Name, evt);
+                        foreach (MethodDefinition mtd in root.Methods)
+                            mems.Add(mtd.Name, mtd);
+
+                        foreach (Property prop in doc.Properties)
+                        {
+                            if (!(prop.Value is string)) continue;
+                            if (mems.ContainsKey((string)prop.Value))
+                            {
+                                ((mems[(string)prop.Value] as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new BamlMemberReference(doc, prop));
+                                c++; cc++;
+                            }
+                        }
+                    }
+
                     if (c != 0)
                         bamls.Add(entry.Key as string, doc);
                 }

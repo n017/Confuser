@@ -145,7 +145,7 @@ namespace Confuser.Core.Confusions
         }
         public Target Target
         {
-            get { return Target.Types | Target.Fields | Target.Methods; }
+            get { return Target.Types | Target.Fields | Target.Methods | Target.Properties | Target.Events; }
         }
         public Preset Preset
         {

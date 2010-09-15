@@ -35,12 +35,12 @@ namespace Mono.Cecil.Cil {
 	public sealed class ILProcessor {
 
 		readonly MethodBody body;
-		readonly Collection<Instruction> instructions;
+		readonly InstructionCollection instructions;
 
 		internal ILProcessor (MethodBody body)
 		{
 			this.body = body;
-			this.instructions = body.Instructions;
+			this.instructions = (InstructionCollection)body.Instructions;
 		}
 
 		public Instruction Create (OpCode opcode)
@@ -228,20 +228,38 @@ namespace Mono.Cecil.Cil {
 
 			instructions.Insert (index, instruction);
 		}
+        public void InsertBefore(int targetIndex, Instruction instruction)
+        {
+            if (instruction == null)
+                throw new ArgumentNullException("instruction");
+            if (targetIndex > instructions.Count || targetIndex < 0)
+                throw new ArgumentOutOfRangeException("target");
 
-		public void InsertAfter (Instruction target, Instruction instruction)
-		{
-			if (target == null)
-				throw new ArgumentNullException ("target");
-			if (instruction == null)
-				throw new ArgumentNullException ("instruction");
+            instructions.Insert(targetIndex, instruction);
+        }
 
-			var index = instructions.IndexOf (target);
-			if (index == -1)
-				throw new ArgumentOutOfRangeException ("target");
+        public void InsertAfter(Instruction target, Instruction instruction)
+        {
+            if (target == null)
+                throw new ArgumentNullException("target");
+            if (instruction == null)
+                throw new ArgumentNullException("instruction");
 
-			instructions.Insert (index + 1, instruction);
-		}
+            var index = instructions.IndexOf(target);
+            if (index == -1)
+                throw new ArgumentOutOfRangeException("target");
+
+            instructions.Insert(index + 1, instruction);
+        }
+        public void InsertAfter(int targetIndex, Instruction instruction)
+        {
+            if (instruction == null)
+                throw new ArgumentNullException("instruction");
+            if (targetIndex > instructions.Count || targetIndex < 0)
+                throw new ArgumentOutOfRangeException("target");
+
+            instructions.Insert(targetIndex + 1, instruction);
+        }
 
 		public void Append (Instruction instruction)
 		{
@@ -262,7 +280,45 @@ namespace Mono.Cecil.Cil {
             instructions[index] = instruction;
             if (index != 0) instructions[index - 1].next = instruction;
             if (index != instructions.Count - 1) instructions[index + 1].previous = instruction;
-            foreach (Instruction inst in instructions)
+            foreach (Instruction inst in instructions.instReferences)
+            {
+                if (inst.Operand is Instruction && inst.Operand == target)
+                    inst.Operand = instruction;
+                else if (inst.Operand is Instruction[])
+                {
+                    Instruction[] s = inst.Operand as Instruction[];
+                    for (int i = 0; i < s.Length; i++)
+                        if (s[i] == target)
+                            s[i] = instruction;
+                    inst.Operand = s;
+                }
+            }
+
+            if (body.exceptions != null)
+            {
+                foreach (ExceptionHandler eh in body.exceptions)
+                {
+                    if (eh.TryStart == target) eh.TryStart = instruction;
+                    if (eh.TryEnd == target) eh.TryEnd = instruction;
+                    if (eh.HandlerStart == target) eh.HandlerStart = instruction;
+                    if (eh.HandlerEnd == target) eh.HandlerEnd = instruction;
+                    if (eh.FilterStart == target) eh.FilterStart = instruction;
+                    if (eh.FilterEnd == target) eh.FilterEnd = instruction;
+                }
+            }
+        }
+        public void Replace(int targetIndex, Instruction instruction)
+        {
+            if (targetIndex > instructions.Count || targetIndex < 0)
+                throw new ArgumentOutOfRangeException("target");
+            if (instruction == null)
+                throw new ArgumentNullException("instruction");
+
+            Instruction target = instructions[targetIndex];
+            instructions[targetIndex] = instruction;
+            if (targetIndex != 0) instructions[targetIndex - 1].next = instruction;
+            if (targetIndex != instructions.Count - 1) instructions[targetIndex + 1].previous = instruction;
+            foreach (Instruction inst in instructions.instReferences)
             {
                 if (inst.Operand is Instruction && inst.Operand == target)
                     inst.Operand = instruction;
@@ -297,6 +353,10 @@ namespace Mono.Cecil.Cil {
 
 			if (!instructions.Remove (instruction))
 				throw new ArgumentOutOfRangeException ("instruction");
+		}
+		public void Remove (int targetIndex)
+		{
+            instructions.RemoveAt (targetIndex);
 		}
 	}
 }

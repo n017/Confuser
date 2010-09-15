@@ -43,9 +43,11 @@ namespace Confuser.Core
     {
         object target;
         NameValueCollection parameters = new NameValueCollection();
+        NameValueCollection globalParams = new NameValueCollection();
 
         public object Target { get { return target; } set { target = value; } }
         public NameValueCollection Parameters { get { return parameters; } internal set { parameters = value; } }
+        public NameValueCollection GlobalParameters { get { return globalParams; } internal set { globalParams = value; } }
     }
 
     public interface IConfusion

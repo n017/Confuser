@@ -13,7 +13,7 @@ namespace Confuser.Core
 
         public static string GetNewName(string originalName)
         {
-            BitArray arr = new BitArray(BitConverter.GetBytes(originalName.GetHashCode()));
+            BitArray arr = new BitArray(md5.ComputeHash(Encoding.UTF8.GetBytes(originalName)));
 
             Random rand = new Random(originalName.GetHashCode());
             byte[] xorB = new byte[arr.Length / 8];

@@ -9,32 +9,31 @@ using System.Collections.Specialized;
 
 namespace Confuser.Core
 {
-    class ConfusionSet
+    public interface IMarker
     {
-        IConfusion confusion;
-        NameValueCollection parameter = new NameValueCollection();
-        public IConfusion Confusion { get { return confusion; } set { confusion = value; } }
-        public NameValueCollection Parameters { get { return parameter; } }
+        void Initalize(IConfusion[] cions);
+        void MarkAssembly(AssemblyDefinition asm, Preset preset);
     }
-    class Marker
+
+    class DefaultMarker : IMarker
     {
         class Settings
         {
             public Settings()
             {
-                inheritStack = new Stack<List<ConfusionSet>>();
+                inheritStack = new Stack<Dictionary<IConfusion, NameValueCollection>>();
                 StartLevel();
             }
 
-            Stack<List<ConfusionSet>> inheritStack;
-            public List<ConfusionSet> CurrentConfusions;
+            Stack<Dictionary<IConfusion, NameValueCollection>> inheritStack;
+            public Dictionary<IConfusion, NameValueCollection> CurrentConfusions;
 
             public void StartLevel()
             {
                 if (inheritStack.Count > 0)
-                    CurrentConfusions = new List<ConfusionSet>(inheritStack.Peek());
+                    CurrentConfusions = new Dictionary<IConfusion, NameValueCollection>(inheritStack.Peek());
                 else
-                    CurrentConfusions = new List<ConfusionSet>();
+                    CurrentConfusions = new Dictionary<IConfusion, NameValueCollection>();
                 inheritStack.Push(CurrentConfusions);
             }
             public void LeaveLevel()
@@ -44,26 +43,26 @@ namespace Confuser.Core
             public void SkipLevel()
             {
                 if (inheritStack.Count > 1)
-                    CurrentConfusions = new List<ConfusionSet>(inheritStack.ToArray()[inheritStack.Count - 2]);
+                    CurrentConfusions = new Dictionary<IConfusion, NameValueCollection>(inheritStack.ToArray()[inheritStack.Count - 2]);
                 else
-                    CurrentConfusions = new List<ConfusionSet>();
+                    CurrentConfusions = new Dictionary<IConfusion, NameValueCollection>();
                 inheritStack.Push(CurrentConfusions);
             }
         }
 
         Dictionary<string, IConfusion> cns;
-        public Marker(IConfusion[] cions)
+        public void Initalize(IConfusion[] cions)
         {
             cns = new Dictionary<string, IConfusion>();
             foreach (IConfusion c in cions)
                 cns.Add(c.ID, c);
         }
 
-        private void FillPreset(Preset preset, List<ConfusionSet> cs)
+        private void FillPreset(Preset preset, Dictionary<IConfusion, NameValueCollection> cs)
         {
             foreach (IConfusion i in cns.Values)
-                if (i.Preset <= preset && (from ii in cs where ii.Confusion == i select ii).Count() == 0)
-                    cs.Add(new ConfusionSet() { Confusion = i });
+                if (i.Preset <= preset && !cs.ContainsKey(i))
+                    cs.Add(i, new NameValueCollection());
         }
 
         private bool ProcessAttribute(ICustomAttributeProvider provider, Settings setting)
@@ -108,9 +107,9 @@ namespace Confuser.Core
                 if (!featureArg.Equals(default(CustomAttributeNamedArgument)))
                     feature = (string)featureArg.Argument.Value;
 
-                if (feature == "all")
+                if (string.Equals(feature, "all", StringComparison.OrdinalIgnoreCase))
                     FillPreset(Preset.Maximum, setting.CurrentConfusions);
-                else if (feature == "default")
+                else if (string.Equals(feature, "default", StringComparison.OrdinalIgnoreCase))
                     FillPreset(Preset.Normal, setting.CurrentConfusions);
                 else
                     ProcessFeature(feature, setting.CurrentConfusions);
@@ -122,9 +121,9 @@ namespace Confuser.Core
         {
             return attributes.FirstOrDefault((att) => att.AttributeType.FullName == "System.Reflection.ObfuscationAttribute");
         }
-        private void ProcessFeature(string cfg, List<ConfusionSet> cs)
+        private void ProcessFeature(string cfg, Dictionary<IConfusion, NameValueCollection> cs)
         {
-            if (cfg == "exclude")
+            if (string.Equals(cfg, "exclude", StringComparison.OrdinalIgnoreCase))
             {
                 cs.Clear();
                 return;
@@ -132,7 +131,7 @@ namespace Confuser.Core
             MatchCollection matches = Regex.Matches(cfg, @"(\+|\-|)\[([^,\]]*)(?:,([^\]]*))?\]");
             foreach (Match match in matches)
             {
-                string id = match.Groups[2].Value;
+                string id = match.Groups[2].Value.ToLower();
                 switch (match.Groups[1].Value)
                 {
                     case null:
@@ -148,32 +147,21 @@ namespace Confuser.Core
                         }
                         else
                         {
-                            ConfusionSet now = new ConfusionSet();
-                            foreach (ConfusionSet i in cs)
-                                if (i.Confusion.ID == id)
-                                {
-                                    now = i;
-                                    break;
-                                }
-                            if (now.Confusion == null) now.Confusion = cns[id];
+                            IConfusion now = (from i in cs.Keys where i.ID == id select i).FirstOrDefault() ?? cns[id];
+                            if (!cs.ContainsKey(now)) cs[now] = new NameValueCollection();
+                            NameValueCollection nv = cs[now];
                             if (!string.IsNullOrEmpty(match.Groups[3].Value))
                             {
                                 foreach (string param in match.Groups[3].Value.Split(','))
                                 {
                                     string[] p = param.Split('=');
-                                    now.Parameters[p[0]] = p[1];
+                                    nv[p[0].ToLower()] = p[1];
                                 }
                             }
-                            if (!cs.Contains(now)) cs.Add(now);
                         }
                         break;
                     case "-":
-                        foreach (ConfusionSet i in cs)
-                            if (i.Confusion.ID == id)
-                            {
-                                cs.Remove(i); 
-                                break;
-                            }
+                        cs.Remove((from i in cs.Keys where i.ID == id select i).FirstOrDefault());
                         break;
                 }
             }
@@ -186,11 +174,12 @@ namespace Confuser.Core
 
             FillPreset(preset, setting.CurrentConfusions);
 
-            List<ConfusionSet> now = new List<ConfusionSet>();
-            foreach (ConfusionSet set in setting.CurrentConfusions)
-                if ((set.Confusion.Target & Target.Assembly) == Target.Assembly)
-                    now.Add(set);
+            Dictionary<IConfusion, NameValueCollection> now = new Dictionary<IConfusion, NameValueCollection>();
+            foreach (KeyValuePair<IConfusion, NameValueCollection> set in setting.CurrentConfusions)
+                if ((set.Key.Target & Target.Assembly) == Target.Assembly)
+                    now.Add(set.Key, set.Value);
             (asm as IAnnotationProvider).Annotations["ConfusionSets"] = now;
+            (asm as IAnnotationProvider).Annotations["GlobalParams"] = setting.CurrentConfusions;
 
             if (!exclude)
                 foreach (ModuleDefinition mod in asm.Modules)
@@ -214,10 +203,10 @@ namespace Confuser.Core
         {
             bool exclude = ProcessAttribute(type, setting);
 
-            List<ConfusionSet> now = new List<ConfusionSet>();
-            foreach (ConfusionSet set in setting.CurrentConfusions)
-                if ((set.Confusion.Target & Target.Types) == Target.Types)
-                    now.Add(set);
+            Dictionary<IConfusion, NameValueCollection> now = new Dictionary<IConfusion, NameValueCollection>();
+            foreach (KeyValuePair<IConfusion, NameValueCollection> set in setting.CurrentConfusions)
+                if ((set.Key.Target & Target.Types) == Target.Types)
+                    now.Add(set.Key, set.Value);
             (type as IAnnotationProvider).Annotations["ConfusionSets"] = now;
 
 
@@ -251,10 +240,10 @@ namespace Confuser.Core
 
             bool exclude = ProcessAttribute(mem, setting);
 
-            List<ConfusionSet> now = new List<ConfusionSet>();
-            foreach (ConfusionSet set in setting.CurrentConfusions)
-                if ((set.Confusion.Target & target) == target)
-                    now.Add(set);
+            Dictionary<IConfusion, NameValueCollection> now = new Dictionary<IConfusion, NameValueCollection>();
+            foreach (KeyValuePair<IConfusion, NameValueCollection> set in setting.CurrentConfusions)
+                if ((set.Key.Target & target) == target)
+                    now.Add(set.Key, set.Value);
             (mem as IAnnotationProvider).Annotations["ConfusionSets"] = now;
 
             if (!exclude)
@@ -274,10 +263,10 @@ namespace Confuser.Core
 
                         ProcessAttribute(mtd, setting);
 
-                        List<ConfusionSet> now1 = new List<ConfusionSet>();
-                        foreach (ConfusionSet set in setting.CurrentConfusions)
-                            if ((set.Confusion.Target & Target.Methods) == Target.Methods)
-                                now1.Add(set);
+                        Dictionary<IConfusion, NameValueCollection> now1 = new Dictionary<IConfusion, NameValueCollection>();
+                        foreach (KeyValuePair<IConfusion, NameValueCollection> set in setting.CurrentConfusions)
+                            if ((set.Key.Target & Target.Methods) == Target.Methods)
+                                now1.Add(set.Key, set.Value);
                         (mtd as IAnnotationProvider).Annotations["ConfusionSets"] = now1;
 
                         setting.LeaveLevel();
@@ -299,10 +288,10 @@ namespace Confuser.Core
                     {
                         ProcessAttribute(mtd, setting);
 
-                        List<ConfusionSet> now1 = new List<ConfusionSet>();
-                        foreach (ConfusionSet set in setting.CurrentConfusions)
-                            if ((set.Confusion.Target & Target.Methods) == Target.Methods)
-                                now1.Add(set);
+                        Dictionary<IConfusion, NameValueCollection> now1 = new Dictionary<IConfusion, NameValueCollection>();
+                        foreach (KeyValuePair<IConfusion, NameValueCollection> set in setting.CurrentConfusions)
+                            if ((set.Key.Target & Target.Methods) == Target.Methods)
+                                now1.Add(set.Key, set.Value);
                         (mtd as IAnnotationProvider).Annotations["ConfusionSets"] = now1;
 
                         setting.LeaveLevel();

@@ -38,7 +38,7 @@ namespace Confuser.Core.Confusions
         }
         public Preset Preset
         {
-            get { return Preset.Aggressive; }
+            get { return Preset.Maximum; }
         }
         public Phase[] Phases
         {
@@ -89,13 +89,13 @@ namespace Confuser.Core.Confusions
                         lv = 5;
                     }
                 }
-                foreach (Instruction inst in mtd.Body.Instructions)
+                foreach(Instruction inst in mtd.Body.Instructions)
                 {
-                    if (inst.OpCode.Name == "ldc.i4" ||
-                        inst.OpCode.Name == "ldc.i8" ||
-                        inst.OpCode.Name == "ldc.r4" ||
-                        inst.OpCode.Name == "ldc.r8")
-                        txts.Add(new Context() { psr = mtd.Body.GetILProcessor(), inst = inst, lv = lv });
+                    if ((inst.OpCode.Name == "ldc.i4" && (int)inst.Operand != -1 && (int)inst.Operand != 0 && (int)inst.Operand != 1) ||
+                        (inst.OpCode.Name == "ldc.i8" && (long)inst.Operand != -1 && (long)inst.Operand != 0 && (long)inst.Operand != 1) ||
+                        (inst.OpCode.Name == "ldc.r4" && (float)inst.Operand != -1 && (float)inst.Operand != 0 && (float)inst.Operand != 1) ||
+                        (inst.OpCode.Name == "ldc.r8" && (double)inst.Operand != -1 && (double)inst.Operand != 0 && (double)inst.Operand != 1))
+                        txts.Add(new Context() { mtd = mtd, psr = mtd.Body.GetILProcessor(), inst = inst, lv = lv });
                 }
                 progresser.SetProgress((i + 1) / (double)targets.Count);
             }
@@ -103,6 +103,7 @@ namespace Confuser.Core.Confusions
             for (int i = 0; i < txts.Count; i++)
             {
                 Context txt = txts[i];
+                int instIdx = txt.mtd.Body.Instructions.IndexOf(txt.inst);
                 double val = Convert.ToDouble(txt.inst.Operand);
                 int seed;
 
@@ -123,21 +124,21 @@ namespace Confuser.Core.Confusions
                 Instruction[] expInsts = new CecilVisitor(exp, true, new Instruction[] { Instruction.Create(OpCodes.Ldc_R8, eval) }, true).GetInstructions();
                 if (expInsts.Length == 0) continue;
                 string op = txt.inst.OpCode.Name;
-                txt.psr.Replace(txt.inst, expInsts[0]);
+                txt.psr.Replace(instIdx, expInsts[0]);
                 for (int ii = 1; ii < expInsts.Length; ii++)
                 {
-                    txt.psr.InsertAfter(expInsts[ii - 1], expInsts[ii]);
+                    txt.psr.InsertAfter(instIdx + ii - 1, expInsts[ii]);
                 }
                 switch (op)
                 {
                     case "ldc.i4":
-                        txt.psr.InsertAfter(expInsts[expInsts.Length - 1], Instruction.Create(OpCodes.Conv_I4)); break;
+                        txt.psr.InsertAfter(instIdx +expInsts.Length - 1, Instruction.Create(OpCodes.Conv_I4)); break;
                     case "ldc.i8":
-                        txt.psr.InsertAfter(expInsts[expInsts.Length - 1], Instruction.Create(OpCodes.Conv_I8)); break;
+                        txt.psr.InsertAfter(instIdx +expInsts.Length - 1, Instruction.Create(OpCodes.Conv_I8)); break;
                     case "ldc.r4":
-                        txt.psr.InsertAfter(expInsts[expInsts.Length - 1], Instruction.Create(OpCodes.Conv_R4)); break;
+                        txt.psr.InsertAfter(instIdx +expInsts.Length - 1, Instruction.Create(OpCodes.Conv_R4)); break;
                     case "ldc.r8":
-                        txt.psr.InsertAfter(expInsts[expInsts.Length - 1], Instruction.Create(OpCodes.Conv_R8)); break;
+                        txt.psr.InsertAfter(instIdx +expInsts.Length - 1, Instruction.Create(OpCodes.Conv_R8)); break;
                 }
 
                 progresser.SetProgress((i + 1) / (double)txts.Count);
@@ -150,6 +151,6 @@ namespace Confuser.Core.Confusions
             this.progresser = progresser;
         }
 
-        private class Context { public ILProcessor psr; public Instruction inst; public int lv;}
+        private class Context { public MethodDefinition mtd; public ILProcessor psr; public Instruction inst; public int lv;}
     }
 }

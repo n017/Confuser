@@ -409,6 +409,7 @@ namespace Confuser.Core.Confusions
             var fld = System.Reflection.FieldInfo.GetFieldFromHandle(f);
             var asm = System.Reflection.Assembly.GetExecutingAssembly();
             var mtd = asm.GetModules()[0].ResolveMethod(BitConverter.ToInt32(Encoding.Unicode.GetBytes(fld.Name.ToCharArray(), 1, 2), 0)) as System.Reflection.ConstructorInfo;
+            System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(mtd.DeclaringType.TypeHandle);
 
             var args = mtd.GetParameters();
             Type[] arg = new Type[args.Length];

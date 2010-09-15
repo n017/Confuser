@@ -455,6 +455,7 @@ namespace Confuser.Core.Confusions
 
             if (mtd.IsStatic)
             {
+                System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(mtd.DeclaringType.TypeHandle);
                 fld.SetValue(null, Delegate.CreateDelegate(fld.FieldType, mtd));
             }
             else
@@ -471,10 +472,8 @@ namespace Confuser.Core.Confusions
                 else
                     dm = new System.Reflection.Emit.DynamicMethod("", mtd.ReturnType, arg, mtd.DeclaringType, true);
                 var gen = dm.GetILGenerator();
-                gen.Emit(System.Reflection.Emit.OpCodes.Ldarg_0);
-                //gen.Emit(System.Reflection.Emit.OpCodes.Castclass, mtd.DeclaringType);
-                for (int i = 1; i < arg.Length; i++)
-                    gen.Emit(System.Reflection.Emit.OpCodes.Ldarg_S, i);
+                for (int i = 0; i < arg.Length; i++)
+                    gen.Emit(System.Reflection.Emit.OpCodes.Ldarg, i);
                 gen.Emit((fld.Name[1] == '\r') ? System.Reflection.Emit.OpCodes.Callvirt : System.Reflection.Emit.OpCodes.Call, mtd);
                 gen.Emit(System.Reflection.Emit.OpCodes.Ret);
 

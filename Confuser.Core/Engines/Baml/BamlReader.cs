@@ -9,7 +9,7 @@ namespace Confuser.Core.Engines
 {
     class BamlReader
     {
-        class BamlBinaryReader : BinaryReader
+        protected class BamlBinaryReader : BinaryReader
         {
             public BamlBinaryReader(Stream stream)
                 : base(stream)
@@ -47,7 +47,7 @@ namespace Confuser.Core.Engines
             }
         }
 
-        enum BamlRecordType : byte
+        protected enum BamlRecordType : byte
         {
             ClrEvent = 0x13,
             Comment = 0x17,
@@ -108,7 +108,7 @@ namespace Confuser.Core.Engines
             XmlAttribute = 0x15,
             XmlnsProperty = 0x14
         }
-        enum BamlAttributeUsage : short
+        protected enum BamlAttributeUsage : short
         {
             Default = 0x0,
             RuntimeName = 0x3,
@@ -116,7 +116,7 @@ namespace Confuser.Core.Engines
             XmlSpace = 0x2
         }
 
-        class ResourceName
+        protected class ResourceName
         {
             private string name;
 
@@ -138,7 +138,7 @@ namespace Confuser.Core.Engines
                 return this.Name;
             }
         }
-        class NamespaceManager
+        protected class NamespaceManager
         {
             private HybridDictionary table = new HybridDictionary();
             private HybridDictionary reverseTable = new HybridDictionary();
@@ -209,7 +209,7 @@ namespace Confuser.Core.Engines
                 }
             }
         }
-        struct ClrNamespace
+        protected struct ClrNamespace
         {
             public string Namespace;
             public string Assembly;
@@ -220,7 +220,7 @@ namespace Confuser.Core.Engines
                 this.Assembly = assembly;
             }
         }
-        class KnownColors
+        protected class KnownColors
         {
             static readonly Dictionary<uint, string> colorTable;
 
@@ -375,7 +375,7 @@ namespace Confuser.Core.Engines
                 return (string)colorTable[argb];
             }
         }
-        class PathDataParser
+        protected class PathDataParser
         {
             internal static string ParseStreamGeometry(BamlBinaryReader reader)
             {
@@ -520,17 +520,18 @@ namespace Confuser.Core.Engines
             }
         }
 
-        private NamespaceManager namespaceManager = new NamespaceManager();
-        private BamlDocument document = new BamlDocument();
-        private Stack<object> elementStack = new Stack<object>();
-        private List<Element> constructorParameterTable = new List<Element>();
-        private TypeDeclaration[] knownTypeTable = null;
-        private PropertyDeclaration[] knownPropertyTable = null;
-        private Dictionary<short, ResourceName> knownResourceTable = new Dictionary<short, ResourceName>();
+        protected NamespaceManager namespaceManager = new NamespaceManager();
+        protected BamlDocument document = new BamlDocument();
+        protected Stack<object> elementStack = new Stack<object>();
+        protected List<Element> constructorParameterTable = new List<Element>();
+        protected TypeDeclaration[] knownTypeTable = null;
+        protected PropertyDeclaration[] knownPropertyTable = null;
+        protected Dictionary<short, ResourceName> knownResourceTable = new Dictionary<short, ResourceName>();
 
-        private Dictionary<Element, int> dictionaryKeyStartTable = new Dictionary<Element, int>();
-        private Dictionary<Element, Dictionary<int, List<Property>>> dictionaryKeyPositionTable = new Dictionary<Element, Dictionary<int, List<Property>>>();
+        protected Dictionary<Element, int> dictionaryKeyStartTable = new Dictionary<Element, int>();
+        protected Dictionary<Element, Dictionary<int, List<Property>>> dictionaryKeyPositionTable = new Dictionary<Element, Dictionary<int, List<Property>>>();
 
+        protected BamlReader() { }
         public BamlReader(Stream stream)
         {
             BamlBinaryReader reader = new BamlBinaryReader(stream);
@@ -773,8 +774,9 @@ namespace Confuser.Core.Engines
 
         public BamlDocument Document { get { return document; } }
 
-        private void AddElementToTree(Element element, BamlBinaryReader reader)
+        protected void AddElementToTree(Element element, BamlBinaryReader reader)
         {
+            this.document.Elements.Add(element);
             if (this.document.RootElement == null)
             {
                 this.document.RootElement = element;
@@ -850,14 +852,14 @@ namespace Confuser.Core.Engines
             }
         }
 
-        private void ReadAssemblyInfo(BamlBinaryReader reader)
+        protected void ReadAssemblyInfo(BamlBinaryReader reader)
         {
             short assemblyIdentifier = reader.ReadInt16();
             string assemblyName = reader.ReadString();
             document.AssemblyTable.Add(assemblyIdentifier, assemblyName);
         }
 
-        private void ReadPresentationOptionsAttribute(BamlBinaryReader reader)
+        protected void ReadPresentationOptionsAttribute(BamlBinaryReader reader)
         {
             string value = reader.ReadString();
             short nameIdentifier = reader.ReadInt16();
@@ -870,7 +872,7 @@ namespace Confuser.Core.Engines
             element.Properties.Add(property);
         }
 
-        private void ReadStringInfo(BamlBinaryReader reader)
+        protected void ReadStringInfo(BamlBinaryReader reader)
         {
             short stringIdentifier = reader.ReadInt16();
             string value = reader.ReadString();
@@ -885,7 +887,7 @@ namespace Confuser.Core.Engines
             document.StringTable.Add(stringIdentifier, value);
         }
 
-        private void ReadTypeInfo(BamlBinaryReader reader)
+        protected void ReadTypeInfo(BamlBinaryReader reader)
         {
             short typeIdentifier = reader.ReadInt16();
             short assemblyIdentifier = reader.ReadInt16();
@@ -911,7 +913,7 @@ namespace Confuser.Core.Engines
             document.TypeTable.Add(typeIdentifier, typeDeclaration);
         }
 
-        private void ReadAttributeInfo(BamlBinaryReader reader)
+        protected void ReadAttributeInfo(BamlBinaryReader reader)
         {
             short attributeIdentifier = reader.ReadInt16();
             short ownerTypeIdentifier = reader.ReadInt16();
@@ -923,7 +925,7 @@ namespace Confuser.Core.Engines
             document.PropertyTable.Add(attributeIdentifier, propertyName);
         }
 
-        private void ReadElementStart(BamlBinaryReader reader)
+        protected void ReadElementStart(BamlBinaryReader reader)
         {
             short typeIdentifier = reader.ReadInt16();
             byte flags = reader.ReadByte(); // 1 = CreateUsingTypeConverter, 2 = Injected
@@ -936,7 +938,7 @@ namespace Confuser.Core.Engines
             this.elementStack.Push(element);
         }
 
-        private void ReadElementEnd()
+        protected void ReadElementEnd()
         {
             Property property = this.elementStack.Peek() as Property;
             if ((property != null) && (property.PropertyType == PropertyType.Dictionary))
@@ -980,7 +982,7 @@ namespace Confuser.Core.Engines
             }
         }
 
-        private void ReadStaticResourceStart(BamlBinaryReader reader)
+        protected void ReadStaticResourceStart(BamlBinaryReader reader)
         {
             short typeIdentifier = reader.ReadInt16();
             byte flags = reader.ReadByte(); // 1 = CreateUsingTypeConverter, 2 = Injected
@@ -993,12 +995,12 @@ namespace Confuser.Core.Engines
             document.StaticResourceTable.Add(element);
         }
 
-        private void ReadStaticResourceEnd(BamlBinaryReader reader)
+        protected void ReadStaticResourceEnd(BamlBinaryReader reader)
         {
             this.elementStack.Pop();
         }
 
-        private void ReadKeyElementStart(BamlBinaryReader reader)
+        protected void ReadKeyElementStart(BamlBinaryReader reader)
         {
             short typeIdentifier = reader.ReadInt16();
 
@@ -1024,24 +1026,24 @@ namespace Confuser.Core.Engines
             this.elementStack.Push(keyProperty.Value);
         }
 
-        private void ReadKeyElementEnd()
+        protected void ReadKeyElementEnd()
         {
             Element parent = (Element)this.elementStack.Pop();
         }
 
-        private void ReadConstructorParametersStart()
+        protected void ReadConstructorParametersStart()
         {
             Element element = (Element)this.elementStack.Peek();
             this.constructorParameterTable.Add(element);
         }
 
-        private void ReadConstructorParametersEnd()
+        protected void ReadConstructorParametersEnd()
         {
             Element element = (Element)this.elementStack.Peek();
             this.constructorParameterTable.Remove(element);
         }
 
-        private void ReadConstructorParameterType(BamlBinaryReader reader)
+        protected void ReadConstructorParameterType(BamlBinaryReader reader)
         {
             short typeIdentifier = reader.ReadInt16();
 
@@ -1051,7 +1053,7 @@ namespace Confuser.Core.Engines
             element.Arguments.Add(elementName);
         }
 
-        private void ReadOptimizedStaticResource(BamlBinaryReader reader)
+        protected void ReadOptimizedStaticResource(BamlBinaryReader reader)
         {
             byte extension = reader.ReadByte(); // num1
             short valueIdentifier = reader.ReadInt16();
@@ -1086,7 +1088,7 @@ namespace Confuser.Core.Engines
             document.StaticResourceTable.Add(element);
         }
 
-        private void ReadPropertyWithExtension(BamlBinaryReader reader)
+        protected void ReadPropertyWithExtension(BamlBinaryReader reader)
         {
             short attributeIdentifier = reader.ReadInt16();
 
@@ -1159,10 +1161,11 @@ namespace Confuser.Core.Engines
             property.Value = element;
 
             Element parent = (Element)this.elementStack.Peek();
+            this.document.Properties.Add(property);
             parent.Properties.Add(property);
         }
 
-        private void ReadStaticResourceIdentifier(BamlBinaryReader reader)
+        protected void ReadStaticResourceIdentifier(BamlBinaryReader reader)
         {
             short staticResourceIdentifier = reader.ReadInt16();
             object staticResource = this.GetStaticResource(staticResourceIdentifier);
@@ -1173,7 +1176,7 @@ namespace Confuser.Core.Engines
             this.AddElementToTree(staticResourceElement, reader);
         }
 
-        private void ReadPropertyWithStaticResourceIdentifier(BamlBinaryReader reader)
+        protected void ReadPropertyWithStaticResourceIdentifier(BamlBinaryReader reader)
         {
             short attributeIdentifier = reader.ReadInt16();
 
@@ -1189,10 +1192,11 @@ namespace Confuser.Core.Engines
             property.Value = staticResourcEelement;
 
             Element parent = (Element)this.elementStack.Peek();
+            this.document.Properties.Add(property);
             parent.Properties.Add(property);
         }
 
-        private void ReadPropertyTypeReference(BamlBinaryReader reader)
+        protected void ReadPropertyTypeReference(BamlBinaryReader reader)
         {
             short attributeIdentifier = reader.ReadInt16();
             short typeIdentifier = reader.ReadInt16();
@@ -1202,10 +1206,12 @@ namespace Confuser.Core.Engines
             property.Value = this.CreateTypeExtension(typeIdentifier);
 
             Element parent = (Element)this.elementStack.Peek();
+            property.DeclaringElement = parent;
+            this.document.Properties.Add(property);
             parent.Properties.Add(property);
         }
 
-        private void ReadPropertyRecord(BamlBinaryReader reader)
+        protected void ReadPropertyRecord(BamlBinaryReader reader)
         {
             short attributeIdentifier = reader.ReadInt16();
             string value = reader.ReadString();
@@ -1215,10 +1221,12 @@ namespace Confuser.Core.Engines
             property.Value = value;
 
             Element element = (Element)this.elementStack.Peek();
+            property.DeclaringElement = element;
+            this.document.Properties.Add(property);
             element.Properties.Add(property);
         }
 
-        private void ReadPropertyWithConverter(BamlBinaryReader reader)
+        protected void ReadPropertyWithConverter(BamlBinaryReader reader)
         {
             short attributeIdentifier = reader.ReadInt16();
             string value = reader.ReadString();
@@ -1226,13 +1234,16 @@ namespace Confuser.Core.Engines
 
             Property property = new Property(PropertyType.Value);
             property.PropertyDeclaration = this.GetPropertyDeclaration(attributeIdentifier);
+            property.Converter = this.GetTypeDeclaration(converterTypeIdentifier);
             property.Value = value;
 
             Element element = (Element)this.elementStack.Peek();
+            property.DeclaringElement = element;
+            this.document.Properties.Add(property);
             element.Properties.Add(property);
         }
 
-        private void ReadPropertyCustom(BamlBinaryReader reader)
+        protected void ReadPropertyCustom(BamlBinaryReader reader)
         {
             short attributeIdentifier = reader.ReadInt16();
             short serializerTypeIdentifier = reader.ReadInt16();
@@ -1416,10 +1427,12 @@ namespace Confuser.Core.Engines
             }
 
             Element element = (Element)this.elementStack.Peek();
+            property.DeclaringElement = element;
+            this.document.Properties.Add(property);
             element.Properties.Add(property);
         }
 
-        private void ReadContentProperty(BamlBinaryReader reader)
+        protected void ReadContentProperty(BamlBinaryReader reader)
         {
             short attributeIdentifier = reader.ReadInt16();
 
@@ -1429,6 +1442,8 @@ namespace Confuser.Core.Engines
             if (contentProperty == null)
             {
                 contentProperty = new Property(PropertyType.Content);
+                contentProperty.DeclaringElement = element;
+                this.document.Properties.Add(contentProperty);
                 element.Properties.Add(contentProperty);
             }
 
@@ -1441,7 +1456,7 @@ namespace Confuser.Core.Engines
             contentProperty.PropertyDeclaration = propertyName;
         }
 
-        private void ReadPropertyListStart(BamlBinaryReader reader)
+        protected void ReadPropertyListStart(BamlBinaryReader reader)
         {
             short attributeIdentifier = reader.ReadInt16();
 
@@ -1450,12 +1465,14 @@ namespace Confuser.Core.Engines
             property.PropertyDeclaration = this.GetPropertyDeclaration(attributeIdentifier);
 
             Element element = (Element)this.elementStack.Peek();
+            property.DeclaringElement = element;
+            this.document.Properties.Add(property);
             element.Properties.Add(property);
 
             this.elementStack.Push(property);
         }
 
-        private void ReadPropertyListEnd()
+        protected void ReadPropertyListEnd()
         {
             Property property = (Property)this.elementStack.Pop();
             if (property.PropertyType != PropertyType.List)
@@ -1464,7 +1481,7 @@ namespace Confuser.Core.Engines
             }
         }
 
-        private void ReadPropertyDictionaryStart(BamlBinaryReader reader)
+        protected void ReadPropertyDictionaryStart(BamlBinaryReader reader)
         {
             short attributeIdentifier = reader.ReadInt16();
 
@@ -1473,12 +1490,14 @@ namespace Confuser.Core.Engines
             property.PropertyDeclaration = this.GetPropertyDeclaration(attributeIdentifier);
 
             Element element = (Element)this.elementStack.Peek();
+            property.DeclaringElement = element;
+            this.document.Properties.Add(property);
             element.Properties.Add(property);
 
             this.elementStack.Push(property);
         }
 
-        private void ReadPropertyDictionaryEnd()
+        protected void ReadPropertyDictionaryEnd()
         {
             Property property = (Property)this.elementStack.Pop();
             if (property.PropertyType != PropertyType.Dictionary)
@@ -1487,25 +1506,22 @@ namespace Confuser.Core.Engines
             }
         }
 
-        private void ReadPropertyComplexStart(BamlBinaryReader reader)
+        protected void ReadPropertyComplexStart(BamlBinaryReader reader)
         {
             short attributeIdentifier = reader.ReadInt16();
 
             Property property = new Property(PropertyType.Complex);
             property.PropertyDeclaration = this.GetPropertyDeclaration(attributeIdentifier);
 
-            if (property.PropertyDeclaration.Name == "RelativeTransform")
-            {
-                Console.WriteLine();
-            }
-
             Element element = (Element)this.elementStack.Peek();
+            property.DeclaringElement = element;
+            this.document.Properties.Add(property);
             element.Properties.Add(property);
 
             this.elementStack.Push(property);
         }
 
-        private void ReadPropertyComplexEnd()
+        protected void ReadPropertyComplexEnd()
         {
             Property property = (Property)this.elementStack.Pop();
             if (property.PropertyType != PropertyType.Complex)
@@ -1514,7 +1530,7 @@ namespace Confuser.Core.Engines
             }
         }
 
-        private void ReadXmlnsProperty(BamlBinaryReader reader)
+        protected void ReadXmlnsProperty(BamlBinaryReader reader)
         {
             string prefix = reader.ReadString();
             string xmlNamespace = reader.ReadString();
@@ -1535,7 +1551,7 @@ namespace Confuser.Core.Engines
             element.Properties.Add(property);
         }
 
-        private void ReadNamespaceMapping(BamlBinaryReader reader)
+        protected void ReadNamespaceMapping(BamlBinaryReader reader)
         {
             string xmlNamespace = reader.ReadString();
             string clrNamespace = reader.ReadString();
@@ -1545,7 +1561,7 @@ namespace Confuser.Core.Engines
             this.namespaceManager.AddNamespaceMapping(xmlNamespace, clrNamespace, assembly);
         }
 
-        private void ReadDefAttribute(BamlBinaryReader reader)
+        protected void ReadDefAttribute(BamlBinaryReader reader)
         {
             string value = reader.ReadString();
             short attributeIdentifier = reader.ReadInt16();
@@ -1573,7 +1589,7 @@ namespace Confuser.Core.Engines
             element.Properties.Add(property);
         }
 
-        private void ReadDefAttributeKeyString(BamlBinaryReader reader)
+        protected void ReadDefAttributeKeyString(BamlBinaryReader reader)
         {
             short valueIdentifier = reader.ReadInt16();
             int position = reader.ReadInt32();
@@ -1595,7 +1611,7 @@ namespace Confuser.Core.Engines
             this.AddDictionaryEntry(dictionary, position, keyProperty);
         }
 
-        private void ReadDefAttributeKeyType(BamlBinaryReader reader)
+        protected void ReadDefAttributeKeyType(BamlBinaryReader reader)
         {
             short typeIdentifier = reader.ReadInt16();
             reader.ReadByte();
@@ -1612,13 +1628,13 @@ namespace Confuser.Core.Engines
             this.AddDictionaryEntry(dictionary, position, keyProperty);
         }
 
-        private void ReadText(BamlBinaryReader reader)
+        protected void ReadText(BamlBinaryReader reader)
         {
             string value = reader.ReadString();
             ReadText(value);
         }
 
-        private void ReadText(string value)
+        protected void ReadText(string value)
         {
             Element parent = (Element)this.elementStack.Peek();
             if (this.constructorParameterTable.Contains(parent))
@@ -1631,21 +1647,21 @@ namespace Confuser.Core.Engines
             }
         }
 
-        private void ReadTextWithId(BamlBinaryReader reader)
+        protected void ReadTextWithId(BamlBinaryReader reader)
         {
             short id = reader.ReadInt16();
             string value = document.StringTable[id] as string;
             ReadText(value);
         }
 
-        private void ReadTextWithConverter(BamlBinaryReader reader)
+        protected void ReadTextWithConverter(BamlBinaryReader reader)
         {
             string value = reader.ReadString();
             short converterTypeIdentifier = reader.ReadInt16();
             ReadText(value);
         }
 
-        private void AddContent(Element parent, object content)
+        protected void AddContent(Element parent, object content)
         {
             if (content == null)
             {
@@ -1693,7 +1709,7 @@ namespace Confuser.Core.Engines
             }
         }
 
-        private void AddDictionaryEntry(Element dictionary, int position, Property keyProperty)
+        protected void AddDictionaryEntry(Element dictionary, int position, Property keyProperty)
         {
             Dictionary<int, List<Property>> table;
             if (!this.dictionaryKeyPositionTable.TryGetValue(dictionary, out table))
@@ -1712,12 +1728,12 @@ namespace Confuser.Core.Engines
             list.Add(keyProperty);
         }
 
-        private Element CreateTypeExtension(short typeIdentifier)
+        protected Element CreateTypeExtension(short typeIdentifier)
         {
             return CreateTypeExtension(typeIdentifier, true);
         }
 
-        private Element CreateTypeExtension(short typeIdentifier, bool wrapInType)
+        protected Element CreateTypeExtension(short typeIdentifier, bool wrapInType)
         {
             Element element = new Element();
             element.TypeDeclaration = new TypeDeclaration("x:Type");
@@ -1737,7 +1753,7 @@ namespace Confuser.Core.Engines
             return element;
         }
 
-        private Property GetContentProperty(Element parent)
+        protected Property GetContentProperty(Element parent)
         {
             foreach (Property property in parent.Properties)
             {
@@ -1750,7 +1766,7 @@ namespace Confuser.Core.Engines
             return null;
         }
 
-        private TypeDeclaration GetTypeDeclaration(short identifier)
+        protected TypeDeclaration GetTypeDeclaration(short identifier)
         {
             TypeDeclaration typeDeclaration = null;
 
@@ -1789,7 +1805,7 @@ namespace Confuser.Core.Engines
             return typeDeclaration;
         }
 
-        private PropertyDeclaration GetPropertyDeclaration(short identifier)
+        protected PropertyDeclaration GetPropertyDeclaration(short identifier)
         {
             PropertyDeclaration propertyDeclaration = null;
 
@@ -1815,13 +1831,13 @@ namespace Confuser.Core.Engines
             return propertyDeclaration;
         }
 
-        private object GetStaticResource(short identifier)
+        protected object GetStaticResource(short identifier)
         {
             object resource = document.StaticResourceTable[identifier];
             return resource;
         }
 
-        private object GetResourceName(short identifier)
+        protected object GetResourceName(short identifier)
         {
             if (identifier >= 0)
             {
@@ -1846,12 +1862,12 @@ namespace Confuser.Core.Engines
             }
         }
 
-        private string GetAssembly(string assemblyName)
+        protected string GetAssembly(string assemblyName)
         {
             return assemblyName;
         }
 
-        private void Initialize()
+        protected void Initialize()
         {
             knownTypeTable = new TypeDeclaration[0x02f8];
             knownTypeTable[0x0000] = new TypeDeclaration(string.Empty, string.Empty, string.Empty); // Unknown

@@ -29,6 +29,7 @@
 using System;
 
 using Mono.Collections.Generic;
+using System.Collections.Generic;
 
 namespace Mono.Cecil.Cil {
 
@@ -204,16 +205,22 @@ namespace Mono.Cecil.Cil {
 		}
 
         internal bool initing = false;
+        internal List<Instruction> instReferences = new List<Instruction>();
 
-		protected override void OnAdd (Instruction item, int index)
-		{
-			if (index == 0)
-				return;
+        protected override void OnAdd(Instruction item, int index)
+        {
+            if (item.opcode.OperandType == OperandType.InlineBrTarget ||
+                item.opcode.OperandType == OperandType.ShortInlineBrTarget ||
+                item.opcode.OperandType == OperandType.InlineSwitch)
+                instReferences.Add(item);
 
-			var previous = items [index - 1];
-			previous.next = item;
-			item.previous = previous;
-		}
+            if (index == 0)
+                return;
+
+            var previous = items[index - 1];
+            previous.next = item;
+            item.previous = previous;
+        }
 
 		protected override void OnInsert (Instruction item, int index)
 		{
@@ -235,10 +242,15 @@ namespace Mono.Cecil.Cil {
 			}
 
 			current.previous = item;
-			item.next = current;
+            item.next = current;
+
+            if (item.opcode.OperandType == OperandType.InlineBrTarget ||
+                item.opcode.OperandType == OperandType.ShortInlineBrTarget ||
+                item.opcode.OperandType == OperandType.InlineSwitch)
+                instReferences.Add(item);
 		}
 
-		protected override void OnSet (Instruction item, int index)
+        protected override void OnSet(Instruction item, int index)
 		{
 			var current = items [index];
 
@@ -247,6 +259,16 @@ namespace Mono.Cecil.Cil {
 
 			current.previous = null;
             current.next = null;
+
+            if (item.opcode.OperandType == OperandType.InlineBrTarget ||
+                item.opcode.OperandType == OperandType.ShortInlineBrTarget ||
+                item.opcode.OperandType == OperandType.InlineSwitch)
+                instReferences.Add(item);
+
+            if (current.opcode.OperandType == OperandType.InlineBrTarget ||
+                current.opcode.OperandType == OperandType.ShortInlineBrTarget ||
+                current.opcode.OperandType == OperandType.InlineSwitch)
+                instReferences.Remove(item);
 		}
 
 		protected override void OnRemove (Instruction item, int index)
@@ -261,8 +283,12 @@ namespace Mono.Cecil.Cil {
 
 			item.previous = null;
 			item.next = null;
-		}
 
+            if (item.opcode.OperandType == OperandType.InlineBrTarget ||
+                item.opcode.OperandType == OperandType.ShortInlineBrTarget ||
+                item.opcode.OperandType == OperandType.InlineSwitch)
+                instReferences.Remove(item);
+		}
 
         internal void ComputeOffsets()
         {

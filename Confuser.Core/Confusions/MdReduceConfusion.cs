@@ -71,9 +71,9 @@ namespace Confuser.Core.Confusions
         {
             IMemberDefinition def = parameter.Target as IMemberDefinition;
 
-            if (def is TypeDefinition && (def as TypeDefinition).IsEnum)
+            TypeDefinition t;
+            if ((t = def as TypeDefinition) != null && t.IsEnum && !IsTypePublic(t))
             {
-                TypeDefinition t = def as TypeDefinition;
                 int idx = 0;
                 while (t.Fields.Count != 1)
                     if (t.Fields[idx].Name != "value__")
@@ -89,6 +89,17 @@ namespace Confuser.Core.Confusions
             {
                 def.DeclaringType.Properties.Remove(def as PropertyDefinition);
             }
+        }
+
+        bool IsTypePublic(TypeDefinition type)
+        {
+            do
+            {
+                if (!type.IsPublic && !type.IsNestedFamily && !type.IsNestedFamilyAndAssembly && !type.IsNestedFamilyOrAssembly && !type.IsNestedPublic && !type.IsPublic)
+                    return false;
+                type = type.DeclaringType;
+            } while (type != null);
+            return true;
         }
     }
 }
