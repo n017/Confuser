@@ -174,11 +174,7 @@ namespace Confuser.Core
 
             FillPreset(preset, setting.CurrentConfusions);
 
-            Dictionary<IConfusion, NameValueCollection> now = new Dictionary<IConfusion, NameValueCollection>();
-            foreach (KeyValuePair<IConfusion, NameValueCollection> set in setting.CurrentConfusions)
-                if ((set.Key.Target & Target.Assembly) == Target.Assembly)
-                    now.Add(set.Key, set.Value);
-            (asm as IAnnotationProvider).Annotations["ConfusionSets"] = now;
+            (asm as IAnnotationProvider).Annotations["ConfusionSets"] = setting.CurrentConfusions;
             (asm as IAnnotationProvider).Annotations["GlobalParams"] = setting.CurrentConfusions;
 
             if (!exclude)
@@ -203,11 +199,7 @@ namespace Confuser.Core
         {
             bool exclude = ProcessAttribute(type, setting);
 
-            Dictionary<IConfusion, NameValueCollection> now = new Dictionary<IConfusion, NameValueCollection>();
-            foreach (KeyValuePair<IConfusion, NameValueCollection> set in setting.CurrentConfusions)
-                if ((set.Key.Target & Target.Types) == Target.Types)
-                    now.Add(set.Key, set.Value);
-            (type as IAnnotationProvider).Annotations["ConfusionSets"] = now;
+            (type as IAnnotationProvider).Annotations["ConfusionSets"] = setting.CurrentConfusions;
 
 
             if (!exclude)
@@ -240,11 +232,7 @@ namespace Confuser.Core
 
             bool exclude = ProcessAttribute(mem, setting);
 
-            Dictionary<IConfusion, NameValueCollection> now = new Dictionary<IConfusion, NameValueCollection>();
-            foreach (KeyValuePair<IConfusion, NameValueCollection> set in setting.CurrentConfusions)
-                if ((set.Key.Target & target) == target)
-                    now.Add(set.Key, set.Value);
-            (mem as IAnnotationProvider).Annotations["ConfusionSets"] = now;
+            (mem as IAnnotationProvider).Annotations["ConfusionSets"] = setting.CurrentConfusions;
 
             if (!exclude)
                 if (target == Target.Properties)
@@ -263,11 +251,7 @@ namespace Confuser.Core
 
                         ProcessAttribute(mtd, setting);
 
-                        Dictionary<IConfusion, NameValueCollection> now1 = new Dictionary<IConfusion, NameValueCollection>();
-                        foreach (KeyValuePair<IConfusion, NameValueCollection> set in setting.CurrentConfusions)
-                            if ((set.Key.Target & Target.Methods) == Target.Methods)
-                                now1.Add(set.Key, set.Value);
-                        (mtd as IAnnotationProvider).Annotations["ConfusionSets"] = now1;
+                        (mtd as IAnnotationProvider).Annotations["ConfusionSets"] = setting.CurrentConfusions;
 
                         setting.LeaveLevel();
                     }
@@ -288,11 +272,7 @@ namespace Confuser.Core
                     {
                         ProcessAttribute(mtd, setting);
 
-                        Dictionary<IConfusion, NameValueCollection> now1 = new Dictionary<IConfusion, NameValueCollection>();
-                        foreach (KeyValuePair<IConfusion, NameValueCollection> set in setting.CurrentConfusions)
-                            if ((set.Key.Target & Target.Methods) == Target.Methods)
-                                now1.Add(set.Key, set.Value);
-                        (mtd as IAnnotationProvider).Annotations["ConfusionSets"] = now1;
+                        (mtd as IAnnotationProvider).Annotations["ConfusionSets"] = setting.CurrentConfusions;
 
                         setting.LeaveLevel();
                     }

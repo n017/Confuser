@@ -632,8 +632,7 @@ namespace Confuser
             if (src.Annotations.Contains("ConfusionSets"))
             {
                 foreach (KeyValuePair<Core.IConfusion, NameValueCollection> set in src.Annotations["ConfusionSets"] as IDictionary<Core.IConfusion, NameValueCollection>)
-                    if ((set.Key.Target & target) == target)
-                        now.Add(set.Key, set.Value);
+                    now.Add(set.Key, set.Value);
             }
             dst.Annotations["ConfusionSets"] = now;
             dst.Annotations["GlobalParams"] = new Dictionary<Core.IConfusion, NameValueCollection>();
