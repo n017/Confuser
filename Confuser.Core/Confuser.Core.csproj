@@ -79,6 +79,7 @@
     <Compile Include="Confusions\ControlFlowConfusion.cs" />
     <Compile Include="Confusions\CtorProxyConfusion.cs" />
     <Compile Include="Confusions\DisConstConfusion.cs" />
+    <Compile Include="Confusions\ResEncryptConfusion.cs" />
     <Compile Include="Confusions\StackUnfConfusion.cs" />
     <Compile Include="Confusions\MultiRowConfusion.cs" />
     <Compile Include="Confusions\NameConfusion.cs" />

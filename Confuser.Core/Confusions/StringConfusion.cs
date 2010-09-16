@@ -66,7 +66,7 @@ namespace Confuser.Core.Confusions
                 TypeDefinition mod = asm.MainModule.GetType("<Module>");
 
                 AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(StringConfusion).Assembly.Location);
-                sc.strer = i.MainModule.GetType("Confuser.Core.Confusions.StringConfusion").Methods.FirstOrDefault(mtd => mtd.Name == "Injection");
+                sc.strer = i.MainModule.GetType(typeof(StringConfusion).FullName).Methods.FirstOrDefault(mtd => mtd.Name == "Injection");
                 sc.strer = CecilHelper.Inject(asm.MainModule, sc.strer);
                 mod.Methods.Add(sc.strer);
                 byte[] n = new byte[0x10]; rand.NextBytes(n);
@@ -83,7 +83,7 @@ namespace Confuser.Core.Confusions
 
                 rand.NextBytes(n);
 
-                MethodDefinition read7be = i.MainModule.GetType("Confuser.Core.Confusions.StringConfusion").Methods.FirstOrDefault(mtd => mtd.Name == "Read7BitEncodedInt");
+                MethodDefinition read7be = i.MainModule.GetType(typeof(StringConfusion).FullName).Methods.FirstOrDefault(mtd => mtd.Name == "Read7BitEncodedInt");
                 sc.strer.Body.SimplifyMacros();
                 for (int t = 0; t < sc.strer.Body.Instructions.Count; t++)
                 {
@@ -143,7 +143,7 @@ namespace Confuser.Core.Confusions
                 TypeDefinition mod = asm.MainModule.GetType("<Module>");
 
                 AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(StringConfusion).Assembly.Location);
-                sc.strer = i.MainModule.GetType("Confuser.Core.Confusions.StringConfusion").Methods.FirstOrDefault(mtd => mtd.Name == "InjectionSafe");
+                sc.strer = i.MainModule.GetType(typeof(StringConfusion).FullName).Methods.FirstOrDefault(mtd => mtd.Name == "InjectionSafe");
                 sc.strer = CecilHelper.Inject(asm.MainModule, sc.strer);
                 mod.Methods.Add(sc.strer);
                 byte[] n = new byte[0x10]; rand.NextBytes(n);

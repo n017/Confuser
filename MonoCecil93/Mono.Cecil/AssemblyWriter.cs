@@ -1520,6 +1520,7 @@ namespace Mono.Cecil {
             public UserStringHeapBuffer USHeap { get { return psr.user_string_heap; } }
             public StringHeapBuffer StringHeap { get { return psr.string_heap; } }
             public TableHeapBuffer TableHeap { get { return psr.table_heap; } }
+            public ModuleDefinition Module { get { return psr.module; } }
 
             public MetadataToken LookupToken(IMetadataTokenProvider provider)
             {
