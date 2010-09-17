@@ -28,7 +28,7 @@ namespace Confuser.Core.Confusions
             }
             public override Priority Priority
             {
-                get { return Priority.MetadataLevel; }
+                get { return Priority.AssemblyLevel; }
             }
             public override bool WholeRun
             {
@@ -48,36 +48,49 @@ namespace Confuser.Core.Confusions
             {
                 rc.dats = new List<KeyValuePair<string, byte[]>>();
 
-                Random rand = new Random();
                 TypeDefinition mod = asm.MainModule.GetType("<Module>");
 
                 AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(StringConfusion).Assembly.Location);
                 rc.reso = i.MainModule.GetType(typeof(ResEncryptConfusion).FullName).Methods.FirstOrDefault(mtd => mtd.Name == "Injection");
                 rc.reso = CecilHelper.Inject(asm.MainModule, rc.reso);
                 mod.Methods.Add(rc.reso);
-                byte[] n = new byte[0x10]; rand.NextBytes(n);
+                byte[] n = Guid.NewGuid().ToByteArray();
                 rc.reso.Name = Encoding.UTF8.GetString(n);
                 rc.reso.IsAssembly = true;
 
-                rc.key0 = (byte)(rand.NextDouble() * byte.MaxValue);
-                rc.key1 = (byte)(rand.NextDouble() * byte.MaxValue);
+                n = Guid.NewGuid().ToByteArray();
+                rc.key0 = n[0];
+                rc.key1 = n[1];
 
-                rand.NextBytes(n);
+                n = Guid.NewGuid().ToByteArray();
 
                 rc.reso.Body.SimplifyMacros();
                 foreach (Instruction inst in rc.reso.Body.Instructions)
                 {
                     if ((inst.Operand as string) == "PADDINGPADDINGPADDING")
                         inst.Operand = Encoding.UTF8.GetString(n);
-                    else if (inst.Operand is int && (int)inst.Operand == 0x111)
-                        inst.Operand = rc.key0;
-                    else if (inst.Operand is int && (int)inst.Operand == 0x222)
-                        inst.Operand = rc.key1;
+                    else if (inst.Operand is int && (int)inst.Operand == 0x11)
+                        inst.Operand = (int)rc.key0;
+                    else if (inst.Operand is int && (int)inst.Operand == 0x22)
+                        inst.Operand = (int)rc.key1;
+                    else if (inst.Operand is TypeReference && (inst.Operand as TypeReference).FullName == "System.Exception")
+                        inst.Operand = mod;
                 }
                 rc.reso.Body.OptimizeMacros();
                 rc.reso.Body.ComputeOffsets();
 
                 rc.resId = Encoding.UTF8.GetString(n);
+
+                MethodDefinition cctor = asm.MainModule.GetType("<Module>").GetStaticConstructor();
+                MethodBody bdy = cctor.Body as MethodBody;
+                bdy.Instructions.RemoveAt(bdy.Instructions.Count - 1);
+                ILProcessor psr = bdy.GetILProcessor();
+                psr.Emit(OpCodes.Call, asm.MainModule.Import(typeof(AppDomain).GetProperty("CurrentDomain").GetGetMethod()));
+                psr.Emit(OpCodes.Ldnull);
+                psr.Emit(OpCodes.Ldftn, rc.reso);
+                psr.Emit(OpCodes.Newobj, asm.MainModule.Import(typeof(ResolveEventHandler).GetConstructor(new Type[] { typeof(object), typeof(IntPtr) })));
+                psr.Emit(OpCodes.Callvirt, asm.MainModule.Import(typeof(AppDomain).GetEvent("ResourceResolve").GetAddMethod()));
+                psr.Emit(OpCodes.Ret);
             }
         }
         class MetadataPhase : AdvancedPhase
@@ -121,26 +134,32 @@ namespace Confuser.Core.Confusions
 
                 if (rc.dats.Count > 0)
                 {
-                    Random rand = new Random();
                     MemoryStream ms = new MemoryStream();
-                    using (BinaryWriter wtr = new BinaryWriter(new DeflateStream(ms, CompressionMode.Compress)))
-                    {
-                        byte[] key = new byte[0x10];
-                        rand.NextBytes(key);
-                        wtr.Write(key.Length); wtr.Write(key);
-                        foreach (KeyValuePair<string, byte[]> i in rc.dats)
-                        {
-                            BitArray nArr = new BitArray(Encoding.UTF8.GetBytes(i.Key));
-                            BitArray keyArr = new BitArray(key);
-                            byte[] n = new byte[nArr.Length / 8];
-                            nArr.Xor(keyArr).CopyTo(n, 0);
-                            wtr.Write(n.Length); wtr.Write(n);
-                            wtr.Write(i.Value.Length); wtr.Write(i.Value);
-                        }
-                        wtr.Write(0);
-                    }
+                    BinaryWriter wtr = new BinaryWriter(new DeflateStream(ms, CompressionMode.Compress, true));
+
+                    MemoryStream ms1 = new MemoryStream();
+                    BinaryWriter wtr1 = new BinaryWriter(new DeflateStream(ms1, CompressionMode.Compress, true));
+                    byte[] asm = GetAsm();
+                    wtr1.Write(asm.Length);
+                    wtr1.Write(asm);
+                    wtr1.BaseStream.Dispose();
+
+                    byte[] dat = Encrypt(ms1.ToArray(), rc.key0, rc.key1);
+                    wtr.Write(dat.Length);
+                    wtr.Write(dat);
+                    wtr.BaseStream.Dispose();
+
                     mod.Resources.Add(new EmbeddedResource(rc.resId, ManifestResourceAttributes.Private, ms.ToArray()));
                 }
+            }
+            byte[] GetAsm()
+            {
+                AssemblyDefinition asm = AssemblyDefinition.CreateAssembly(new AssemblyNameDefinition(ObfuscationHelper.GetNewName(Guid.NewGuid().ToString()), new Version()), ObfuscationHelper.GetNewName(Guid.NewGuid().ToString()), ModuleKind.Dll);
+                foreach(KeyValuePair<string, byte[]> i in rc.dats)
+                asm.MainModule.Resources.Add(new EmbeddedResource(i.Key, ManifestResourceAttributes.Public, i.Value));
+                MemoryStream ms = new MemoryStream();
+                asm.Write(ms);
+                return ms.ToArray();
             }
         }
 
@@ -208,50 +227,30 @@ namespace Confuser.Core.Confusions
 
         static System.Reflection.Assembly Injection(object sender, ResolveEventArgs args)
         {
-            if (args == null)
+            System.Reflection.Assembly datAsm;
+            if ((datAsm = AppDomain.CurrentDomain.GetData("PADDINGPADDINGPADDING") as System.Reflection.Assembly) == null)
             {
-                AppDomain.CurrentDomain.ResourceResolve += Delegate.CreateDelegate(typeof(ResolveEventHandler), new StackFrame(0).GetMethod() as System.Reflection.MethodInfo) as ResolveEventHandler;
-                return null;
-            }
-
-            System.Reflection.Assembly asm = System.Reflection.Assembly.GetCallingAssembly();
-            Stream str = asm.GetManifestResourceStream("PADDINGPADDINGPADDING");
-            using (BinaryReader rdr = new BinaryReader(new DeflateStream(str, CompressionMode.Decompress)))
-            {
-                int keyLen = rdr.ReadInt32();
-                byte[] key = rdr.ReadBytes(keyLen);
-
-                int nLen;
-                while ((nLen = rdr.ReadInt32()) != 0)
+                Stream str = typeof(Exception).Assembly.GetManifestResourceStream("PADDINGPADDINGPADDING");
+                using (BinaryReader rdr = new BinaryReader(new DeflateStream(str, CompressionMode.Decompress)))
                 {
-                    byte[] nDat = rdr.ReadBytes(nLen);
-                    BitArray nArr = new BitArray(nDat);
-                    BitArray keyArr = new BitArray(key);
-                    byte[] n = new byte[nDat.Length];
-                    nArr.Xor(keyArr).CopyTo(n, 0);
-                    int datSize = rdr.ReadInt32();
-                    byte[] dat = rdr.ReadBytes(datSize);
-
-                    if (Encoding.UTF8.GetString(n) == args.Name)
+                    byte[] enDat = rdr.ReadBytes(rdr.ReadInt32());
+                    byte[] final = new byte[enDat.Length / 2];
+                    for (int i = 0; i < enDat.Length; i += 2)
                     {
-                        int key0 = 0x111;
-                        int key1 = 0x222;
-                        /////////////////////////////////
-                        byte[] final = new byte[dat.Length / 2];
-                        for (int i = 0; i < dat.Length; i += 2)
-                        {
-                            final[i / 2] = (byte)((dat[i + 1] ^ key0) * key1 + (dat[i] ^ key0));
-                        }
-                        /////////////////////////////////
-                        System.Reflection.Emit.AssemblyBuilder asmB = AppDomain.CurrentDomain.DefineDynamicAssembly(new System.Reflection.AssemblyName(Path.GetRandomFileName()), System.Reflection.Emit.AssemblyBuilderAccess.Run);
-                        System.Reflection.Emit.ModuleBuilder modB = asmB.DefineDynamicModule(Path.GetRandomFileName());
-                        modB.DefineManifestResource(args.Name, new MemoryStream(final), System.Reflection.ResourceAttributes.Public);
-                        asm = asmB;
-                        break;
+                        final[i / 2] = (byte)((enDat[i + 1] ^ 0x11) * 0x22 + (enDat[i] ^ 0x11));
+                    }
+                    using (BinaryReader rdr1 = new BinaryReader(new DeflateStream(new MemoryStream(final), CompressionMode.Decompress)))
+                    {
+                        byte[] fDat = rdr1.ReadBytes(rdr1.ReadInt32());
+                        datAsm = System.Reflection.Assembly.Load(fDat);
+                        AppDomain.CurrentDomain.SetData("PADDINGPADDINGPADDING", datAsm);
                     }
                 }
             }
-            return asm;
+            if (Array.IndexOf(datAsm.GetManifestResourceNames(), args.Name) == -1)
+                return null;
+            else
+                return datAsm;
         }
     }
 }

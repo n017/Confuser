@@ -123,9 +123,7 @@ System.Resources.ResourceManager
             Resource res;
             public void UpdateReference(Identifier old, Identifier @new)
             {
-                res.Name = @new.typeName + ".resources";
-                foreach (IReference refer in (res as IAnnotationProvider).Annotations["RenRef"] as List<IReference>)
-                    refer.UpdateReference(old, @new);
+                res.Name = res.Name.Replace(old.typeName, @new.typeName);
             }
         }
         class ResourceNameReference : IReference

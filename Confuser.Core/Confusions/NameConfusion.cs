@@ -47,7 +47,12 @@ namespace Confuser.Core.Confusions
                 foreach(ModuleDefinition mod in asm.Modules)
                     foreach (Resource res in mod.Resources)
                     {
-                        Identifier id = new Identifier() { typeName = res.Name };
+                        string cult = mod.Assembly.Name.Culture;
+                        Identifier id = new Identifier()
+                        {
+                            typeName = string.IsNullOrEmpty(cult) ? res.Name.Substring(0, res.Name.LastIndexOf('.')) : res.Name.Substring(0, res.Name.LastIndexOf('.', res.Name.LastIndexOf('.') - 1)),
+                            memberName = string.IsNullOrEmpty(cult) ? res.Name.Substring(res.Name.LastIndexOf('.') + 1) : res.Name.Substring(res.Name.LastIndexOf('.', res.Name.LastIndexOf('.') - 1) + 1)
+                        };
                         foreach (IReference refer in (res as IAnnotationProvider).Annotations["RenRef"] as List<IReference>)
                         {
                             refer.UpdateReference(id, id);
