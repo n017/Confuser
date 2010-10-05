@@ -161,7 +161,7 @@ namespace Confuser.Core.Confusions
                 MethodDefinition bdge;
                 if (!cc.bridges.TryGetValue(bridgeId, out bdge))
                 {
-                    bdge = new MethodDefinition(bridgeId, MethodAttributes.Static | MethodAttributes.Assem, txt.mtdRef.DeclaringType);
+                    bdge = new MethodDefinition(bridgeId, MethodAttributes.Static | MethodAttributes.Assembly, txt.mtdRef.DeclaringType);
                     for (int i = 0; i < txt.mtdRef.Parameters.Count; i++)
                     {
                         bdge.Parameters.Add(new ParameterDefinition(GetNameO(txt.mtdRef.Parameters[i]), txt.mtdRef.Parameters[i].Attributes, txt.mtdRef.Parameters[i].ParameterType));

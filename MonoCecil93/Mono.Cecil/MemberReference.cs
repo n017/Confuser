@@ -28,8 +28,6 @@
 
 namespace Mono.Cecil {
 
-    using System.Collections;
-
 	public abstract class MemberReference : IMetadataTokenProvider, IAnnotationProvider {
 
 		string name;
@@ -74,6 +72,10 @@ namespace Mono.Cecil {
 			get { return false; }
 		}
 
+		internal virtual bool ContainsGenericParameter {
+			get { return declaring_type != null && declaring_type.ContainsGenericParameter; }
+		}
+
 		internal MemberReference ()
 		{
 		}
@@ -94,18 +96,17 @@ namespace Mono.Cecil {
 		public override string ToString ()
 		{
 			return FullName;
-		}
+        }
 
-
-        IDictionary m_annotations;
-        IDictionary IAnnotationProvider.Annotations
+        System.Collections.IDictionary m_annotations;
+        System.Collections.IDictionary IAnnotationProvider.Annotations
         {
             get
             {
                 if (m_annotations == null)
-                    m_annotations = new Hashtable();
+                    m_annotations = new System.Collections.Hashtable();
                 return m_annotations;
             }
         }
-    }
+	}
 }

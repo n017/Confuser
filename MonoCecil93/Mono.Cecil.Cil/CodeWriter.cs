@@ -58,19 +58,35 @@ namespace Mono.Cecil.Cil {
 			this.standalone_signatures = new Dictionary<uint, MetadataToken> ();
 		}
 
-		public RVA WriteMethodBody (MethodDefinition method)
+        public RVA WriteMethodBody(MethodDefinition method)
+        {
+            var rva = BeginMethod();
+
+            if (IsUnresolved(method))
+            {
+                if (method.rva == 0)
+                    return 0;
+
+                WriteUnresolvedMethodBody(method);
+            }
+            else
+            {
+                if (IsEmptyMethodBody(method.Body))
+                    return 0;
+
+                WriteResolvedMethodBody(method);
+            }
+
+            Align(4);
+
+            EndMethod();
+            return rva;
+        }
+
+		static bool IsEmptyMethodBody (MethodBody body)
 		{
-			var rva = BeginMethod ();
-
-			if (IsUnresolved (method))
-				WriteUnresolvedMethodBody (method);
-			else
-				WriteResolvedMethodBody (method);
-
-			Align (4);
-
-			EndMethod ();
-			return rva;
+			return body.instructions.IsNullOrEmpty ()
+				&& body.variables.IsNullOrEmpty ();
 		}
 
 		static bool IsUnresolved (MethodDefinition method)

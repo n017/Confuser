@@ -27,6 +27,7 @@
 //
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using SR = System.Reflection;
 
@@ -88,6 +89,62 @@ namespace Mono.Cecil {
 
 #if !READ_ONLY
 
+	public sealed class ModuleParameters {
+
+		ModuleKind kind;
+		TargetRuntime runtime;
+		TargetArchitecture architecture;
+		IAssemblyResolver assembly_resolver;
+
+		public ModuleKind Kind {
+			get { return kind; }
+			set { kind = value; }
+		}
+
+		public TargetRuntime Runtime {
+			get { return runtime; }
+			set { runtime = value; }
+		}
+
+		public TargetArchitecture Architecture {
+			get { return architecture; }
+			set { architecture = value; }
+		}
+
+		public IAssemblyResolver AssemblyResolver {
+			get { return assembly_resolver; }
+			set { assembly_resolver = value; }
+		}
+
+		public ModuleParameters ()
+		{
+			this.kind = ModuleKind.Dll;
+			this.runtime = GetCurrentRuntime ();
+			this.architecture = TargetArchitecture.I386;
+		}
+
+		static TargetRuntime GetCurrentRuntime ()
+		{
+#if !CF
+			return typeof (object).Assembly.ImageRuntimeVersion.ParseRuntime ();
+#else
+			var corlib_version = typeof (object).Assembly.GetName ().Version;
+			switch (corlib_version.Major) {
+			case 1:
+				return corlib_version.Minor == 0
+					? TargetRuntime.Net_1_0
+					: TargetRuntime.Net_1_1;
+			case 2:
+				return TargetRuntime.Net_2_0;
+			case 4:
+				return TargetRuntime.Net_4_0;
+			default:
+				throw new NotSupportedException ();
+			}
+#endif
+		}
+	}
+
 	public sealed class WriterParameters {
 
 		Stream symbol_stream;
@@ -120,7 +177,7 @@ namespace Mono.Cecil {
 
 #endif
 
-	public sealed class ModuleDefinition : ModuleReference, ICustomAttributeProvider, IAnnotationProvider {
+	public sealed class ModuleDefinition : ModuleReference, ICustomAttributeProvider , IAnnotationProvider{
 
 		internal Image Image;
 		internal MetadataSystem MetadataSystem;
@@ -203,22 +260,12 @@ namespace Mono.Cecil {
 
 #if !READ_ONLY
 		internal MetadataImporter MetadataImporter {
-			get {
-				if (importer == null)
-					importer = new MetadataImporter (this);
-
-				return importer;
-			}
+			get { return importer ?? (importer = new MetadataImporter (this)); }
 		}
 #endif
 
-		internal TypeSystem TypeSystem {
-			get {
-				if (type_system == null)
-					type_system = TypeSystem.CreateTypeSystem (this);
-
-				return type_system;
-			}
+		public TypeSystem TypeSystem {
+			get { return type_system ?? (type_system = TypeSystem.CreateTypeSystem (this)); }
 		}
 
 		public bool HasAssemblyReferences {
@@ -226,10 +273,7 @@ namespace Mono.Cecil {
 				if (references != null)
 					return references.Count > 0;
 
-				if (HasImage)
-					return Image.HasTable (Table.AssemblyRef);
-
-				return false;
+				return HasImage && Image.HasTable (Table.AssemblyRef);
 			}
 		}
 
@@ -250,10 +294,7 @@ namespace Mono.Cecil {
 				if (modules != null)
 					return modules.Count > 0;
 
-				if (HasImage)
-					return Image.HasTable (Table.ModuleRef);
-
-				return false;
+				return HasImage && Image.HasTable (Table.ModuleRef);
 			}
 		}
 
@@ -303,12 +344,7 @@ namespace Mono.Cecil {
 		}
 
 		public Collection<CustomAttribute> CustomAttributes {
-			get {
-				if (custom_attributes != null)
-					return custom_attributes;
-
-				return custom_attributes = this.GetCustomAttributes (this);
-			}
+			get { return custom_attributes ?? (custom_attributes = this.GetCustomAttributes (this)); }
 		}
 
 		public bool HasTypes {
@@ -316,10 +352,7 @@ namespace Mono.Cecil {
 				if (types != null)
 					return types.Count > 0;
 
-				if (HasImage)
-					return Image.HasTable (Table.TypeDef);
-
-				return false;
+				return HasImage && Image.HasTable (Table.TypeDef);
 			}
 		}
 
@@ -340,10 +373,7 @@ namespace Mono.Cecil {
 				if (exported_types != null)
 					return exported_types.Count > 0;
 
-				if (HasImage)
-					return Image.HasTable (Table.ExportedType);
-
-				return false;
+				return HasImage && Image.HasTable (Table.ExportedType);
 			}
 		}
 
@@ -416,6 +446,16 @@ namespace Mono.Cecil {
 			return (type = Read (this, (_, reader) => reader.GetTypeReference (scope, fullName))) != null;
 		}
 
+		public IEnumerable<TypeReference> GetTypeReferences ()
+		{
+			return Read (this, (_, reader) => reader.GetTypeReferences ());
+		}
+
+		public IEnumerable<MemberReference> GetMemberReferences ()
+		{
+			return Read (this, (_, reader) => reader.GetMemberReferences ());
+		}
+
 		public TypeDefinition GetType (string fullName)
 		{
 			CheckFullName (fullName);
@@ -447,16 +487,15 @@ namespace Mono.Cecil {
 			var names = fullname.Split ('/');
 			var type = GetType (names [0]);
 
-			for (int i = 1; i < names.Length; i++) {
-				var nested_types = type.NestedTypes;
-				for (int j = 0; j < nested_types.Count; j++) {
-					var nested_type = nested_types [j];
-					if (nested_type.Name != names [i])
-						continue;
+			if (type == null)
+				return null;
 
-					type = nested_type;
-					break;
-				}
+			for (int i = 1; i < names.Length; i++) {
+				var nested_type = type.GetNestedType (names [i]);
+				if (nested_type == null)
+					return null;
+
+				type = nested_type;
 			}
 
 			return type;
@@ -511,7 +550,7 @@ namespace Mono.Cecil {
 		{
 			CheckType (type);
 
-			return MetadataImporter.ImportType (type, null, ImportGenericType.TypeDefinition);
+			return MetadataImporter.ImportType (type, null, ImportGenericKind.Definition);
 		}
 
 		public TypeReference Import (Type type, TypeReference context)
@@ -533,8 +572,8 @@ namespace Mono.Cecil {
 				type,
 				(IGenericContext) context,
 				context != null
-					? ImportGenericType.OpenType
-					: ImportGenericType.TypeDefinition);
+					? ImportGenericKind.Open
+					: ImportGenericKind.Definition);
 		}
 
 		public FieldReference Import (SR.FieldInfo field)
@@ -566,7 +605,7 @@ namespace Mono.Cecil {
 		{
 			CheckMethod (method);
 
-			return MetadataImporter.ImportMethod (method, null);
+			return MetadataImporter.ImportMethod (method, null, ImportGenericKind.Definition);
 		}
 
 		public MethodReference Import (SR.MethodBase method, TypeReference context)
@@ -584,7 +623,11 @@ namespace Mono.Cecil {
 			CheckMethod (method);
 			CheckContext (context, this);
 
-			return MetadataImporter.ImportMethod (method, (IGenericContext) context);
+			return MetadataImporter.ImportMethod (method,
+				(IGenericContext) context,
+				context != null
+					? ImportGenericKind.Open
+					: ImportGenericKind.Definition);
 		}
 #endif
 
@@ -725,28 +768,27 @@ namespace Mono.Cecil {
 
 		public static ModuleDefinition CreateModule (string name, ModuleKind kind)
 		{
-			return CreateModule (name, kind, GetCurrentRuntime ());
+			return CreateModule (name, new ModuleParameters { Kind = kind });
 		}
 
-		public static ModuleDefinition CreateModule (string name, ModuleKind kind, TargetRuntime runtime)
-		{
-			return CreateModule (name, kind, runtime, TargetArchitecture.I386);
-		}
-
-		public static ModuleDefinition CreateModule (string name, ModuleKind kind, TargetRuntime runtime, TargetArchitecture architecture)
+		public static ModuleDefinition CreateModule (string name, ModuleParameters parameters)
 		{
 			Mixin.CheckName (name);
+			Mixin.CheckParameters (parameters);
 
 			var module = new ModuleDefinition {
 				Name = name,
-				kind = kind,
-				runtime = runtime,
-				architecture = architecture,
+				kind = parameters.Kind,
+				runtime = parameters.Runtime,
+				architecture = parameters.Architecture,
 				mvid = Guid.NewGuid (),
 				Attributes = ModuleAttributes.ILOnly,
 			};
 
-			if (kind != ModuleKind.NetModule) {
+			if (parameters.AssemblyResolver != null)
+				module.AssemblyResolver = parameters.AssemblyResolver;
+
+			if (parameters.Kind != ModuleKind.NetModule) {
 				var assembly = new AssemblyDefinition ();
 				module.assembly = assembly;
 				module.assembly.Name = new AssemblyNameDefinition (name, new Version (0, 0));
@@ -758,28 +800,19 @@ namespace Mono.Cecil {
 			return module;
 		}
 
-		static TargetRuntime GetCurrentRuntime ()
-		{
-#if !CF
-			return typeof (object).Assembly.ImageRuntimeVersion.ParseRuntime ();
-#else
-			var corlib_version = typeof (object).Assembly.GetName ().Version;
-			switch (corlib_version.Major) {
-			case 1:
-				return corlib_version.Minor == 0
-					? TargetRuntime.Net_1_0
-					: TargetRuntime.Net_1_1;
-			case 2:
-				return TargetRuntime.Net_2_0;
-			case 4:
-				return TargetRuntime.Net_4_0;
-			default:
-				throw new NotSupportedException ();
-			}
 #endif
-		}
 
-#endif
+		public void ReadSymbols ()
+		{
+			if (string.IsNullOrEmpty (fq_name))
+				throw new InvalidOperationException ();
+
+			var provider = SymbolProvider.GetPlatformReaderProvider ();
+
+			SymbolReader = provider.GetSymbolReader (this, fq_name);
+
+			ProcessDebugHeader ();
+		}
 
 		public void ReadSymbols (ISymbolReader reader)
 		{
@@ -808,12 +841,6 @@ namespace Mono.Cecil {
 			}
 		}
 
-		static void CheckParameters (object parameters)
-		{
-			if (parameters == null)
-				throw new ArgumentNullException ("parameters");
-		}
-
 		static void CheckStream (object stream)
 		{
 			if (stream == null)
@@ -825,7 +852,7 @@ namespace Mono.Cecil {
 			CheckStream (stream);
 			if (!stream.CanRead || !stream.CanSeek)
 				throw new ArgumentException ();
-			CheckParameters (parameters);
+			Mixin.CheckParameters (parameters);
 
 			return ModuleReader.CreateModuleFrom (
 				ImageReader.ReadImageFrom (stream),
@@ -866,7 +893,7 @@ namespace Mono.Cecil {
 			CheckStream (stream);
 			if (!stream.CanWrite || !stream.CanSeek)
 				throw new ArgumentException ();
-			CheckParameters (parameters);
+			Mixin.CheckParameters (parameters);
 
 			ModuleWriter.WriteModuleTo (this, stream, parameters);
 		}
@@ -883,9 +910,15 @@ namespace Mono.Cecil {
                 return m_annotations;
             }
         }
-    }
+	}
 
 	static partial class Mixin {
+
+		public static void CheckParameters (object parameters)
+		{
+			if (parameters == null)
+				throw new ArgumentNullException ("parameters");
+		}
 
 		public static bool HasImage (this ModuleDefinition self)
 		{

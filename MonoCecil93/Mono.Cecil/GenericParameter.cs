@@ -141,6 +141,14 @@ namespace Mono.Cecil {
 			get { return true; }
 		}
 
+		internal override bool ContainsGenericParameter {
+			get { return true; }
+		}
+
+		public override MetadataType MetadataType {
+			get { return (MetadataType) etype; }
+		}
+
 		#region GenericParameterAttributes
 
 		public bool IsNonVariant {

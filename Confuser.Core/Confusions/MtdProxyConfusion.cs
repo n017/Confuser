@@ -172,7 +172,7 @@ namespace Confuser.Core.Confusions
                 MethodDefinition bdge;
                 if (!mc.bridges.TryGetValue(bridgeId, out bdge))
                 {
-                    bdge = new MethodDefinition(bridgeId, MethodAttributes.Static | MethodAttributes.Assem, txt.mtdRef.ReturnType);
+                    bdge = new MethodDefinition(bridgeId, MethodAttributes.Static | MethodAttributes.Assembly, txt.mtdRef.ReturnType);
                     if (txt.mtdRef.HasThis)
                     {
                         bdge.Parameters.Add(new ParameterDefinition(Mod.Import(mc.obj)));
