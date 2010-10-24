@@ -41,14 +41,32 @@ namespace Confuser.Core
 
         public static TypeDefinition Inject(ModuleDefinition mod, TypeDefinition type)
         {
-            TypeDefinition ret = new TypeDefinition(type.Name, type.Namespace, type.Attributes);
+            TypeDefinition ret = new TypeDefinition(type.Namespace, type.Name, type.Attributes);
 
             if (type.BaseType != null)
                 ret.BaseType = mod.Import(type.BaseType);
+
+            Dictionary<MetadataToken, IMemberDefinition> mems = new Dictionary<MetadataToken, IMemberDefinition>();
             foreach (FieldDefinition fld in type.Fields)
-                ret.Fields.Add(new FieldDefinition(fld.Name, fld.Attributes, mod.Import(fld.FieldType)));
+            {
+                FieldDefinition n = new FieldDefinition(fld.Name, fld.Attributes, fld.FieldType == type ? ret : mod.Import(fld.FieldType));
+                mems.Add(fld.MetadataToken, n);
+                ret.Fields.Add(n);
+            } 
             foreach (MethodDefinition mtd in type.Methods)
-                ret.Methods.Add(Inject(mod, mtd));
+            {
+                MethodDefinition n = Inject(mod, mtd);
+                mems.Add(mtd.MetadataToken, n);
+                ret.Methods.Add(n);
+            }
+            foreach (MethodDefinition mtd in ret.Methods)
+                if (mtd.HasBody)
+                    foreach (Instruction inst in mtd.Body.Instructions)
+                    {
+                        if ((inst.Operand is FieldReference && ((FieldReference)inst.Operand).DeclaringType == type) ||
+                            (inst.Operand is MethodReference && ((MethodReference)inst.Operand).DeclaringType == type))
+                            inst.Operand = mems[((MemberReference)inst.Operand).MetadataToken];
+                    }
 
 
             return ret;
@@ -56,6 +74,16 @@ namespace Confuser.Core
         public static MethodDefinition Inject(ModuleDefinition mod, MethodDefinition mtd)
         {
             MethodDefinition ret = new MethodDefinition(mtd.Name, mtd.Attributes, mod.Import(mtd.ReturnType));
+            if (mtd.IsPInvokeImpl)
+            {
+                ret.PInvokeInfo = mtd.PInvokeInfo;
+                bool has = false;
+                foreach(ModuleReference modRef in mod.ModuleReferences)
+                    if (modRef.Name == ret.PInvokeInfo.Module.Name)
+                    { has = true; break; }
+                if (!has)
+                    mod.ModuleReferences.Add(ret.PInvokeInfo.Module);
+            }
 
             foreach (ParameterDefinition param in mtd.Parameters)
                 ret.Parameters.Add(new ParameterDefinition(param.Name, param.Attributes, mod.Import(param.ParameterType)));
@@ -95,7 +123,12 @@ namespace Confuser.Core
                             psr.Emit(inst.OpCode, mod.Import(inst.Operand as FieldReference));
                             break;
                         case OperandType.InlineMethod:
-                            psr.Emit(inst.OpCode, mod.Import(inst.Operand as MethodReference));
+                            if (inst.Operand == mtd)
+                                psr.Emit(inst.OpCode, ret);
+                            else if (((MethodReference)inst.Operand).DeclaringType != mtd.DeclaringType)
+                                psr.Emit(inst.OpCode, mod.Import(inst.Operand as MethodReference));
+                            else
+                                psr.Emit(inst.OpCode, (MethodReference)inst.Operand);
                             break;
                         case OperandType.InlineType:
                             psr.Emit(inst.OpCode, mod.Import(inst.Operand as TypeReference));

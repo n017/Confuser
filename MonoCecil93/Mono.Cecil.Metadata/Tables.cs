@@ -75,8 +75,9 @@ namespace Mono.Cecil.Metadata {
 	using ManifestResourceRow = Row<uint, ManifestResourceAttributes, StringIndex, CodedRID>;
 	using NestedClassRow = Row<RID, RID>;
 	using GenericParamRow = Row<ushort, GenericParameterAttributes, CodedRID, StringIndex>;
-	using MethodSpecRow = Row<CodedRID, BlobIndex>;
-	using GenericParamConstraintRow = Row<RID, CodedRID>;
+    using MethodSpecRow = Row<CodedRID, BlobIndex>;
+    using GenericParamConstraintRow = Row<RID, CodedRID>;
+    using ENCLogRow = Row<uint, uint>;
     
 
 	public abstract class MetadataTable {
@@ -618,6 +619,77 @@ namespace Mono.Cecil.Metadata {
 			for (int i = 0; i < length; i++) {
 				buffer.WriteRID (rows [i].Col1, Table.GenericParam);	// Owner
 				buffer.WriteCodedRID (rows [i].Col2, CodedIndex.TypeDefOrRef);	// Constraint
+			}
+		}
+	}
+    
+	public sealed class FieldPtrTable : MetadataTable<RID> {
+
+		public override void Write (TableHeapBuffer buffer)
+		{
+			for (int i = 0; i < length; i++) {
+				buffer.WriteRID (rows [i], Table.Field);	// Field
+			}
+		}
+	}
+    
+	public sealed class MethodPtrTable : MetadataTable<RID> {
+
+		public override void Write (TableHeapBuffer buffer)
+		{
+			for (int i = 0; i < length; i++) {
+				buffer.WriteRID (rows [i], Table.Method);	// Method
+			}
+		}
+	}
+
+	public sealed class ParamPtrTable : MetadataTable<RID> {
+
+		public override void Write (TableHeapBuffer buffer)
+		{
+			for (int i = 0; i < length; i++) {
+				buffer.WriteRID (rows [i], Table.Param);	// Param
+			}
+		}
+	}
+    
+	public sealed class EventPtrTable : MetadataTable<RID> {
+
+		public override void Write (TableHeapBuffer buffer)
+		{
+			for (int i = 0; i < length; i++) {
+				buffer.WriteRID (rows [i], Table.Event);	// Event
+			}
+		}
+	}
+    
+	public sealed class PropertyPtrTable : MetadataTable<RID> {
+
+		public override void Write (TableHeapBuffer buffer)
+		{
+			for (int i = 0; i < length; i++) {
+				buffer.WriteRID (rows [i], Table.Property);	// Property
+			}
+		}
+	}
+    
+	public sealed class ENCLogTable : MetadataTable<ENCLogRow> {
+
+		public override void Write (TableHeapBuffer buffer)
+		{
+			for (int i = 0; i < length; i++) {
+				buffer.WriteUInt32 (rows [i].Col1);	// Token
+				buffer.WriteUInt32 (rows [i].Col2);	// FuncCode
+			}
+		}
+	}
+
+	public sealed class ENCMapTable : MetadataTable<uint> {
+
+		public override void Write (TableHeapBuffer buffer)
+		{
+			for (int i = 0; i < length; i++) {
+				buffer.WriteUInt32 (rows [i]);	// Token
 			}
 		}
 	}

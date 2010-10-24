@@ -52,21 +52,20 @@ namespace Confuser.Core.Confusions
         }
         public override bool WholeRun
         {
-            get { return true; }
+            get { return false; }
         }
         public override void Initialize(AssemblyDefinition asm)
         {
-            this.asm = asm;
+            //
         }
         public override void DeInitialize()
         {
             //
         }
 
-        AssemblyDefinition asm;
         public override void Process(ConfusionParameter parameter)
         {
-            foreach (ModuleDefinition mod in asm.Modules)
+            foreach (ModuleDefinition mod in (parameter.Target as AssemblyDefinition).Modules)
             {
                 MethodReference ctor = mod.Import(typeof(SuppressIldasmAttribute).GetConstructor(Type.EmptyTypes));
                 bool has = false;

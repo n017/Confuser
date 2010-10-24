@@ -378,7 +378,6 @@ namespace Confuser.Core.Confusions
         Dictionary<string, FieldDefinition> fields;
         Dictionary<string, MethodDefinition> bridges;
         MethodDefinition proxy;
-        MethodDefinition holder;
         private class Context { public MethodBody bdy; public bool isVirt; public Instruction inst; public FieldDefinition fld; public TypeDefinition dele; public MethodReference mtdRef;}
         List<Context> txts;
         TypeReference mcd;

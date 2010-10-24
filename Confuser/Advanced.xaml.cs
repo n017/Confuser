@@ -619,15 +619,6 @@ namespace Confuser
         }
         void Copy(IAnnotationProvider src, IAnnotationProvider dst)
         {
-            Core.Target target;
-            if (src is AssemblyDefinition) target = Core.Target.Assembly;
-            else if (src is ModuleDefinition) target = (Core.Target)0xff;
-            else if (src is TypeDefinition) target = Core.Target.Types;
-            else if (src is MethodDefinition) target = Core.Target.Methods;
-            else if (src is FieldDefinition) target = Core.Target.Fields;
-            else if (src is PropertyDefinition) target = Core.Target.Properties;
-            else if (src is EventDefinition) target = Core.Target.Events;
-            else throw new InvalidOperationException();
             Dictionary<Core.IConfusion, NameValueCollection> now = new Dictionary<Core.IConfusion, NameValueCollection>();
             if (src.Annotations.Contains("ConfusionSets"))
             {
