@@ -120,7 +120,10 @@ namespace Confuser.Core
                             psr.Emit(inst.OpCode, bdy.Variables[var]);
                             break;
                         case OperandType.InlineField:
-                            psr.Emit(inst.OpCode, mod.Import(inst.Operand as FieldReference));
+                            if (((FieldReference)inst.Operand).DeclaringType != mtd.DeclaringType)
+                                psr.Emit(inst.OpCode, mod.Import(inst.Operand as FieldReference));
+                            else
+                                psr.Emit(inst.OpCode, (FieldReference)inst.Operand);
                             break;
                         case OperandType.InlineMethod:
                             if (inst.Operand == mtd)

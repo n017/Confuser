@@ -29,7 +29,7 @@ namespace Confuser.Core.Confusions
             {
                 get { return true; }
             }
-            public override void Initialize(AssemblyDefinition asm)
+            public override void Initialize(ModuleDefinition mod)
             {
                 //
             }
@@ -65,7 +65,7 @@ namespace Confuser.Core.Confusions
             {
                 get { return true; }
             }
-            public override void Initialize(AssemblyDefinition asm)
+            public override void Initialize(ModuleDefinition mod)
             {
                 //
             }

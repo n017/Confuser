@@ -38,15 +38,15 @@ namespace Confuser.Core.Confusions
                 get { return false; }
             }
 
-            AssemblyDefinition asm;
-            public override void Initialize(AssemblyDefinition asm)
+            ModuleDefinition mod;
+            public override void Initialize(ModuleDefinition mod)
             {
-                this.asm = asm;
+                this.mod = mod;
 
-                cc.mcd = asm.MainModule.Import(typeof(MulticastDelegate));
-                cc.v = asm.MainModule.Import(typeof(void));
-                cc.obj = asm.MainModule.Import(typeof(object));
-                cc.ptr = asm.MainModule.Import(typeof(IntPtr));
+                cc.mcd = mod.Import(typeof(MulticastDelegate));
+                cc.v = mod.Import(typeof(void));
+                cc.obj = mod.Import(typeof(object));
+                cc.ptr = mod.Import(typeof(IntPtr));
 
                 cc.txts = new List<Context>();
                 cc.delegates = new Dictionary<string, TypeDefinition>();
@@ -55,11 +55,11 @@ namespace Confuser.Core.Confusions
             }
             public override void DeInitialize()
             {
-                TypeDefinition mod = asm.MainModule.GetType("<Module>");
+                TypeDefinition modType = mod.GetType("<Module>");
                 AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(CtorProxyConfusion).Assembly.Location);
                 cc.proxy = i.MainModule.GetType(typeof(CtorProxyConfusion).FullName).Methods.FirstOrDefault(mtd => mtd.Name == "Injection");
-                cc.proxy = CecilHelper.Inject(asm.MainModule, cc.proxy);
-                mod.Methods.Add(cc.proxy);
+                cc.proxy = CecilHelper.Inject(mod, cc.proxy);
+                modType.Methods.Add(cc.proxy);
                 cc.proxy.IsAssembly = true;
                 cc.proxy.Name = ObfuscationHelper.GetNewName("Proxy" + Guid.NewGuid().ToString());
             }
@@ -79,7 +79,7 @@ namespace Confuser.Core.Confusions
                             !((inst.Operand as MethodReference).DeclaringType is GenericInstanceType) &&
                             !(inst.Operand is GenericInstanceMethod))
                         {
-                            CreateDelegate(mtd.Body, inst, inst.Operand as MethodReference, asm.MainModule);
+                            CreateDelegate(mtd.Body, inst, inst.Operand as MethodReference, mod);
                         }
                     }
                     progresser.SetProgress((i + 1) / (double)targets.Count);
@@ -90,7 +90,7 @@ namespace Confuser.Core.Confusions
                     interval = (int)total / 100;
                 for (int i = 0; i < cc.txts.Count; i++)
                 {
-                    CreateFieldBridge(asm.MainModule, cc.txts[i]);
+                    CreateFieldBridge(mod, cc.txts[i]);
                     if (i % interval == 0 || i == cc.txts.Count - 1)
                         progresser.SetProgress((i + 1) / total);
                 }
@@ -215,10 +215,10 @@ namespace Confuser.Core.Confusions
                 get { return false; }
             }
 
-            AssemblyDefinition asm;
-            public override void Initialize(AssemblyDefinition asm)
+            ModuleDefinition mod;
+            public override void Initialize(ModuleDefinition mod)
             {
-                this.asm = asm;
+                this.mod = mod;
             }
             public override void DeInitialize()
             {
@@ -292,7 +292,7 @@ namespace Confuser.Core.Confusions
                 get { return true; }
             }
 
-            public override void Initialize(AssemblyDefinition asm)
+            public override void Initialize(ModuleDefinition mod)
             {
                 //
             }

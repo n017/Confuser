@@ -206,30 +206,9 @@ namespace Confuser
                 confuser.Abort();
                 return;
             }
+            if (!Directory.Exists(System.IO.Path.GetDirectoryName(output.Text)))
+                Directory.CreateDirectory(System.IO.Path.GetDirectoryName(output.Text));
 
-            Stream src;
-            try
-            {
-                src = new FileStream(path, FileMode.Open, FileAccess.Read);
-            }
-            catch
-            {
-                MessageBox.Show("Cannot access source assembly", "Confuser", MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
-            }
-
-            Stream dst;
-            try
-            {
-                if (!Directory.Exists(System.IO.Path.GetDirectoryName(output.Text)))
-                    Directory.CreateDirectory(System.IO.Path.GetDirectoryName(output.Text));
-                dst = new FileStream(output.Text, FileMode.Create);
-            }
-            catch
-            {
-                MessageBox.Show("Cannot access destination path", "Confuser", MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
-            }
             var param = new Core.ConfuserParameter();
             param.ReferencesPath = System.IO.Path.GetDirectoryName(path);
             param.Confusions = ldConfusions.Values.ToArray();
@@ -330,7 +309,7 @@ namespace Confuser
             MoniterValue();
             CONFUSING();
             doConfuse.Content = "Cancel";
-            confuser = cr.ConfuseAsync(src, dst, param);
+            confuser = cr.ConfuseAsync(path, output.Text, param);
         }
 
         double value = 0;

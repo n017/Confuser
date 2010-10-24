@@ -164,7 +164,7 @@ namespace Confuser.Core.Confusions
         {
             get { return false; }
         }
-        public override void Initialize(AssemblyDefinition asm)
+        public override void Initialize(ModuleDefinition mod)
         {
             rad = new Random();
         }

@@ -59,14 +59,14 @@ namespace Confuser.Core
 
     static class Compressor
     {
-        public static void Compress(Confuser cr, byte[] asm, AssemblyDefinition o, Stream dst)
+        public static void Compress(Confuser cr, byte[] asm, ModuleDefinition mod, Stream dst)
         {
-            if (o.MainModule.Kind == ModuleKind.Dll)
+            if (mod.Kind == ModuleKind.Dll || mod.Kind == ModuleKind.NetModule)
             {
                 dst.Write(asm, 0, asm.Length);
                 return;
             }
-            AssemblyDefinition ldr = AssemblyDefinition.CreateAssembly(new AssemblyNameDefinition("ConfusingLoader_" + o.Name.Name, o.Name.Version), "ConfusingLoader", ModuleKind.Windows);
+            AssemblyDefinition ldr = AssemblyDefinition.CreateAssembly(mod.Assembly.Name, mod.Name, ModuleKind.Windows);
 
             EmbeddedResource res = new EmbeddedResource(Encoding.UTF8.GetString(Guid.NewGuid().ToByteArray()), ManifestResourceAttributes.Public, Encrypt(asm));
             ldr.MainModule.Resources.Add(res);

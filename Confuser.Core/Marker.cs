@@ -6,13 +6,21 @@ using System.Text.RegularExpressions;
 using Mono.Cecil;
 using Mono.Collections.Generic;
 using System.Collections.Specialized;
+using System.IO;
 
 namespace Confuser.Core
 {
+    public struct AssemblyData
+    {
+        public AssemblyDefinition Assembly;
+        public string TargetPath;
+    }
+
     public interface IMarker
     {
         void Initalize(IConfusion[] cions);
         void MarkAssembly(AssemblyDefinition asm, Preset preset);
+        AssemblyData[] ExtractDatas(string src, string dst);
     }
 
     class DefaultMarker : IMarker
@@ -279,6 +287,14 @@ namespace Confuser.Core
                 }
 
             setting.LeaveLevel();
+        }
+
+        public AssemblyData[] ExtractDatas(string src, string dst)
+        {
+            AssemblyData ret = new AssemblyData();
+            ret.Assembly = AssemblyDefinition.ReadAssembly(src, new ReaderParameters(ReadingMode.Immediate));
+            ret.TargetPath = dst;
+            return new AssemblyData[] { ret };
         }
     }
 }

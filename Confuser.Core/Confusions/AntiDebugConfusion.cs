@@ -135,37 +135,37 @@ namespace Confuser.Core.Confusions
         }
         public override bool WholeRun
         {
-            get { return false; }
+            get { return true; }
         }
 
-        public override void Initialize(AssemblyDefinition asm)
+        public override void Initialize(ModuleDefinition mod)
         {
-            //
+            this.mod = mod;
         }
         public override void DeInitialize()
         {
             //
         }
 
+        ModuleDefinition mod;
         public override void Process(ConfusionParameter parameter)
         {
             AssemblyDefinition self = AssemblyDefinition.ReadAssembly(typeof(StringConfusion).Assembly.Location);
-            ModuleDefinition mainMod = ((AssemblyDefinition)parameter.Target).MainModule;
-            if (Array.IndexOf(parameter.Parameters.AllKeys, "win32") != -1)
+            if (Array.IndexOf(parameter.GlobalParameters.AllKeys, "win32") != -1)
             {
-                TypeDefinition type = CecilHelper.Inject(mainMod, self.MainModule.GetType(typeof(AntiDebugWin32).FullName));
+                TypeDefinition type = CecilHelper.Inject(mod, self.MainModule.GetType(typeof(AntiDebugWin32).FullName));
                 type.Name = "AntiDebugModule"; type.Namespace = "";
-                mainMod.Types.Add(type);
-                TypeDefinition mod = mainMod.GetType("<Module>");
-                ILProcessor psr = mod.GetStaticConstructor().Body.GetILProcessor();
+                mod.Types.Add(type);
+                TypeDefinition modType = mod.GetType("<Module>");
+                ILProcessor psr = modType.GetStaticConstructor().Body.GetILProcessor();
                 psr.InsertBefore(psr.Body.Instructions.Count - 1, Instruction.Create(OpCodes.Call, type.Methods.FirstOrDefault(mtd => mtd.Name == "Initialize")));
             }
             else
             {
-                MethodDefinition i = CecilHelper.Inject(mainMod, self.MainModule.GetType(typeof(AntiDebugConfusion).FullName).Methods.FirstOrDefault(mtd => mtd.Name == "AntiDebugSafe"));
-                TypeDefinition mod = mainMod.GetType("<Module>");
-                mod.Methods.Add(i);
-                ILProcessor psr = mod.GetStaticConstructor().Body.GetILProcessor();
+                MethodDefinition i = CecilHelper.Inject(mod, self.MainModule.GetType(typeof(AntiDebugConfusion).FullName).Methods.FirstOrDefault(mtd => mtd.Name == "AntiDebugSafe"));
+                TypeDefinition modType = mod.GetType("<Module>");
+                modType.Methods.Add(i);
+                ILProcessor psr = modType.GetStaticConstructor().Body.GetILProcessor();
                 psr.InsertBefore(psr.Body.Instructions.Count - 1, Instruction.Create(OpCodes.Call, i));
             }
         }

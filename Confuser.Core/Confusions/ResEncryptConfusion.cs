@@ -35,10 +35,10 @@ namespace Confuser.Core.Confusions
                 get { return true; }
             }
 
-            AssemblyDefinition asm;
-            public override void Initialize(AssemblyDefinition asm)
+            ModuleDefinition mod;
+            public override void Initialize(ModuleDefinition mod)
             {
-                this.asm = asm;
+                this.mod = mod;
             }
             public override void DeInitialize()
             {
@@ -48,12 +48,12 @@ namespace Confuser.Core.Confusions
             {
                 rc.dats = new List<KeyValuePair<string, byte[]>>();
 
-                TypeDefinition mod = asm.MainModule.GetType("<Module>");
+                TypeDefinition modType = mod.GetType("<Module>");
 
                 AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(StringConfusion).Assembly.Location);
                 rc.reso = i.MainModule.GetType(typeof(ResEncryptConfusion).FullName).Methods.FirstOrDefault(mtd => mtd.Name == "Injection");
-                rc.reso = CecilHelper.Inject(asm.MainModule, rc.reso);
-                mod.Methods.Add(rc.reso);
+                rc.reso = CecilHelper.Inject(mod, rc.reso);
+                modType.Methods.Add(rc.reso);
                 byte[] n = Guid.NewGuid().ToByteArray();
                 rc.reso.Name = Encoding.UTF8.GetString(n);
                 rc.reso.IsAssembly = true;
@@ -74,22 +74,22 @@ namespace Confuser.Core.Confusions
                     else if (inst.Operand is int && (int)inst.Operand == 0x22)
                         inst.Operand = (int)rc.key1;
                     else if (inst.Operand is TypeReference && (inst.Operand as TypeReference).FullName == "System.Exception")
-                        inst.Operand = mod;
+                        inst.Operand = modType;
                 }
                 rc.reso.Body.OptimizeMacros();
                 rc.reso.Body.ComputeOffsets();
 
                 rc.resId = Encoding.UTF8.GetString(n);
 
-                MethodDefinition cctor = asm.MainModule.GetType("<Module>").GetStaticConstructor();
+                MethodDefinition cctor = mod.GetType("<Module>").GetStaticConstructor();
                 MethodBody bdy = cctor.Body as MethodBody;
                 bdy.Instructions.RemoveAt(bdy.Instructions.Count - 1);
                 ILProcessor psr = bdy.GetILProcessor();
-                psr.Emit(OpCodes.Call, asm.MainModule.Import(typeof(AppDomain).GetProperty("CurrentDomain").GetGetMethod()));
+                psr.Emit(OpCodes.Call, mod.Import(typeof(AppDomain).GetProperty("CurrentDomain").GetGetMethod()));
                 psr.Emit(OpCodes.Ldnull);
                 psr.Emit(OpCodes.Ldftn, rc.reso);
-                psr.Emit(OpCodes.Newobj, asm.MainModule.Import(typeof(ResolveEventHandler).GetConstructor(new Type[] { typeof(object), typeof(IntPtr) })));
-                psr.Emit(OpCodes.Callvirt, asm.MainModule.Import(typeof(AppDomain).GetEvent("ResourceResolve").GetAddMethod()));
+                psr.Emit(OpCodes.Newobj, mod.Import(typeof(ResolveEventHandler).GetConstructor(new Type[] { typeof(object), typeof(IntPtr) })));
+                psr.Emit(OpCodes.Callvirt, mod.Import(typeof(AppDomain).GetEvent("ResourceResolve").GetAddMethod()));
                 psr.Emit(OpCodes.Ret);
             }
         }
@@ -113,7 +113,7 @@ namespace Confuser.Core.Confusions
             {
                 get { return true; }
             }
-            public override void Initialize(AssemblyDefinition asm)
+            public override void Initialize(ModuleDefinition mod)
             {
                 //
             }

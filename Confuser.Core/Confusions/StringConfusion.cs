@@ -41,9 +41,9 @@ namespace Confuser.Core.Confusions
                 get { return true; }
             }
 
-            public override void Initialize(AssemblyDefinition asm)
+            public override void Initialize(ModuleDefinition mod)
             {
-                this.asm = asm;
+                this.mod = mod;
             }
 
             public override void DeInitialize()
@@ -51,7 +51,7 @@ namespace Confuser.Core.Confusions
                 //
             }
 
-            AssemblyDefinition asm;
+            ModuleDefinition mod;
             public override void Process(ConfusionParameter parameter)
             {
                 if (Array.IndexOf(parameter.GlobalParameters.AllKeys, "safe") != -1)
@@ -63,12 +63,12 @@ namespace Confuser.Core.Confusions
                 sc.idx = 0;
 
                 Random rand = new Random();
-                TypeDefinition mod = asm.MainModule.GetType("<Module>");
+                TypeDefinition modType = mod.GetType("<Module>");
 
                 AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(StringConfusion).Assembly.Location);
                 sc.strer = i.MainModule.GetType(typeof(StringConfusion).FullName).Methods.FirstOrDefault(mtd => mtd.Name == "Injection");
-                sc.strer = CecilHelper.Inject(asm.MainModule, sc.strer);
-                mod.Methods.Add(sc.strer);
+                sc.strer = CecilHelper.Inject(mod, sc.strer);
+                modType.Methods.Add(sc.strer);
                 byte[] n = new byte[0x10]; rand.NextBytes(n);
                 sc.strer.Name = Encoding.UTF8.GetString(n);
                 sc.strer.IsAssembly = true;
@@ -115,7 +115,7 @@ namespace Confuser.Core.Confusions
                                 tmp = read7be.Body.Instructions[ii];
                             }
                             else if (tmp.Operand is MethodReference)
-                                tmp.Operand = asm.MainModule.Import(tmp.Operand as MethodReference);
+                                tmp.Operand = mod.Import(tmp.Operand as MethodReference);
                             arg[ii] = tmp;
                         }
 
@@ -140,12 +140,12 @@ namespace Confuser.Core.Confusions
                 sc.idx = 0;
 
                 Random rand = new Random();
-                TypeDefinition mod = asm.MainModule.GetType("<Module>");
+                TypeDefinition modType = mod.GetType("<Module>");
 
                 AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(StringConfusion).Assembly.Location);
                 sc.strer = i.MainModule.GetType(typeof(StringConfusion).FullName).Methods.FirstOrDefault(mtd => mtd.Name == "InjectionSafe");
-                sc.strer = CecilHelper.Inject(asm.MainModule, sc.strer);
-                mod.Methods.Add(sc.strer);
+                sc.strer = CecilHelper.Inject(mod, sc.strer);
+                modType.Methods.Add(sc.strer);
                 byte[] n = new byte[0x10]; rand.NextBytes(n);
                 sc.strer.Name = Encoding.UTF8.GetString(n);
                 sc.strer.IsAssembly = true;
@@ -195,9 +195,9 @@ namespace Confuser.Core.Confusions
                 get { return false; }
             }
 
-            public override void Initialize(AssemblyDefinition asm)
+            public override void Initialize(ModuleDefinition mod)
             {
-                this.asm = asm;
+                this.mod = mod;
             }
 
             public override void DeInitialize()
@@ -208,11 +208,11 @@ namespace Confuser.Core.Confusions
                     foreach (byte[] b in sc.dats)
                         wtr.Write(b);
                 }
-                asm.MainModule.Resources.Add(new EmbeddedResource(sc.resId, ManifestResourceAttributes.Private, str.ToArray()));
+                mod.Resources.Add(new EmbeddedResource(sc.resId, ManifestResourceAttributes.Private, str.ToArray()));
             }
 
             struct Context { public MethodDefinition mtd; public ILProcessor psr; public Instruction str;}
-            AssemblyDefinition asm;
+            ModuleDefinition mod;
             public override void Process(ConfusionParameter parameter)
             {
                 if (Array.IndexOf(parameter.GlobalParameters.AllKeys, "safe") != -1)

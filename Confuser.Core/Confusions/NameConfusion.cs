@@ -36,28 +36,27 @@ namespace Confuser.Core.Confusions
                 get { return false; }
             }
 
-            AssemblyDefinition asm;
-            public override void Initialize(AssemblyDefinition asm)
+            ModuleDefinition mod;
+            public override void Initialize(ModuleDefinition mod)
             {
-                this.asm = asm;
+                this.mod = mod;
             }
 
             public override void DeInitialize()
             {
-                foreach(ModuleDefinition mod in asm.Modules)
-                    foreach (Resource res in mod.Resources)
+                foreach (Resource res in mod.Resources)
+                {
+                    string cult = mod.Assembly.Name.Culture;
+                    Identifier id = new Identifier()
                     {
-                        string cult = mod.Assembly.Name.Culture;
-                        Identifier id = new Identifier()
-                        {
-                            typeName = string.IsNullOrEmpty(cult) ? res.Name.Substring(0, res.Name.LastIndexOf('.')) : res.Name.Substring(0, res.Name.LastIndexOf('.', res.Name.LastIndexOf('.') - 1)),
-                            memberName = string.IsNullOrEmpty(cult) ? res.Name.Substring(res.Name.LastIndexOf('.') + 1) : res.Name.Substring(res.Name.LastIndexOf('.', res.Name.LastIndexOf('.') - 1) + 1)
-                        };
-                        foreach (IReference refer in (res as IAnnotationProvider).Annotations["RenRef"] as List<IReference>)
-                        {
-                            refer.UpdateReference(id, id);
-                        }
+                        typeName = string.IsNullOrEmpty(cult) ? res.Name.Substring(0, res.Name.LastIndexOf('.')) : res.Name.Substring(0, res.Name.LastIndexOf('.', res.Name.LastIndexOf('.') - 1)),
+                        memberName = string.IsNullOrEmpty(cult) ? res.Name.Substring(res.Name.LastIndexOf('.') + 1) : res.Name.Substring(res.Name.LastIndexOf('.', res.Name.LastIndexOf('.') - 1) + 1)
+                    };
+                    foreach (IReference refer in (res as IAnnotationProvider).Annotations["RenRef"] as List<IReference>)
+                    {
+                        refer.UpdateReference(id, id);
                     }
+                }
             }
 
             public override void Process(ConfusionParameter parameter)

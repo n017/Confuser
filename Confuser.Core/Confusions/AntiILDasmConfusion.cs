@@ -52,33 +52,31 @@ namespace Confuser.Core.Confusions
         }
         public override bool WholeRun
         {
-            get { return false; }
+            get { return true; }
         }
-        public override void Initialize(AssemblyDefinition asm)
+        public override void Initialize(ModuleDefinition mod)
         {
-            //
+            this.mod = mod;
         }
         public override void DeInitialize()
         {
             //
         }
 
+        ModuleDefinition mod;
         public override void Process(ConfusionParameter parameter)
         {
-            foreach (ModuleDefinition mod in (parameter.Target as AssemblyDefinition).Modules)
-            {
-                MethodReference ctor = mod.Import(typeof(SuppressIldasmAttribute).GetConstructor(Type.EmptyTypes));
-                bool has = false;
-                foreach (CustomAttribute att in mod.CustomAttributes)
-                    if (att.Constructor.ToString() == ctor.ToString())
-                    {
-                        has = true;
-                        break;
-                    }
+            MethodReference ctor = mod.Import(typeof(SuppressIldasmAttribute).GetConstructor(Type.EmptyTypes));
+            bool has = false;
+            foreach (CustomAttribute att in mod.CustomAttributes)
+                if (att.Constructor.ToString() == ctor.ToString())
+                {
+                    has = true;
+                    break;
+                }
 
-                if (!has)
-                    mod.CustomAttributes.Add(new CustomAttribute(ctor));
-            }
+            if (!has)
+                mod.CustomAttributes.Add(new CustomAttribute(ctor));
         }
     }
 }

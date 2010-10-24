@@ -27,8 +27,9 @@ namespace Confuser.Core
         Fields = 4,
         Events = 8,
         Properties = 16,
-        All = 31,
-        Assembly = 64,
+        Module = 64,
+        Assembly = 128,
+        All = 255,
     }
     public enum Preset
     {
@@ -73,7 +74,7 @@ namespace Confuser.Core
         public abstract int PhaseID { get; }
         public abstract Priority Priority { get; }
         public abstract bool WholeRun { get; }
-        public abstract void Initialize(AssemblyDefinition asm);
+        public abstract void Initialize(ModuleDefinition mod);
         public abstract void DeInitialize();
         public virtual IEngine GetEngine() { return null; }
     }
