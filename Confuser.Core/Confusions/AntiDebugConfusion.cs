@@ -22,6 +22,7 @@ namespace Confuser.Core.Confusions
         [DllImport("kernel32.dll")]
         static extern bool CloseHandle(IntPtr hObject);
 
+        [System.Reflection.Obfuscation(Feature = "-[rename]", Exclude = false)]
         public static void Initialize()
         {
             System.Diagnostics.Process.EnterDebugMode();
@@ -90,7 +91,7 @@ namespace Confuser.Core.Confusions
             thread.Start();
         }
     }
-    class AntiDebugConfusion : StructurePhase, IConfusion
+    public class AntiDebugConfusion : StructurePhase, IConfusion
     {
         public string Name
         {
@@ -170,6 +171,7 @@ namespace Confuser.Core.Confusions
             }
         }
 
+        [System.Reflection.Obfuscation(Feature = "-[rename]", Exclude = false)]
         private static void AntiDebugSafe()
         {
             if (Debugger.IsAttached || Debugger.IsLogging())

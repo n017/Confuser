@@ -72,22 +72,25 @@ namespace Confuser.Core.Confusions
             IMemberDefinition def = parameter.Target as IMemberDefinition;
 
             TypeDefinition t;
-            if ((t = def as TypeDefinition) != null && t.IsEnum && !IsTypePublic(t))
+            if ((t = def as TypeDefinition) != null && !IsTypePublic(t))
             {
-                int idx = 0;
-                while (t.Fields.Count != 1)
-                    if (t.Fields[idx].Name != "value__")
-                        t.Fields.RemoveAt(idx);
-                    else
-                        idx++;
-            }
-            else if (def is EventDefinition)
-            {
-                def.DeclaringType.Events.Remove(def as EventDefinition);
-            }
-            else if (def is PropertyDefinition)
-            {
-                def.DeclaringType.Properties.Remove(def as PropertyDefinition);
+                if (t.IsEnum)
+                {
+                    int idx = 0;
+                    while (t.Fields.Count != 1)
+                        if (t.Fields[idx].Name != "value__")
+                            t.Fields.RemoveAt(idx);
+                        else
+                            idx++;
+                }
+                else if (def is EventDefinition)
+                {
+                    def.DeclaringType.Events.Remove(def as EventDefinition);
+                }
+                else if (def is PropertyDefinition)
+                {
+                    def.DeclaringType.Properties.Remove(def as PropertyDefinition);
+                }
             }
         }
 

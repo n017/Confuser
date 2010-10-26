@@ -13,6 +13,7 @@ using Mono.Cecil.Rocks;
 
 namespace Confuser.Core
 {
+    [System.Reflection.Obfuscation(Feature="-[rename]", Exclude=false)]
     static class ConfusingLoader
     {
         static byte[] Decrypt(byte[] asm)

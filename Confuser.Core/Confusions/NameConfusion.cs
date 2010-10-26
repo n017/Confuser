@@ -49,8 +49,8 @@ namespace Confuser.Core.Confusions
                     string cult = mod.Assembly.Name.Culture;
                     Identifier id = new Identifier()
                     {
-                        typeName = string.IsNullOrEmpty(cult) ? res.Name.Substring(0, res.Name.LastIndexOf('.')) : res.Name.Substring(0, res.Name.LastIndexOf('.', res.Name.LastIndexOf('.') - 1)),
-                        memberName = string.IsNullOrEmpty(cult) ? res.Name.Substring(res.Name.LastIndexOf('.') + 1) : res.Name.Substring(res.Name.LastIndexOf('.', res.Name.LastIndexOf('.') - 1) + 1)
+                        scope = string.IsNullOrEmpty(cult) ? res.Name.Substring(0, res.Name.LastIndexOf('.')) : res.Name.Substring(0, res.Name.LastIndexOf('.', res.Name.LastIndexOf('.') - 1)),
+                        name = string.IsNullOrEmpty(cult) ? res.Name.Substring(res.Name.LastIndexOf('.') + 1) : res.Name.Substring(res.Name.LastIndexOf('.', res.Name.LastIndexOf('.') - 1) + 1)
                     };
                     foreach (IReference refer in (res as IAnnotationProvider).Annotations["RenRef"] as List<IReference>)
                     {
@@ -71,7 +71,8 @@ namespace Confuser.Core.Confusions
                         type.Namespace = "";
                         Identifier id = (Identifier)(type as IAnnotationProvider).Annotations["RenId"];
                         Identifier n = id;
-                        n.typeName = type.FullName;
+                        n.name = type.Name;
+                        n.scope = type.Namespace;
                         foreach (IReference refer in (type as IAnnotationProvider).Annotations["RenRef"] as List<IReference>)
                         {
                             refer.UpdateReference(id, n);
@@ -88,8 +89,8 @@ namespace Confuser.Core.Confusions
                     mem.Name = ObfuscationHelper.GetNewName(mem.Name);
                     Identifier id = (Identifier)(mem as IAnnotationProvider).Annotations["RenId"];
                     Identifier n = id;
-                    n.typeName = mem.DeclaringType.FullName;
-                    n.memberName = mem.Name;
+                    n.scope = mem.DeclaringType.FullName;
+                    n.name = mem.Name;
                     foreach (IReference refer in (mem as IAnnotationProvider).Annotations["RenRef"] as List<IReference>)
                     {
                         refer.UpdateReference(id, n);
@@ -104,8 +105,8 @@ namespace Confuser.Core.Confusions
                     mtd.Name = ObfuscationHelper.GetNewName(mtd.Name);
                     Identifier id = (Identifier)(mtd as IAnnotationProvider).Annotations["RenId"];
                     Identifier n = id;
-                    n.typeName = mtd.DeclaringType.FullName;
-                    n.memberName = mtd.Name;
+                    n.scope = mtd.DeclaringType.FullName;
+                    n.name = mtd.Name;
                     foreach (IReference refer in (mtd as IAnnotationProvider).Annotations["RenRef"] as List<IReference>)
                     {
                         refer.UpdateReference(id, n);

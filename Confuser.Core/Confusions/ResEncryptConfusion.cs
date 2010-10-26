@@ -174,7 +174,7 @@ namespace Confuser.Core.Confusions
         }
         public string ID
         {
-            get { return "resource encrypt"; }
+            get { return "res encrypt"; }
         }
         public string Name
         {
@@ -225,6 +225,7 @@ namespace Confuser.Core.Confusions
             return ret;
         }
 
+        [System.Reflection.Obfuscation(Feature = "-[rename]", Exclude = false)]
         static System.Reflection.Assembly Injection(object sender, ResolveEventArgs args)
         {
             System.Reflection.Assembly datAsm;

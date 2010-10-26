@@ -33,12 +33,12 @@ namespace Mono.Cecil {
 
 	public static class GlobalAssemblyResolver {
 
-		public static readonly IAssemblyResolver Instance = new DefaultAssemblyResolver ();
+		public static readonly DefaultAssemblyResolver Instance = new DefaultAssemblyResolver ();
 	}
 
 	public class DefaultAssemblyResolver : BaseAssemblyResolver {
 
-		public readonly IDictionary<string, AssemblyDefinition> AssemblyCache;
+        public readonly IDictionary<string, AssemblyDefinition> AssemblyCache;
 
 		public DefaultAssemblyResolver ()
 		{
@@ -50,12 +50,24 @@ namespace Mono.Cecil {
 			if (name == null)
 				throw new ArgumentNullException ("name");
 
-			AssemblyDefinition assembly;
+            AssemblyDefinition assembly;
             if (AssemblyCache.TryGetValue(name.FullName, out assembly))
 				return assembly;
 
 			assembly = base.Resolve (name);
             AssemblyCache[name.FullName] = assembly;
+
+			return assembly;
+		}
+
+		public override string ResolvePath (AssemblyNameReference name)
+		{
+			if (name == null)
+				throw new ArgumentNullException ("name");
+
+            string assembly = base.ResolvePath (name);
+            if (!AssemblyCache.ContainsKey(name.FullName))
+                AssemblyCache[name.FullName] = base.GetAssembly(assembly);
 
 			return assembly;
 		}

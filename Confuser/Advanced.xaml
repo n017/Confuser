@@ -401,7 +401,7 @@
                 <Grid x:Name="options" VerticalAlignment="Top" Height="100">
                     <TextBox x:Name="output" Margin="115,10,40,0" VerticalAlignment="Top" Height="25" FontWeight="Thin" BorderThickness="0.75" VerticalContentAlignment="Center" BorderBrush="White"/>
                     <Button x:Name="browseOutput" HorizontalAlignment="Right" Margin="0,10,10,0" VerticalAlignment="Top" Width="25" Height="25" Content="..." Background="#00000000" BorderBrush="White" BorderThickness="0.5" FontWeight="Thin" FontSize="10.667" Click="browseClick"/>
-                    <Label Margin="5,10,0,0" VerticalAlignment="Top" Height="25" Content="Output :" Width="105" VerticalContentAlignment="Center" HorizontalContentAlignment="Right" HorizontalAlignment="Left" FontWeight="Thin"/>
+                    <Label Margin="5,10,0,0" VerticalAlignment="Top" Height="25" Content="Output Path :" Width="105" VerticalContentAlignment="Center" HorizontalContentAlignment="Right" HorizontalAlignment="Left" FontWeight="Thin"/>
                     <Label Margin="5,40,0,0" VerticalAlignment="Top" Height="25" Content="Strong Name Key :" HorizontalAlignment="Left" Width="105" HorizontalContentAlignment="Right" VerticalContentAlignment="Center" FontWeight="Thin"/>
                     <TextBox x:Name="sn" Margin="115,40,40,0" VerticalAlignment="Top" Height="25" FontWeight="Thin" BorderThickness="0.75" VerticalContentAlignment="Center" BorderBrush="White"/>
                     <Button x:Name="browseSn" HorizontalAlignment="Right" Margin="0,40,10,0" VerticalAlignment="Top" Width="25" Height="25" Content="..." Background="#00000000" BorderBrush="White" BorderThickness="0.5" FontWeight="Thin" FontSize="10.667" Click="browseClick"/>

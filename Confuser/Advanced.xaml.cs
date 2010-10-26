@@ -20,13 +20,14 @@ using System.Windows.Shapes;
 using System.Windows.Markup;
 using System.Windows.Threading;
 using System.ComponentModel;
+using System.Windows.Interop;
 
 namespace Confuser
 {
 	/// <summary>
 	/// Interaction logic for Advanced.xaml
 	/// </summary>
-	public partial class Advanced : Window
+	public partial class Advanced : Window, System.Windows.Forms.IWin32Window
 	{
 		public Advanced()
 		{
@@ -101,7 +102,8 @@ namespace Confuser
             seltor.IsEnabled = true;
         }
 
-        AssemblyDefinition asm = null;
+        Dictionary<string, AssemblyDefinition> asms = new Dictionary<string, AssemblyDefinition>();
+        MarkingCopyer marker;
         string path;
         private void space_Drop(object sender, DragEventArgs e)
         {
@@ -112,10 +114,11 @@ namespace Confuser
                 {
                     LOADINGassembly();
                     path = file[0];
-                    output.Text = System.IO.Path.GetDirectoryName(path) + "\\Confused\\" + System.IO.Path.GetFileName(path);
+                    output.Text = System.IO.Path.GetDirectoryName(path) + "\\Confused";
                     new Thread(delegate()
                     {
                         bool ok = true;
+                        AssemblyDefinition asm = null;
                         try
                         {
                             asm = AssemblyDefinition.ReadAssembly(path, new ReaderParameters(ReadingMode.Immediate));
@@ -147,8 +150,18 @@ namespace Confuser
                                         if (ico.Height > 64 && ico.Width > 64) icon.Stretch = Stretch.Uniform; else icon.Stretch = Stretch.None;
                                         this.icon.Source = ico;
                                     }
-									
-									elements.LoadAssembly(asm);
+
+                                    marker = new MarkingCopyer(null);
+                                    asms.Clear();
+                                    GlobalAssemblyResolver.Instance.ClearSearchDirectory();
+                                    GlobalAssemblyResolver.Instance.AddSearchDirectory(System.IO.Path.GetDirectoryName(path));
+                                    elements.ClearAssemblies();
+                                    foreach (Core.AssemblyData dat in marker.ExtractDatas(path, ""))
+                                    {
+                                        asms.Add(dat.Assembly.FullName, dat.Assembly);
+                                        elements.LoadAssembly(dat.Assembly);
+                                    }
+                                    marker = new MarkingCopyer(asms);
                                 }
                                 IgotASSEMBLY();
                             }
@@ -158,6 +171,10 @@ namespace Confuser
             }
         }
 
+        public IntPtr Handle
+        {
+            get { return new WindowInteropHelper(this).Handle; }
+        }
         private void browseClick(object sender, RoutedEventArgs e)
         {
             string id = (sender as Button).Name.Substring(6).ToLower();
@@ -170,10 +187,9 @@ namespace Confuser
             }
             else if (id == "output")
             {
-                Microsoft.Win32.SaveFileDialog save = new Microsoft.Win32.SaveFileDialog();
-                save.Filter = "Assembly(*.exe;*.dll)|**.exe;*.dll";
-                if (save.ShowDialog().GetValueOrDefault())
-                    output.Text = save.FileName;
+                System.Windows.Forms.FolderBrowserDialog brow = new System.Windows.Forms.FolderBrowserDialog();
+                if (brow.ShowDialog(this) == System.Windows.Forms.DialogResult.OK)
+                    output.Text = brow.SelectedPath;
             }
         }
         private void exit_Click(object sender, RoutedEventArgs e)
@@ -213,16 +229,16 @@ namespace Confuser
                 confuser.Abort();
                 return;
             }
-            if (!Directory.Exists(System.IO.Path.GetDirectoryName(output.Text)))
-                Directory.CreateDirectory(System.IO.Path.GetDirectoryName(output.Text));
 
             var param = new Core.ConfuserParameter();
+            param.SourceAssembly = path;
+            param.DestinationPath = output.Text;
             param.ReferencesPath = System.IO.Path.GetDirectoryName(path);
             param.Confusions = ldConfusions.Values.ToArray();
             param.DefaultPreset = Core.Preset.None;
             param.CompressOutput = compress.IsChecked.GetValueOrDefault();
             param.StrongNameKeyPath = sn.Text;
-            param.Marker = new MarkingCopyer(asm);
+            param.Marker = marker;
             param.Logger.BeginPhase += new EventHandler<Core.PhaseEventArgs>((sender1, e1) =>
             {
                 this.Dispatcher.Invoke(new Action(delegate
@@ -230,7 +246,6 @@ namespace Confuser
                     Monitor.Enter(this);
                     Border phase = Helper.FindChild<Border>(progress, "phase" + e1.Phase);
                     log = Helper.FindChild<TextBox>(phase, null);
-                    if (log != null) log.Clear();
                     if (pBar != null) pBar.Value = 1;
                     pBar = Helper.FindChild<ProgressBar>(phase, null);
                     if (pBar != null) pBar.Value = 0;
@@ -240,7 +255,7 @@ namespace Confuser
                     sb.Completed += delegate
                     {
                         Monitor.Exit(this);
-                        progress.ScrollToEnd();
+                        progress.ScrollTo(e1.Phase / 5.0);
                     };
                     sb.Begin();
                 }), null);
@@ -317,7 +332,7 @@ namespace Confuser
             MoniterValue();
             CONFUSING();
             doConfuse.Content = "Cancel";
-            confuser = cr.ConfuseAsync(path, output.Text, param);
+            confuser = cr.ConfuseAsync(param);
         }
 
         double value = 0;
@@ -585,16 +600,12 @@ namespace Confuser
         }
     }
 
-    class MarkingCopyer : Core.IMarker
+    class MarkingCopyer : Core.Marker
     {
-        AssemblyDefinition src;
-        public MarkingCopyer(AssemblyDefinition asm)
+        Dictionary<string, AssemblyDefinition> srcs;
+        public MarkingCopyer(Dictionary<string,AssemblyDefinition> asms)
         {
-            src = asm;
-        }
-        public void Initalize(Core.IConfusion[] cions)
-        {
-            //
+            srcs = asms;
         }
         void Copy(IAnnotationProvider src, IAnnotationProvider dst)
         {
@@ -608,12 +619,12 @@ namespace Confuser
             dst.Annotations["GlobalParams"] = new Dictionary<Core.IConfusion, NameValueCollection>();
         }
 
-        public void MarkAssembly(AssemblyDefinition asm, Core.Preset preset)
+        public override void MarkAssembly(AssemblyDefinition asm, Core.Preset preset)
         {
-            Copy(src, asm);
+            Copy(srcs[asm.FullName], asm);
             for (int i = 0; i < asm.Modules.Count; i++)
             {
-                MarkModule(src.Modules[i], asm.Modules[i]);
+                MarkModule(srcs[asm.FullName].Modules[i], asm.Modules[i]);
             }
         }
         void MarkModule(ModuleDefinition src, ModuleDefinition dst)
@@ -647,14 +658,6 @@ namespace Confuser
             {
                 Copy(src.Events[i], dst.Events[i]);
             }
-        }
-
-        public Confuser.Core.AssemblyData[] ExtractDatas(string src, string dst)
-        {
-            Core.AssemblyData ret = new Core.AssemblyData();
-            ret.Assembly = AssemblyDefinition.ReadAssembly(src, new ReaderParameters(ReadingMode.Immediate));
-            ret.TargetPath = dst;
-            return new Core.AssemblyData[] { ret };
         }
     }
 }

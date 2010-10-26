@@ -446,6 +446,8 @@ namespace Confuser.Core.Confusions
             char asmRef = (char)(mod.AssemblyReferences.IndexOf(mtd.DeclaringType.Scope as AssemblyNameReference) + 2);
             return asmRef + virt + mtd.ToString().GetHashCode();
         }
+
+        [System.Reflection.Obfuscation(Feature = "-[rename]", Exclude = false)]
         private static void Injection(RuntimeFieldHandle f)
         {
             var fld = System.Reflection.FieldInfo.GetFieldFromHandle(f);

@@ -18,13 +18,14 @@ using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Markup;
 using System.Windows.Threading;
+using System.Windows.Interop;
 
 namespace Confuser
 {
 	/// <summary>
 	/// Interaction logic for MainUI.xaml
 	/// </summary>
-    public partial class Basic : Window
+    public partial class Basic : Window,System.Windows.Forms.IWin32Window
     {
         public Basic()
         {
@@ -107,7 +108,7 @@ namespace Confuser
                 {
                     LOADINGassembly();
                     path = file[0];
-                    output.Text = System.IO.Path.GetDirectoryName(path) + "\\Confused\\" + System.IO.Path.GetFileName(path);
+                    output.Text = System.IO.Path.GetDirectoryName(path) + "\\Confused";
                     new Thread(delegate()
                     {
                         bool ok = true;
@@ -151,6 +152,11 @@ namespace Confuser
             }
         }
 
+
+        public IntPtr Handle
+        {
+            get { return new WindowInteropHelper(this).Handle; }
+        }
         private void browseClick(object sender, RoutedEventArgs e)
         {
         	string id = (sender as Button).Name.Substring(6).ToLower();
@@ -161,13 +167,12 @@ namespace Confuser
 				if(open.ShowDialog().GetValueOrDefault())
 					sn.Text = open.FileName;
 			}
-			else if(id == "output")
-			{
-				Microsoft.Win32.SaveFileDialog save = new Microsoft.Win32.SaveFileDialog();
-				save.Filter = "Assembly(*.exe;*.dll)|**.exe;*.dll";
-				if(save.ShowDialog().GetValueOrDefault())
-					output.Text = save.FileName;
-			}
+            else if (id == "output")
+            {
+                System.Windows.Forms.FolderBrowserDialog brow = new System.Windows.Forms.FolderBrowserDialog();
+                if (brow.ShowDialog(this) == System.Windows.Forms.DialogResult.OK)
+                    output.Text = brow.SelectedPath;
+            }
         }
         private void exit_Click(object sender, RoutedEventArgs e)
         {   
@@ -206,10 +211,10 @@ namespace Confuser
                 confuser.Abort();
                 return;
             }
-            if (!Directory.Exists(System.IO.Path.GetDirectoryName(output.Text)))
-                Directory.CreateDirectory(System.IO.Path.GetDirectoryName(output.Text));
 
             var param = new Core.ConfuserParameter();
+            param.SourceAssembly = path;
+            param.DestinationPath = output.Text;
             param.ReferencesPath = System.IO.Path.GetDirectoryName(path);
             param.Confusions = ldConfusions.Values.ToArray();
             param.DefaultPreset = (Core.Preset)Enum.Parse(typeof(Core.Preset), (preset.SelectedItem as TextBlock).Text);
@@ -222,7 +227,6 @@ namespace Confuser
                     Monitor.Enter(this);
                     Border phase = Helper.FindChild<Border>(progress, "phase" + e1.Phase);
                     log = Helper.FindChild<TextBox>(phase, null);
-                    if (log != null) log.Clear();
                     if (pBar != null) pBar.Value = 1;
                     pBar = Helper.FindChild<ProgressBar>(phase, null);
                     if (pBar != null) pBar.Value = 0;
@@ -232,7 +236,7 @@ namespace Confuser
                     sb.Completed += delegate
                     {
                         Monitor.Exit(this);
-                        progress.ScrollToEnd();
+                        progress.ScrollTo(e1.Phase / 5.0);
                     };
                     sb.Begin();
                 }), null);
@@ -304,12 +308,16 @@ namespace Confuser
             var cr = new Core.Confuser();
             progress.ScrollToBeginning();
             (this.Resources["resetProgress"] as Storyboard).Begin();
+            Helper.FindChild<TextBox>(phase1, null).Text = "";
+            Helper.FindChild<TextBox>(phase2, null).Text = "";
+            Helper.FindChild<TextBox>(phase3, null).Text = "";
+            Helper.FindChild<TextBox>(phase4, null).Text = "";
             (this.Resources["showProgress"] as Storyboard).Begin();
             Dispatcher.Invoke(new Action(delegate { Thread.Sleep(100); }), DispatcherPriority.SystemIdle);
             MoniterValue();
             CONFUSING();
             doConfuse.Content = "Cancel";
-            confuser = cr.ConfuseAsync(path, output.Text, param);
+            confuser = cr.ConfuseAsync(param);
         }
 
         double value = 0;

@@ -7,6 +7,7 @@ using Mono.Cecil;
 using Mono.Collections.Generic;
 using System.Collections.Specialized;
 using System.IO;
+using System.Xml;
 
 namespace Confuser.Core
 {
@@ -14,17 +15,53 @@ namespace Confuser.Core
     {
         public AssemblyDefinition Assembly;
         public string TargetPath;
+
+        public override int GetHashCode()
+        {
+            return Assembly.FullName.GetHashCode() ^ TargetPath.GetHashCode();
+        }
     }
 
-    public interface IMarker
+    public class Marker
     {
-        void Initalize(IConfusion[] cions);
-        void MarkAssembly(AssemblyDefinition asm, Preset preset);
-        AssemblyData[] ExtractDatas(string src, string dst);
-    }
+        public static readonly List<string> FrameworkAssemblies;
+        static Marker()
+        {
+            FrameworkAssemblies = new List<string>();
+            foreach (FileInfo file in Directory.GetParent(Environment.GetFolderPath(Environment.SpecialFolder.System)).GetDirectories("Microsoft.NET")[0].GetFiles("FrameworkList.xml", SearchOption.AllDirectories))
+            {
+                XmlDocument doc = new XmlDocument();
+                doc.Load(file.FullName);
+                foreach (XmlNode xn in doc.SelectNodes("/FileList/File"))
+                {
+                    AssemblyNameReference an = new AssemblyNameReference(xn.Attributes["AssemblyName"].Value, new Version(xn.Attributes["Version"].Value));
+                    byte[] tkn = new byte[8];
+                    string tknStr = xn.Attributes["PublicKeyToken"].Value;
+                    for (int i = 0; i < 8; i++)
+                        tkn[i] = Convert.ToByte(tknStr.Substring(i * 2, 2), 16);
+                    an.PublicKeyToken = tkn;
+                    an.Culture = xn.Attributes["Culture"].Value;
+                    FrameworkAssemblies.Add(an.FullName);
+                }
+            }
+            foreach (string file in Directory.GetFiles(Directory.GetDirectories(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Reference Assemblies")[0], "FrameworkList.xml", SearchOption.AllDirectories))
+            {
+                XmlDocument doc = new XmlDocument();
+                doc.Load(file);
+                foreach (XmlNode xn in doc.SelectNodes("/FileList/File"))
+                {
+                    AssemblyNameReference an = new AssemblyNameReference(xn.Attributes["AssemblyName"].Value, new Version(xn.Attributes["Version"].Value));
+                    byte[] tkn = new byte[8];
+                    string tknStr = xn.Attributes["PublicKeyToken"].Value;
+                    for (int i = 0; i < 8; i++)
+                        tkn[i] = Convert.ToByte(tknStr.Substring(i * 2, 2), 16);
+                    an.PublicKeyToken = tkn;
+                    an.Culture = xn.Attributes["Culture"].Value;
+                    FrameworkAssemblies.Add(an.FullName);
+                }
+            }
+        }
 
-    class DefaultMarker : IMarker
-    {
         class Settings
         {
             public Settings()
@@ -58,17 +95,17 @@ namespace Confuser.Core
             }
         }
 
-        Dictionary<string, IConfusion> cns;
-        public void Initalize(IConfusion[] cions)
+        protected Dictionary<string, IConfusion> Confusions;
+        public virtual void Initalize(IConfusion[] cions)
         {
-            cns = new Dictionary<string, IConfusion>();
+            Confusions = new Dictionary<string, IConfusion>();
             foreach (IConfusion c in cions)
-                cns.Add(c.ID, c);
+                Confusions.Add(c.ID, c);
         }
 
         private void FillPreset(Preset preset, Dictionary<IConfusion, NameValueCollection> cs)
         {
-            foreach (IConfusion i in cns.Values)
+            foreach (IConfusion i in Confusions.Values)
                 if (i.Preset <= preset && !cs.ContainsKey(i))
                     cs.Add(i, new NameValueCollection());
         }
@@ -155,7 +192,7 @@ namespace Confuser.Core
                         }
                         else
                         {
-                            IConfusion now = (from i in cs.Keys where i.ID == id select i).FirstOrDefault() ?? cns[id];
+                            IConfusion now = (from i in cs.Keys where i.ID == id select i).FirstOrDefault() ?? Confusions[id];
                             if (!cs.ContainsKey(now)) cs[now] = new NameValueCollection();
                             NameValueCollection nv = cs[now];
                             if (!string.IsNullOrEmpty(match.Groups[3].Value))
@@ -175,7 +212,7 @@ namespace Confuser.Core
             }
         }
 
-        public void MarkAssembly(AssemblyDefinition asm, Preset preset)
+        public virtual void MarkAssembly(AssemblyDefinition asm, Preset preset)
         {
             Settings setting = new Settings();
             bool exclude = ProcessAttribute(asm, setting);
@@ -289,12 +326,50 @@ namespace Confuser.Core
             setting.LeaveLevel();
         }
 
-        public AssemblyData[] ExtractDatas(string src, string dst)
+        public virtual AssemblyData[] ExtractDatas(string src, string dstPath)
         {
-            AssemblyData ret = new AssemblyData();
-            ret.Assembly = AssemblyDefinition.ReadAssembly(src, new ReaderParameters(ReadingMode.Immediate));
-            ret.TargetPath = dst;
-            return new AssemblyData[] { ret };
+            Dictionary<string, AssemblyData> ret = new Dictionary<string, AssemblyData>();
+            AssemblyData asmDat = new AssemblyData();
+            asmDat.TargetPath = Path.Combine(dstPath, Path.GetFileName(src));
+            asmDat.Assembly = GlobalAssemblyResolver.Instance.Resolve(AssemblyNameReference.Parse(System.Reflection.AssemblyName.GetAssemblyName(src).FullName));
+            ret.Add(asmDat.Assembly.FullName, asmDat);
+
+            foreach (ModuleDefinition mod in asmDat.Assembly.Modules)
+            {
+                mod.FullLoad();
+                foreach (AssemblyNameReference refer in mod.AssemblyReferences)
+                {
+                    AssemblyData dat = new AssemblyData();
+                    string path = GlobalAssemblyResolver.Instance.ResolvePath(refer);
+                    dat.TargetPath = Path.Combine(dstPath, Path.GetFileName(path));
+                    dat.Assembly = GlobalAssemblyResolver.Instance.Resolve(refer);
+                    if (!FrameworkAssemblies.Contains(refer.FullName) && !ret.ContainsKey(dat.Assembly.FullName))
+                    {
+                        ret.Add(dat.Assembly.FullName, dat);
+                        ExtractData(dat.Assembly, dstPath, ret);
+                    }
+                }
+            }
+            return ret.Values.ToArray();
+        }
+        void ExtractData(AssemblyDefinition asm, string dstPath, Dictionary<string, AssemblyData> ret)
+        {
+            foreach (ModuleDefinition mod in asm.Modules)
+            {
+                mod.FullLoad();
+                foreach (AssemblyNameReference refer in mod.AssemblyReferences)
+                {
+                    AssemblyData dat = new AssemblyData();
+                    string path = GlobalAssemblyResolver.Instance.ResolvePath(refer);
+                    dat.TargetPath = Path.Combine(dstPath, Path.GetFileName(path));
+                    dat.Assembly = GlobalAssemblyResolver.Instance.Resolve(refer);
+                    if (!FrameworkAssemblies.Contains(refer.FullName) && !ret.ContainsKey(dat.Assembly.FullName))
+                    {
+                        ret.Add(dat.Assembly.FullName, dat);
+                        ExtractData(dat.Assembly, dstPath, ret);
+                    }
+                }
+            }
         }
     }
 }

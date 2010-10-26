@@ -7,7 +7,7 @@ using System.Text;
 
 namespace Confuser.Core.Confusions
 {
-    class InvalidMdConfusion :  IConfusion
+    public class InvalidMdConfusion : IConfusion
     {
         class Phase1 : AdvancedPhase
         {

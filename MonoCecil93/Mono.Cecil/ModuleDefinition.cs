@@ -841,6 +841,12 @@ namespace Mono.Cecil {
 			}
 		}
 
+        public void FullLoad ()
+        {
+			if (this.HasImage && this.ReadingMode == ReadingMode.Deferred)
+				ImmediateModuleReader.ReadModule (this);
+        }
+
 		static void CheckStream (object stream)
 		{
 			if (stream == null)

@@ -98,6 +98,12 @@ namespace Mono.Cecil {
 			name_cache.Remove (new Slot (type.Namespace, type.Name));
 		}
 
+        internal void Update (string @namespace, string name, TypeDefinition type)
+        {
+			name_cache.Remove (new Slot (@namespace, name));
+			name_cache [new Slot (type.Namespace, type.Name)] = type;
+        }
+
 		public TypeDefinition GetType (string fullname)
 		{
 			string @namespace, name;

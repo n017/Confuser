@@ -436,6 +436,8 @@ namespace Confuser.Core.Confusions
             }
             wtr.Write((byte)v);
         }
+
+        [System.Reflection.Obfuscation(Feature = "-[rename]", Exclude = false)]
         static int Read7BitEncodedInt(BinaryReader rdr)
         {
             // Read out an int 7 bits at a time. The high bit
@@ -451,6 +453,8 @@ namespace Confuser.Core.Confusions
             } while ((b & 0x80) != 0);
             return count;
         }
+
+        [System.Reflection.Obfuscation(Feature = "-[rename]", Exclude = false)]
         private static string Injection(int id)
         {
             Dictionary<int, string> hashTbl;
@@ -509,6 +513,8 @@ namespace Confuser.Core.Confusions
             }
             return Encoding.UTF8.GetString(bytes);
         }
+
+        [System.Reflection.Obfuscation(Feature = "-[rename]", Exclude = false)]
         private static string InjectionSafe(int id)
         {
             Dictionary<int, string> hashTbl;

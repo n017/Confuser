@@ -107,8 +107,8 @@ System.Resources.ResourceManager
 
     struct Identifier
     {
-        public string typeName;
-        public string memberName;
+        public string scope;
+        public string name;
         public int hash;
     }
     interface IReference
@@ -123,7 +123,7 @@ System.Resources.ResourceManager
             Resource res;
             public void UpdateReference(Identifier old, Identifier @new)
             {
-                res.Name = res.Name.Replace(old.typeName, @new.typeName);
+                res.Name = res.Name.Replace(old.scope, @new.scope);
             }
         }
         class ResourceNameReference : IReference
@@ -132,7 +132,7 @@ System.Resources.ResourceManager
             Instruction inst;
             public void UpdateReference(Identifier old, Identifier @new)
             {
-                inst.Operand = @new.typeName;
+                inst.Operand = @new.scope;
             }
         }
         class SpecificationReference : IReference
@@ -148,7 +148,7 @@ System.Resources.ResourceManager
                     TypeDefinition par = tSpec.GetElementType() as TypeDefinition;
                     if (tSpec != null && par != null)
                     {
-                        refer.Name = @new.memberName;
+                        refer.Name = @new.name;
                     }
                 }
             }
@@ -160,10 +160,10 @@ System.Resources.ResourceManager
             public void UpdateReference(Identifier old, Identifier @new)
             {
                 string op = (string)ldstr.Operand;
-                if (op == old.memberName)
-                    ldstr.Operand = @new.memberName;
-                else if (op == old.typeName)
-                    ldstr.Operand = @new.typeName;
+                if (op == old.name)
+                    ldstr.Operand = @new.name;
+                else if (op == old.scope)
+                    ldstr.Operand = @new.scope;
             }
         }
         class BamlTypeReference : IReference
@@ -175,17 +175,8 @@ System.Resources.ResourceManager
 
             public void UpdateReference(Identifier old, Identifier @new)
             {
-                int index = @new.typeName.LastIndexOf('.');
-                if (index != -1)
-                {
-                    type.Name = @new.typeName.Substring(index + 1);
-                    type.Namespace = @new.typeName.Substring(0, index);
-                }
-                else
-                {
-                    type.Namespace = "";
-                    type.Name = @new.typeName;
-                }
+                type.Name = @new.name;
+                type.Namespace = @new.scope;
             }
         }
         class BamlMemberDeclReference : IReference
@@ -197,7 +188,7 @@ System.Resources.ResourceManager
 
             public void UpdateReference(Identifier old, Identifier @new)
             {
-                prop.Name = @new.memberName;
+                prop.Name = @new.name;
             }
         }
         class BamlMemberReference : IReference
@@ -209,7 +200,7 @@ System.Resources.ResourceManager
 
             public void UpdateReference(Identifier old, Identifier @new)
             {
-                prop.Value = @new.memberName;
+                prop.Value = @new.name;
             }
         }
         class SaveBamlsReference : IReference
@@ -234,17 +225,56 @@ System.Resources.ResourceManager
                 ResourceWriter wtr = new ResourceWriter(newRes);
                 foreach (KeyValuePair<string, object> pair in (res as IAnnotationProvider).Annotations["Gresources"] as Dictionary<string, object>)
                     wtr.AddResource(pair.Key, pair.Value);
-                wtr.Generate(); 
+                wtr.Generate();
                 mod.Resources[resId] = new EmbeddedResource(res.Name, res.Attributes, newRes.ToArray());
             }
         }
-
-        public void Analysis(AssemblyDefinition asm)
+        class IvtMemberReference : IReference
         {
-            foreach (ModuleDefinition mod in asm.Modules)
-                Init(mod);
-            foreach (ModuleDefinition mod in asm.Modules)
-                Analysis(mod);
+            public IvtMemberReference(MemberReference memRef) { this.memRef = memRef; }
+
+            MemberReference memRef;
+
+            public void UpdateReference(Identifier old, Identifier @new)
+            {
+                if (memRef is MethodReference || memRef is FieldReference)
+                {
+                    memRef.Name = @new.name;
+                }
+                else if (memRef is TypeReference)
+                {
+                    memRef.Name = @new.name;
+                    ((TypeReference)memRef).Namespace = @new.scope;
+                }
+            }
+        }
+
+        string NormalizeIva(string asmname)
+        {
+            string[] names = asmname.Split(',');
+            if (names.Length == 1) return asmname;
+            else return names[0].Trim() + "," + names[1].Trim().Substring(10);
+        }
+        string GetIva(AssemblyNameDefinition name)
+        {
+            if (name.PublicKey != null) return name.Name + "," + BitConverter.ToString(name.PublicKey).Replace("-", "").ToLower();
+            else return name.Name;
+        }
+        Dictionary<AssemblyDefinition, List<string>> ivtMap;
+        Dictionary<MetadataToken, MemberReference> ivtRefs = new Dictionary<MetadataToken, MemberReference>();
+        public void Analysis(Logger logger, AssemblyDefinition[] asms)
+        {
+            foreach (AssemblyDefinition asm in asms)
+                foreach (ModuleDefinition mod in asm.Modules)
+                    Init(mod);
+
+            AnalysisIvtMap(logger, asms);
+            foreach (AssemblyDefinition asm in asms)
+            {
+                AnalysisIvt(asm);
+                foreach (ModuleDefinition mod in asm.Modules)
+                    Analysis(mod);
+            }
         }
         void Init(ModuleDefinition mod)
         {
@@ -252,7 +282,7 @@ System.Resources.ResourceManager
                 Init(type);
             foreach (Resource res in mod.Resources)
             {
-                (res as IAnnotationProvider).Annotations["RenId"] = new Identifier() { typeName = res.Name, hash = res.GetHashCode() };
+                (res as IAnnotationProvider).Annotations["RenId"] = new Identifier() { scope = res.Name, hash = res.GetHashCode() };
                 (res as IAnnotationProvider).Annotations["RenRef"] = new List<IReference>();
             }
         }
@@ -260,35 +290,95 @@ System.Resources.ResourceManager
         {
             foreach (TypeDefinition nType in type.NestedTypes)
                 Init(nType);
-            (type as IAnnotationProvider).Annotations["RenId"] = new Identifier() { typeName = type.FullName };
+            (type as IAnnotationProvider).Annotations["RenId"] = new Identifier() { scope = type.Namespace, name = type.Name };
             (type as IAnnotationProvider).Annotations["RenRef"] = new List<IReference>();
             (type as IAnnotationProvider).Annotations["RenOk"] = true;
             foreach (MethodDefinition mtd in type.Methods)
             {
-                (mtd as IAnnotationProvider).Annotations["RenId"] = new Identifier() { typeName = type.FullName, memberName = mtd.Name, hash = mtd.GetHashCode() };
+                (mtd as IAnnotationProvider).Annotations["RenId"] = new Identifier() { scope = type.FullName, name = mtd.Name, hash = mtd.GetHashCode() };
                 (mtd as IAnnotationProvider).Annotations["RenRef"] = new List<IReference>();
                 (mtd as IAnnotationProvider).Annotations["RenOk"] = true;
             }
             foreach (FieldDefinition fld in type.Fields)
             {
-                (fld as IAnnotationProvider).Annotations["RenId"] = new Identifier() { typeName = type.FullName, memberName = fld.Name, hash = fld.GetHashCode() };
+                (fld as IAnnotationProvider).Annotations["RenId"] = new Identifier() { scope = type.FullName, name = fld.Name, hash = fld.GetHashCode() };
                 (fld as IAnnotationProvider).Annotations["RenRef"] = new List<IReference>();
                 (fld as IAnnotationProvider).Annotations["RenOk"] = true;
             }
             foreach (PropertyDefinition prop in type.Properties)
             {
-                (prop as IAnnotationProvider).Annotations["RenId"] = new Identifier() { typeName = type.FullName, memberName = prop.Name, hash = prop.GetHashCode() };
+                (prop as IAnnotationProvider).Annotations["RenId"] = new Identifier() { scope = type.FullName, name = prop.Name, hash = prop.GetHashCode() };
                 (prop as IAnnotationProvider).Annotations["RenRef"] = new List<IReference>();
                 (prop as IAnnotationProvider).Annotations["RenOk"] = true;
             }
             foreach (EventDefinition evt in type.Events)
             {
-                (evt as IAnnotationProvider).Annotations["RenId"] = new Identifier() { typeName = type.FullName, memberName = evt.Name, hash = evt.GetHashCode() };
+                (evt as IAnnotationProvider).Annotations["RenId"] = new Identifier() { scope = type.FullName, name = evt.Name, hash = evt.GetHashCode() };
                 (evt as IAnnotationProvider).Annotations["RenRef"] = new List<IReference>();
                 (evt as IAnnotationProvider).Annotations["RenOk"] = true;
             }
         }
 
+        void AnalysisIvtMap(Logger logger, AssemblyDefinition[] asms)
+        {
+            ivtMap = new Dictionary<AssemblyDefinition, List<string>>();
+            foreach (AssemblyDefinition asm in asms)
+            {
+                if (!ivtMap.ContainsKey(asm)) ivtMap.Add(asm, new List<string>());
+                List<string> internalVis = new List<string>();
+                foreach (CustomAttribute attr in asm.CustomAttributes)
+                    if (attr.AttributeType.FullName == "System.Runtime.CompilerServices.InternalsVisibleToAttribute")
+                        internalVis.Add(NormalizeIva((string)attr.ConstructorArguments[0].Value));
+                if (internalVis.Count != 0)
+                {
+                    logger.Log("InternalsVisibleToAttribute found in " + asm.FullName + "!");
+
+                    List<AssemblyDefinition> refAsms = new List<AssemblyDefinition>();
+                    foreach (AssemblyDefinition asmm in asms)
+                        if (internalVis.Contains(GetIva(asmm.Name)))
+                            refAsms.Add(asmm);
+
+                    if (refAsms.Count == 0)
+                        logger.Log("Internal assemblies NOT found!");
+                    else
+                        logger.Log("Internal assemblies found!");
+                    foreach (AssemblyDefinition i in refAsms)
+                    {
+                        if (!ivtMap.ContainsKey(i)) ivtMap.Add(i, new List<string>());
+                        ivtMap[i].Add(asm.FullName);
+                    }
+                }
+            }
+        }
+        void AnalysisIvt(AssemblyDefinition asm)
+        {
+            List<string> ivts = ivtMap[asm];
+            ivtRefs.Clear();
+            foreach (ModuleDefinition mod in asm.Modules)
+            {
+                foreach (TypeReference typeRef in mod.GetTypeReferences())
+                    if (ivts.Contains(typeRef.Resolve().Module.Assembly.FullName))
+                    {
+                        ivtRefs.Add(typeRef.MetadataToken, typeRef);
+                        ((typeRef.Resolve() as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new IvtMemberReference(typeRef));
+                    }
+                foreach (MemberReference memRef in mod.GetMemberReferences())
+                {
+                    if (memRef is MethodReference && ivts.Contains(((MethodReference)memRef).Resolve().Module.Assembly.FullName))
+                    {
+                        ivtRefs.Add(memRef.MetadataToken, memRef);
+                        if (mod.LookupToken(memRef.MetadataToken) != memRef)
+                            (((memRef as MethodReference).Resolve() as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new IvtMemberReference(memRef));
+                    }
+                    else if (memRef is FieldReference && ivts.Contains(((FieldReference)memRef).Resolve().Module.Assembly.FullName))
+                    {
+                        ivtRefs.Add(memRef.MetadataToken, memRef);
+                        if (mod.LookupToken(memRef.MetadataToken) != memRef)
+                            (((memRef as FieldReference).Resolve() as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new IvtMemberReference(memRef));
+                    }
+                }
+            }
+        }
         void Analysis(ModuleDefinition mod)
         {
             for (int i = 0; i < mod.Resources.Count; i++)
@@ -320,7 +410,7 @@ System.Resources.ResourceManager
         void Analysis(MethodDefinition mtd)
         {
             if (mtd.DeclaringType.IsInterface || mtd.IsConstructor || (IsTypePublic(mtd.DeclaringType) &&
-                (mtd.IsFamily || mtd.IsFamilyAndAssembly || mtd.IsFamilyOrAssembly || mtd.IsPublic)))
+                (mtd.IsFamily || mtd.IsAssembly || mtd.IsFamilyAndAssembly || mtd.IsFamilyOrAssembly || mtd.IsPublic)))
                 (mtd as IAnnotationProvider).Annotations["RenOk"] = false;
             else if (mtd.DeclaringType.BaseType != null)
             {
@@ -361,7 +451,7 @@ System.Resources.ResourceManager
                         else
                             now = null;
                     } while (now != null);
-                    if (ovr != null && (ovr.Module != mtd.Module || IsTypePublic(ovr.DeclaringType)))
+                    if (ovr != null && (ovr.Module != mtd.Module || IsTypePublic(ovr.DeclaringType) || !(ovr.IsFamily || ovr.IsAssembly || ovr.IsFamilyAndAssembly || ovr.IsFamilyOrAssembly || ovr.IsPublic)))
                     {
                         (mtd as IAnnotationProvider).Annotations["RenOk"] = false;
                     }
@@ -561,6 +651,15 @@ System.Resources.ResourceManager
                             if (mem != null)
                                 ((mem as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new ReflectionReference(memInst));
                         }
+                    }
+                    if (ivtRefs.ContainsKey((inst.Operand as MemberReference).MetadataToken))
+                    {
+                        if (inst.Operand is TypeReference)
+                            (((inst.Operand as TypeReference).Resolve() as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new IvtMemberReference(inst.Operand as MemberReference));
+                        else if (inst.Operand is MethodReference)
+                            (((inst.Operand as MethodReference).Resolve() as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new IvtMemberReference(inst.Operand as MemberReference));
+                        else if (inst.Operand is FieldReference)
+                            (((inst.Operand as FieldReference).Resolve() as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new IvtMemberReference(inst.Operand as MemberReference));
                     }
                 }
             }
@@ -890,4 +989,4 @@ System.Resources.ResourceManager
             }
         }
     }
-} 
+}

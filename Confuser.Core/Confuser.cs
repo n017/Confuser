@@ -86,6 +86,12 @@ namespace Confuser.Core
 
     public class ConfuserParameter
     {
+        string src;
+        public string SourceAssembly { get { return src; } set { src = value; } }
+
+        string dstPath;
+        public string DestinationPath { get { return dstPath; } set { dstPath = value; } }
+
         string refers;
         public string ReferencesPath { get { return refers; } set { refers = value; } }
 
@@ -104,8 +110,8 @@ namespace Confuser.Core
         Logger log = new Logger();
         public Logger Logger { get { return log; } }
 
-        IMarker mkr = new DefaultMarker();
-        public IMarker Marker { get { return mkr; } set { mkr = value; } }
+        Marker mkr = new Marker();
+        public Marker Marker { get { return mkr; } set { mkr = value; } }
     }
 
     public class Confuser
@@ -113,16 +119,16 @@ namespace Confuser.Core
         Logger log;
         internal void Log(string message) { log.Log(message); }
 
-        public Thread ConfuseAsync(string src, string dst, ConfuserParameter param)
+        public Thread ConfuseAsync(ConfuserParameter param)
         {
-            Thread thread = new Thread(delegate() { Confuse(src, dst, param); });
+            Thread thread = new Thread(delegate() { Confuse(param); });
             thread.IsBackground = true;
             thread.Name = "Confuuusing";
             thread.Start();
             return thread;
         }
 
-        public void Confuse(string src, string dst, ConfuserParameter param)
+        public void Confuse(ConfuserParameter param)
         {
             try
             {
@@ -138,24 +144,41 @@ namespace Confuser.Core
                 else
                     sn = new System.Reflection.StrongNameKeyPair(new FileStream(param.StrongNameKeyPath, FileMode.Open));
 
-                IMarker mkr = param.Marker;
+                Marker mkr = param.Marker;
 
                 (GlobalAssemblyResolver.Instance as DefaultAssemblyResolver).AssemblyCache.Clear();
-                AssemblyData[] asms = mkr.ExtractDatas(src, dst);
+                GlobalAssemblyResolver.Instance.ClearSearchDirectory();
+                GlobalAssemblyResolver.Instance.AddSearchDirectory(param.ReferencesPath);
+                AssemblyData[] asms = mkr.ExtractDatas(param.SourceAssembly, param.DestinationPath);
 
                 mkr.Initalize(param.Confusions);
+                param.Logger.Log(string.Format("Analysing assemblies..."));
                 for (int z = 0; z < asms.Length; z++)
                 {
-                    param.Logger.Log(string.Format("Analysing assembly...({0}/{1})", z + 1, asms.Length));
                     mkr.MarkAssembly(asms[z].Assembly, param.DefaultPreset);
                 }
 
+                List<IEngine> engines = new List<IEngine>();
+                foreach (IConfusion cion in param.Confusions)
+                    foreach (Phase phase in cion.Phases)
+                        if (phase.GetEngine() != null)
+                            engines.Add(phase.GetEngine());
+                AssemblyDefinition[] asmDefs = new AssemblyDefinition[asms.Length];
+                for (int i = 0; i < asmDefs.Length; i++) asmDefs[i] = asms[i].Assembly;
+                for (int i = 0; i < engines.Count; i++)
+                {
+                    engines[i].Analysis(param.Logger, asmDefs);
+                    param.Logger.Progress((double)(i + 1) / engines.Count);
+                }
+
                 log = param.Logger;
-                param.Logger.StartPhase(2);
 
                 foreach (AssemblyData asm in asms)
                 {
-                    param.Logger.Log(string.Format("Processing assembly {0}...", asm.Assembly.Name.Name));
+                    param.Logger.StartPhase(2);
+                    param.Logger.Log(string.Format("Processing assembly {0}...", asm.Assembly.FullName));
+                    if (!Directory.Exists(System.IO.Path.GetDirectoryName(asm.TargetPath)))
+                        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(asm.TargetPath));
                     Stream dstStream = new FileStream(asm.TargetPath, FileMode.Create, FileAccess.Write);
 
                     try
@@ -172,29 +195,9 @@ namespace Confuser.Core
                                 trueMems.Add(p, mem.Value);
                         }
 
-                        List<IEngine> engines = new List<IEngine>();
-                        foreach (Phase phase in trueMems.Keys)
-                            if (phase.GetEngine() != null)
-                                engines.Add(phase.GetEngine());
-                        param.Logger.Log("Running analysis engines...");
-                        for (int i = 0; i < engines.Count; i++)
-                        {
-                            engines[i].Analysis(asm.Assembly);
-                            param.Logger.Progress((double)(i + 1) / engines.Count);
-                        }
-
                         foreach (ModuleDefinition mod in asm.Assembly.Modules)
                         {
                             param.Logger.Log(string.Format("Processing module {0}...", mod.Name));
-
-                            param.Logger.Log("Loading assembly reference...");
-
-                            for (int i = 0; i < mod.AssemblyReferences.Count; i++)
-                            {
-                                (GlobalAssemblyResolver.Instance as BaseAssemblyResolver).AddSearchDirectory(param.ReferencesPath);
-                                GlobalAssemblyResolver.Instance.Resolve(mod.AssemblyReferences[i]);
-                                param.Logger.Progress((double)(i + 1) / mod.AssemblyReferences.Count);
-                            }
 
                             //global cctor which used in many confusion
                             MethodDefinition cctor = new MethodDefinition(".cctor", MethodAttributes.Private | MethodAttributes.HideBySig |
@@ -313,7 +316,7 @@ namespace Confuser.Core
                             param.Logger.StartPhase(4);
                             if (param.CompressOutput)
                             {
-                                param.Logger.Log("Compressing output module...");
+                                param.Logger.Log("Compressing output module " + mod.Name + "...");
                                 Compressor.Compress(this, final.ToArray(), mod, dstStream);
                             }
                             else
@@ -322,7 +325,7 @@ namespace Confuser.Core
                                 dstStream.Write(arr, 0, arr.Length);
                             }
 
-                            param.Logger.Log("Module Saved.");
+                            param.Logger.Log("Module " + mod.Name + " Saved.");
                         }
                     }
                     finally

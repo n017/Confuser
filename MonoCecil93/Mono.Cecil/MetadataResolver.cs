@@ -35,7 +35,7 @@ namespace Mono.Cecil {
 
 	public interface IAssemblyResolver {
 		AssemblyDefinition Resolve (AssemblyNameReference name);
-		AssemblyDefinition Resolve (string fullName);
+		string ResolvePath (AssemblyNameReference fullName);
 	}
 
 	static class MetadataResolver {

@@ -35,7 +35,7 @@ using Mono.Collections.Generic;
 
 namespace Mono.Cecil {
 
-	public delegate AssemblyDefinition AssemblyResolveEventHandler (object sender, AssemblyNameReference reference);
+	public delegate string AssemblyResolveEventHandler (object sender, AssemblyResolveEventArgs e);
 
 	public sealed class AssemblyResolveEventArgs : EventArgs {
 
@@ -71,6 +71,11 @@ namespace Mono.Cecil {
 			directories.Remove (directory);
 		}
 
+		public void ClearSearchDirectory ()
+		{
+			directories.Clear ();
+		}
+
 		public string [] GetSearchDirectories ()
 		{
 			var directories = new string [this.directories.size];
@@ -78,26 +83,30 @@ namespace Mono.Cecil {
 			return directories;
 		}
 
-		public virtual AssemblyDefinition Resolve (string fullName)
-		{
-			return Resolve (AssemblyNameReference.Parse (fullName));
-		}
+        public virtual AssemblyDefinition Resolve (AssemblyNameReference name)
+        {
+            return GetAssembly(ResolvePath(name));
+        }
 
 		public event AssemblyResolveEventHandler ResolveFailure;
 
 		protected BaseAssemblyResolver ()
 		{
-			directories = new Collection<string> (2) { ".", "bin" };
+			directories = new Collection<string> (2);
 		}
 
-		AssemblyDefinition GetAssembly (string file)
+		protected AssemblyDefinition GetAssembly (string file)
 		{
 			return ModuleDefinition.ReadModule (file, new ReaderParameters { AssemblyResolver = this}).Assembly;
 		}
 
-        public virtual AssemblyDefinition Resolve(AssemblyNameReference name)
+        public virtual string ResolvePath (AssemblyNameReference name)
         {
             var assembly = SearchDirectory(name, directories);
+            if (assembly != null)
+                return assembly;
+
+            assembly = SearchDirectory(name, new[] { ".", "bin" } );
             if (assembly != null)
                 return assembly;
 
@@ -123,13 +132,13 @@ namespace Mono.Cecil {
                 return assembly;
 
             assembly = SearchDirectory(name, new[] { framework_dir });
-            if (assembly != null || assembly.Name.FullName != name.FullName)
+            if (assembly != null)
                 return assembly;
 #endif
 
             if (ResolveFailure != null)
             {
-                assembly = ResolveFailure(this, name);
+                assembly = ResolveFailure(this, new AssemblyResolveEventArgs(name));
                 if (assembly != null)
                     return assembly;
             }
@@ -137,14 +146,14 @@ namespace Mono.Cecil {
             throw new FileNotFoundException("Could not resolve: " + name);
         }
 
-		AssemblyDefinition SearchDirectory (AssemblyNameReference name, IEnumerable<string> directories)
+		string SearchDirectory (AssemblyNameReference name, IEnumerable<string> directories)
 		{
 			var extensions = new [] { ".exe", ".dll" };
 			foreach (var directory in directories) {
 				foreach (var extension in extensions) {
 					string file = Path.Combine (directory, name.Name + extension);
 					if (File.Exists (file))
-						return GetAssembly (file);
+						return file;
 				}
 			}
 
@@ -157,13 +166,13 @@ namespace Mono.Cecil {
 		}
 
 #if !SILVERLIGHT && !CF
-		AssemblyDefinition GetCorlib (AssemblyNameReference reference)
+		string GetCorlib (AssemblyNameReference reference)
 		{
 			var version = reference.Version;
 			var corlib = typeof (object).Assembly.GetName ();
 
 			if (corlib.Version == version || IsZero (version))
-				return GetAssembly (typeof (object).Module.FullyQualifiedName);
+				return typeof (object).Module.FullyQualifiedName;
 
 			var path = Directory.GetParent (
 				Directory.GetParent (
@@ -203,7 +212,7 @@ namespace Mono.Cecil {
 
 			var file = Path.Combine (path, "mscorlib.dll");
 			if (File.Exists (file))
-				return GetAssembly (file);
+				return file;
 
 			return null;
 		}
@@ -252,7 +261,7 @@ namespace Mono.Cecil {
 			return Path.Combine (Directory.GetParent (typeof (object).Module.FullyQualifiedName).FullName, "gac");
 		}
 
-		AssemblyDefinition GetAssemblyInGac (AssemblyNameReference reference)
+		string GetAssemblyInGac (AssemblyNameReference reference)
 		{
 			if (reference.PublicKeyToken == null || reference.PublicKeyToken.Length == 0)
 				return null;
@@ -266,19 +275,19 @@ namespace Mono.Cecil {
 			return GetAssemblyInNetGac (reference);
 		}
 
-		AssemblyDefinition GetAssemblyInMonoGac (AssemblyNameReference reference)
+		string GetAssemblyInMonoGac (AssemblyNameReference reference)
 		{
 			for (int i = 0; i < gac_paths.Count; i++) {
 				var gac_path = gac_paths [i];
 				var file = GetAssemblyFile (reference, string.Empty, gac_path);
 				if (File.Exists (file))
-					return GetAssembly (file);
+					return file;
 			}
 
 			return null;
 		}
 
-		AssemblyDefinition GetAssemblyInNetGac (AssemblyNameReference reference)
+		string GetAssemblyInNetGac (AssemblyNameReference reference)
 		{
 			var gacs = new [] { "GAC_MSIL", "GAC_32", "GAC" };
 			var prefixes = new [] { string.Empty, "v4.0_" };
@@ -288,7 +297,7 @@ namespace Mono.Cecil {
 					var gac = Path.Combine (gac_paths [i], gacs [j]);
 					var file = GetAssemblyFile (reference, prefixes [i], gac);
 					if (Directory.Exists (gac) && File.Exists (file))
-						return GetAssembly (file);
+						return file;
 				}
 			}
 

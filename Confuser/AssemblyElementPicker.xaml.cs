@@ -54,13 +54,16 @@ namespace Confuser
 
         Dictionary<IMemberDefinition, TreeViewItem> dict;
 
-        public void LoadAssembly(AssemblyDefinition asm)
+        public void ClearAssemblies()
         {
             dict = new Dictionary<IMemberDefinition, TreeViewItem>();
+            asmViewer.Items.Clear();
+        }
 
+        public void LoadAssembly(AssemblyDefinition asm)
+        {
             asmViewer.BeginInit();
 
-            asmViewer.Items.Clear();
             TreeViewItem item = new TreeViewItem();
             item.Header = GetHeader("asm", asm.Name.Name, true);
             item.Tag = asm;

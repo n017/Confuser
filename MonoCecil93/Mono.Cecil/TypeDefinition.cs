@@ -463,6 +463,36 @@ namespace Mono.Cecil {
 		{
 			return this;
 		}
+
+        public override string Name
+        {
+            get
+            {
+                return base.Name;
+            }
+            set
+            {
+                string n = base.Name;
+                base.Name = value;
+                if (module != null)
+                    ((TypeDefinitionCollection)module.Types).Update(base.Namespace, n, this);
+            }
+        }
+
+        public override string Namespace
+        {
+            get
+            {
+                return base.Namespace;
+            }
+            set
+            {
+                string ns = base.Namespace;
+                base.Namespace = value;
+                if (module != null)
+                    ((TypeDefinitionCollection)module.Types).Update(ns, base.Name, this);
+            }
+        }
 	}
 
 	static partial class Mixin {

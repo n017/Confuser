@@ -151,5 +151,18 @@ namespace Confuser
             sb.Children.Add(ani);
             sb.Begin();
         }
+        public void ScrollTo(double ratio)
+        {
+            ScrollFactor = 0;
+            ContentPresenter cnt = Helper.FindChild<ContentPresenter>(this, "content");
+            Storyboard sb = new Storyboard();
+            ThicknessAnimation ani = new ThicknessAnimation();
+            Storyboard.SetTarget(ani, cnt);
+            Storyboard.SetTargetProperty(ani, new PropertyPath(FrameworkElement.MarginProperty));
+            ani.To = new Thickness((-(cnt.Content as FrameworkElement).ActualWidth + (this.ActualWidth - 100)) * ratio + 50, cnt.Margin.Top, cnt.Margin.Right, cnt.Margin.Bottom);
+            ani.Duration = new Duration(TimeSpan.FromMilliseconds(100));
+            sb.Children.Add(ani);
+            sb.Begin();
+        }
     }
 }
