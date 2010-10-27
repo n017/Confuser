@@ -50,8 +50,8 @@ namespace Confuser.Core.Confusions
 
                 TypeDefinition modType = mod.GetType("<Module>");
 
-                AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(StringConfusion).Assembly.Location);
-                rc.reso = i.MainModule.GetType(typeof(ResEncryptConfusion).FullName).Methods.FirstOrDefault(mtd => mtd.Name == "Injection");
+                AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(Iid).Assembly.Location);
+                rc.reso = i.MainModule.GetType("Encryptions").Methods.FirstOrDefault(mtd => mtd.Name == "Resources");
                 rc.reso = CecilHelper.Inject(mod, rc.reso);
                 modType.Methods.Add(rc.reso);
                 byte[] n = Guid.NewGuid().ToByteArray();
@@ -93,9 +93,9 @@ namespace Confuser.Core.Confusions
                 psr.Emit(OpCodes.Ret);
             }
         }
-        class MetadataPhase : AdvancedPhase
+        class MdPhase : MetadataPhase
         {
-            public MetadataPhase(ResEncryptConfusion rc) { this.rc = rc; }
+            public MdPhase(ResEncryptConfusion rc) { this.rc = rc; }
             ResEncryptConfusion rc;
             public override IConfusion Confusion
             {
@@ -108,18 +108,6 @@ namespace Confuser.Core.Confusions
             public override Priority Priority
             {
                 get { return Priority.MetadataLevel; }
-            }
-            public override bool WholeRun
-            {
-                get { return true; }
-            }
-            public override void Initialize(ModuleDefinition mod)
-            {
-                //
-            }
-            public override void DeInitialize()
-            {
-                //
             }
             public override void Process(MetadataProcessor.MetadataAccessor accessor)
             {
@@ -168,7 +156,7 @@ namespace Confuser.Core.Confusions
         {
             get
             {
-                if (phases == null) phases = new Phase[] { new Phase1(this), new MetadataPhase(this) };
+                if (phases == null) phases = new Phase[] { new Phase1(this), new MdPhase(this) };
                 return phases;
             }
         }
@@ -223,35 +211,6 @@ namespace Confuser.Core.Confusions
                 ret[i / 2] = (byte)((res[i + 1] ^ key0) * key1 + (res[i] ^ key0));
             }
             return ret;
-        }
-
-        [System.Reflection.Obfuscation(Feature = "-[rename]", Exclude = false)]
-        static System.Reflection.Assembly Injection(object sender, ResolveEventArgs args)
-        {
-            System.Reflection.Assembly datAsm;
-            if ((datAsm = AppDomain.CurrentDomain.GetData("PADDINGPADDINGPADDING") as System.Reflection.Assembly) == null)
-            {
-                Stream str = typeof(Exception).Assembly.GetManifestResourceStream("PADDINGPADDINGPADDING");
-                using (BinaryReader rdr = new BinaryReader(new DeflateStream(str, CompressionMode.Decompress)))
-                {
-                    byte[] enDat = rdr.ReadBytes(rdr.ReadInt32());
-                    byte[] final = new byte[enDat.Length / 2];
-                    for (int i = 0; i < enDat.Length; i += 2)
-                    {
-                        final[i / 2] = (byte)((enDat[i + 1] ^ 0x11) * 0x22 + (enDat[i] ^ 0x11));
-                    }
-                    using (BinaryReader rdr1 = new BinaryReader(new DeflateStream(new MemoryStream(final), CompressionMode.Decompress)))
-                    {
-                        byte[] fDat = rdr1.ReadBytes(rdr1.ReadInt32());
-                        datAsm = System.Reflection.Assembly.Load(fDat);
-                        AppDomain.CurrentDomain.SetData("PADDINGPADDINGPADDING", datAsm);
-                    }
-                }
-            }
-            if (Array.IndexOf(datAsm.GetManifestResourceNames(), args.Name) == -1)
-                return null;
-            else
-                return datAsm;
         }
     }
 }

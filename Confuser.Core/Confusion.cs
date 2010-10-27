@@ -66,6 +66,7 @@ namespace Confuser.Core
 
     public abstract class Phase
     {
+        internal Phase() { }
         Confuser cr;
         internal Confuser Confuser { get { return cr; } set { cr = value; } }
         protected void Log(string message) { cr.Log(message); }
@@ -82,8 +83,18 @@ namespace Confuser.Core
     {
         public abstract void Process(ConfusionParameter parameter);
     }
-    public abstract class AdvancedPhase : Phase
+    public abstract class MetadataPhase : Phase
     {
         public abstract void Process(MetadataProcessor.MetadataAccessor accessor);
+        public override sealed void Initialize(ModuleDefinition mod) { }
+        public override sealed void DeInitialize() { }
+        public override sealed bool WholeRun { get { return true; } }
+    }
+    public abstract class PePhase : Phase
+    {
+        public abstract void Process(ref byte[] mod);
+        public override sealed void Initialize(ModuleDefinition mod) { }
+        public override sealed void DeInitialize() { }
+        public override sealed bool WholeRun { get { return true; } }
     }
 }

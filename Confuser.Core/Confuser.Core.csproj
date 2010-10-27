@@ -129,6 +129,10 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Confuser.Core.Injections\Confuser.Core.Injections.csproj">
+      <Project>{DB542CC5-561B-4DBD-920B-25A34C8FB1BA}</Project>
+      <Name>Confuser.Core.Injections</Name>
+    </ProjectReference>
     <ProjectReference Include="..\MonoCecil93\Mono.Cecil.csproj">
       <Project>{D68133BD-1E63-496E-9EDE-4FBDBF77B486}</Project>
       <Name>Mono.Cecil</Name>

@@ -146,7 +146,7 @@ namespace Confuser.Core
 
                 Marker mkr = param.Marker;
 
-                (GlobalAssemblyResolver.Instance as DefaultAssemblyResolver).AssemblyCache.Clear();
+                GlobalAssemblyResolver.Instance.AssemblyCache.Clear();
                 GlobalAssemblyResolver.Instance.ClearSearchDirectory();
                 GlobalAssemblyResolver.Instance.AddSearchDirectory(param.ReferencesPath);
                 AssemblyData[] asms = mkr.ExtractDatas(param.SourceAssembly, param.DestinationPath);
@@ -176,7 +176,7 @@ namespace Confuser.Core
                 foreach (AssemblyData asm in asms)
                 {
                     param.Logger.StartPhase(2);
-                    param.Logger.Log(string.Format("Processing assembly {0}...", asm.Assembly.FullName));
+                    param.Logger.Log(string.Format("Obfuscating assembly {0}...", asm.Assembly.FullName));
                     if (!Directory.Exists(System.IO.Path.GetDirectoryName(asm.TargetPath)))
                         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(asm.TargetPath));
                     Stream dstStream = new FileStream(asm.TargetPath, FileMode.Create, FileAccess.Write);
@@ -197,7 +197,7 @@ namespace Confuser.Core
 
                         foreach (ModuleDefinition mod in asm.Assembly.Modules)
                         {
-                            param.Logger.Log(string.Format("Processing module {0}...", mod.Name));
+                            param.Logger.Log(string.Format("Obfuscating structure of module {0}...", mod.Name));
 
                             //global cctor which used in many confusion
                             MethodDefinition cctor = new MethodDefinition(".cctor", MethodAttributes.Private | MethodAttributes.HideBySig |
@@ -281,11 +281,11 @@ namespace Confuser.Core
 
                             MemoryStream final = new MemoryStream();
                             MetadataProcessor psr = new MetadataProcessor();
-                            double total1 = (from i in trueMems.Keys where (i is AdvancedPhase) select i).Count();
+                            double total1 = (from i in trueMems.Keys where (i is MetadataPhase) select i).Count();
                             int now1 = 1;
                             psr.PreProcess += new MetadataProcessor.Do(delegate(MetadataProcessor.MetadataAccessor accessor)
                             {
-                                foreach (AdvancedPhase i in from i in trueMems.Keys where (i is AdvancedPhase) && i.PhaseID == 1 orderby i.Priority ascending select i)
+                                foreach (MetadataPhase i in from i in trueMems.Keys where (i is MetadataPhase) && i.PhaseID == 1 orderby i.Priority ascending select i)
                                 {
                                     param.Logger.Log("Executing " + i.Confusion.Name + " Phase 1...");
                                     i.Process(accessor);
@@ -294,7 +294,7 @@ namespace Confuser.Core
                             });
                             psr.DoProcess += new MetadataProcessor.Do(delegate(MetadataProcessor.MetadataAccessor accessor)
                             {
-                                foreach (AdvancedPhase i in from i in trueMems.Keys where (i is AdvancedPhase) && i.PhaseID == 2 orderby i.Priority ascending select i)
+                                foreach (MetadataPhase i in from i in trueMems.Keys where (i is MetadataPhase) && i.PhaseID == 2 orderby i.Priority ascending select i)
                                 {
                                     param.Logger.Log("Executing " + i.Confusion.Name + " Phase 2...");
                                     i.Process(accessor);
@@ -303,17 +303,27 @@ namespace Confuser.Core
                             });
                             psr.PostProcess += new MetadataProcessor.Do(delegate(MetadataProcessor.MetadataAccessor accessor)
                             {
-                                foreach (AdvancedPhase i in from i in trueMems.Keys where (i is AdvancedPhase) && i.PhaseID == 3 orderby i.Priority ascending select i)
+                                foreach (MetadataPhase i in from i in trueMems.Keys where (i is MetadataPhase) && i.PhaseID == 3 orderby i.Priority ascending select i)
                                 {
                                     param.Logger.Log("Executing " + i.Confusion.Name + " Phase 3...");
                                     i.Process(accessor);
                                     param.Logger.Progress(now1 / total1); now1++;
                                 }
                             });
-                            param.Logger.Log("Processing metadata...");
+                            param.Logger.Log(string.Format("Obfuscating metadata of module {0}...", mod.Name));
                             psr.Process(mod, final, new WriterParameters() { StrongNameKeyPair = sn });
 
                             param.Logger.StartPhase(4);
+
+                            byte[] pe = final.ToArray();
+                            param.Logger.Log(string.Format("Obfuscating PE of module {0}...", mod.Name));
+                            PePhase[] phases = (from i in trueMems.Keys where (i is PePhase) orderby (int)i.Priority + i.PhaseID * 10 ascending select (PePhase)i).ToArray();
+                            for (int i = 0; i < phases.Length; i++)
+                            {
+                                param.Logger.Log("Executing " + phases[i].Confusion.Name + " Phase 3...");
+                                phases[i].Process(ref pe);
+                                param.Logger.Progress((double)i / phases.Length);
+                            }
                             if (param.CompressOutput)
                             {
                                 param.Logger.Log("Compressing output module " + mod.Name + "...");
@@ -338,6 +348,10 @@ namespace Confuser.Core
             catch (Exception ex)
             {
                 param.Logger.Fatal(ex);
+            }
+            finally
+            {
+                GlobalAssemblyResolver.Instance.AssemblyCache.Clear();
             }
         }
 
@@ -434,7 +448,7 @@ namespace Confuser.Core
             {
                 bool ok = true;
                 foreach (Phase phase in i.Key.Phases)
-                    if (!(phase is AdvancedPhase) && phase.PhaseID == 1)
+                    if (!(phase is MetadataPhase) && phase.PhaseID == 1)
                     {
                         ok = false;
                         break;

@@ -65,8 +65,8 @@ namespace Confuser.Core.Confusions
                 Random rand = new Random();
                 TypeDefinition modType = mod.GetType("<Module>");
 
-                AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(StringConfusion).Assembly.Location);
-                sc.strer = i.MainModule.GetType(typeof(StringConfusion).FullName).Methods.FirstOrDefault(mtd => mtd.Name == "Injection");
+                AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(Iid).Assembly.Location);
+                sc.strer = i.MainModule.GetType("Encryptions").Methods.FirstOrDefault(mtd => mtd.Name == "Strings");
                 sc.strer = CecilHelper.Inject(mod, sc.strer);
                 modType.Methods.Add(sc.strer);
                 byte[] n = new byte[0x10]; rand.NextBytes(n);
@@ -83,7 +83,7 @@ namespace Confuser.Core.Confusions
 
                 rand.NextBytes(n);
 
-                MethodDefinition read7be = i.MainModule.GetType(typeof(StringConfusion).FullName).Methods.FirstOrDefault(mtd => mtd.Name == "Read7BitEncodedInt");
+                MethodDefinition read7be = i.MainModule.GetType("Encryptions").Methods.FirstOrDefault(mtd => mtd.Name == "Read7BitEncodedInt");
                 sc.strer.Body.SimplifyMacros();
                 for (int t = 0; t < sc.strer.Body.Instructions.Count; t++)
                 {
@@ -142,8 +142,8 @@ namespace Confuser.Core.Confusions
                 Random rand = new Random();
                 TypeDefinition modType = mod.GetType("<Module>");
 
-                AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(StringConfusion).Assembly.Location);
-                sc.strer = i.MainModule.GetType(typeof(StringConfusion).FullName).Methods.FirstOrDefault(mtd => mtd.Name == "InjectionSafe");
+                AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(Iid).Assembly.Location);
+                sc.strer = i.MainModule.GetType("Encryptions").Methods.FirstOrDefault(mtd => mtd.Name == "SafeStrings");
                 sc.strer = CecilHelper.Inject(mod, sc.strer);
                 modType.Methods.Add(sc.strer);
                 byte[] n = new byte[0x10]; rand.NextBytes(n);
@@ -389,6 +389,34 @@ namespace Confuser.Core.Confusions
             }
         }
 
+        static void Write7BitEncodedInt(BinaryWriter wtr, int value)
+        {
+            // Write out an int 7 bits at a time. The high bit of the byte,
+            // when on, tells reader to continue reading more bytes.
+            uint v = (uint)value; // support negative numbers
+            while (v >= 0x80)
+            {
+                wtr.Write((byte)(v | 0x80));
+                v >>= 7;
+            }
+            wtr.Write((byte)v);
+        }
+        static int Read7BitEncodedInt(BinaryReader rdr)
+        {
+            // Read out an int 7 bits at a time. The high bit
+            // of the byte when on means to continue reading more bytes.
+            int count = 0;
+            int shift = 0;
+            byte b;
+            do
+            {
+                b = rdr.ReadByte();
+                count |= (b & 0x7F) << shift;
+                shift += 7;
+            } while ((b & 0x80) != 0);
+            return count;
+        }
+
         private static byte[] Encrypt(string str, ReflectionVisitor expEval, out int len)
         {
             byte[] bs = Encoding.Unicode.GetBytes(str);
@@ -424,67 +452,6 @@ namespace Confuser.Core.Confusions
 
             return Encoding.Unicode.GetString(ret, 0, len);
         }
-        static void Write7BitEncodedInt(BinaryWriter wtr, int value)
-        {
-            // Write out an int 7 bits at a time. The high bit of the byte,
-            // when on, tells reader to continue reading more bytes.
-            uint v = (uint)value; // support negative numbers
-            while (v >= 0x80)
-            {
-                wtr.Write((byte)(v | 0x80));
-                v >>= 7;
-            }
-            wtr.Write((byte)v);
-        }
-
-        [System.Reflection.Obfuscation(Feature = "-[rename]", Exclude = false)]
-        static int Read7BitEncodedInt(BinaryReader rdr)
-        {
-            // Read out an int 7 bits at a time. The high bit
-            // of the byte when on means to continue reading more bytes.
-            int count = 0;
-            int shift = 0;
-            byte b;
-            do
-            {
-                b = rdr.ReadByte();
-                count |= (b & 0x7F) << shift;
-                shift += 7;
-            } while ((b & 0x80) != 0);
-            return count;
-        }
-
-        [System.Reflection.Obfuscation(Feature = "-[rename]", Exclude = false)]
-        private static string Injection(int id)
-        {
-            Dictionary<int, string> hashTbl;
-            if ((hashTbl = AppDomain.CurrentDomain.GetData("PADDINGPADDINGPADDING") as Dictionary<int, string>) == null)
-                AppDomain.CurrentDomain.SetData("PADDINGPADDINGPADDING", hashTbl = new Dictionary<int, string>());
-            string ret;
-            if (!hashTbl.TryGetValue(id, out ret))
-            {
-                System.Reflection.Assembly asm = System.Reflection.Assembly.GetCallingAssembly();
-                Stream str = asm.GetManifestResourceStream("PADDINGPADDINGPADDING");
-                int mdTkn = new StackFrame(1).GetMethod().MetadataToken;
-                using (BinaryReader rdr = new BinaryReader(new DeflateStream(str, CompressionMode.Decompress)))
-                {
-                    rdr.ReadBytes((mdTkn ^ id) - 12345678);
-                    int len = (int)((~rdr.ReadUInt32()) ^ 87654321);
-
-                    ///////////////////
-                    byte[] f = new byte[(len + 7) & ~7];
-
-                    for (int i = 0; i < f.Length; i++)
-                    {
-                        f[i] = 123;
-                    }
-
-                    hashTbl[id] = (ret = Encoding.Unicode.GetString(f, 0, len));
-                    ///////////////////
-                }
-            }
-            return ret;
-        }
 
         private static byte[] EncryptSafe(string str, uint mdToken)
         {
@@ -512,41 +479,6 @@ namespace Confuser.Core.Confusions
                 key += o;
             }
             return Encoding.UTF8.GetString(bytes);
-        }
-
-        [System.Reflection.Obfuscation(Feature = "-[rename]", Exclude = false)]
-        private static string InjectionSafe(int id)
-        {
-            Dictionary<int, string> hashTbl;
-            if ((hashTbl = AppDomain.CurrentDomain.GetData("PADDINGPADDINGPADDING") as Dictionary<int, string>) == null)
-                AppDomain.CurrentDomain.SetData("PADDINGPADDINGPADDING", hashTbl = new Dictionary<int, string>());
-            string ret;
-            if (!hashTbl.TryGetValue(id, out ret))
-            {
-                System.Reflection.Assembly asm = System.Reflection.Assembly.GetCallingAssembly();
-                Stream str = asm.GetManifestResourceStream("PADDINGPADDINGPADDING");
-                int mdTkn = new StackFrame(1).GetMethod().MetadataToken;
-                using (BinaryReader rdr = new BinaryReader(new DeflateStream(str, CompressionMode.Decompress)))
-                {
-                    rdr.ReadBytes((mdTkn ^ id) - 12345678);
-                    int len = (int)((~rdr.ReadUInt32()) ^ 87654321);
-                    byte[] b = rdr.ReadBytes(len);
-
-                    ///////////////////
-                    Random rand = new Random((int)mdTkn);
-
-                    int key = 0;
-                    for (int i = 0; i < b.Length; i++)
-                    {
-                        byte o = b[i];
-                        b[i] = (byte)(b[i] ^ (rand.Next() & key));
-                        key += o;
-                    }
-                    return Encoding.UTF8.GetString(b);
-                    ///////////////////
-                }
-            }
-            return ret;
         }
     }
 }

@@ -56,8 +56,8 @@ namespace Confuser.Core.Confusions
             public override void DeInitialize()
             {
                 TypeDefinition modType = mod.GetType("<Module>");
-                AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(MtdProxyConfusion).Assembly.Location);
-                mc.proxy = i.MainModule.GetType(typeof(MtdProxyConfusion).FullName).Methods.FirstOrDefault(mtd => mtd.Name == "Injection");
+                AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(Iid).Assembly.Location);
+                mc.proxy = i.MainModule.GetType("Proxies").Methods.FirstOrDefault(mtd => mtd.Name == "MtdProxy");
                 mc.proxy = CecilHelper.Inject(mod, mc.proxy);
                 modType.Methods.Add(mc.proxy);
                 mc.proxy.IsAssembly = true;
@@ -292,10 +292,10 @@ namespace Confuser.Core.Confusions
                 this.progresser = progresser;
             }
         }
-        class MetadataPhase : AdvancedPhase
+        class MdPhase : MetadataPhase
         {
             MtdProxyConfusion mc;
-            public MetadataPhase(MtdProxyConfusion mc) { this.mc = mc; }
+            public MdPhase(MtdProxyConfusion mc) { this.mc = mc; }
             public override IConfusion Confusion
             {
                 get { return mc; }
@@ -311,19 +311,6 @@ namespace Confuser.Core.Confusions
                 get { return Priority.TypeLevel; }
             }
 
-            public override bool WholeRun
-            {
-                get { return true; }
-            }
-
-            public override void Initialize(ModuleDefinition mod)
-            {
-                //
-            }
-            public override void DeInitialize()
-            {
-                //
-            }
             public override void Process(MetadataProcessor.MetadataAccessor accessor)
             {
                 foreach (Context txt in mc.txts)
@@ -369,7 +356,7 @@ namespace Confuser.Core.Confusions
         {
             get
             {
-                if (ps == null) ps = new Phase[] { new Phase1(this), new Phase2(this), new MetadataPhase(this) };
+                if (ps == null) ps = new Phase[] { new Phase1(this), new Phase2(this), new MdPhase(this) };
                 return ps;
             }
         }
@@ -445,41 +432,6 @@ namespace Confuser.Core.Confusions
             string virt = isVirt ? "\r" : "\n";
             char asmRef = (char)(mod.AssemblyReferences.IndexOf(mtd.DeclaringType.Scope as AssemblyNameReference) + 2);
             return asmRef + virt + mtd.ToString().GetHashCode();
-        }
-
-        [System.Reflection.Obfuscation(Feature = "-[rename]", Exclude = false)]
-        private static void Injection(RuntimeFieldHandle f)
-        {
-            var fld = System.Reflection.FieldInfo.GetFieldFromHandle(f);
-            var asm = System.Reflection.Assembly.GetExecutingAssembly();
-            var mtd = asm.GetModules()[0].ResolveMethod(BitConverter.ToInt32(Encoding.Unicode.GetBytes(fld.Name.ToCharArray(), 2, 2), 0)) as System.Reflection.MethodInfo;
-
-            if (mtd.IsStatic)
-            {
-                System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(mtd.DeclaringType.TypeHandle);
-                fld.SetValue(null, Delegate.CreateDelegate(fld.FieldType, mtd));
-            }
-            else
-            {
-                var tmp = mtd.GetParameters();
-                Type[] arg = new Type[tmp.Length + 1];
-                arg[0] = typeof(object);
-                for (int i = 0; i < tmp.Length; i++)
-                    arg[i + 1] = tmp[i].ParameterType;
-
-                System.Reflection.Emit.DynamicMethod dm;
-                if (mtd.DeclaringType.IsInterface)
-                    dm = new System.Reflection.Emit.DynamicMethod("", mtd.ReturnType, arg, true);
-                else
-                    dm = new System.Reflection.Emit.DynamicMethod("", mtd.ReturnType, arg, mtd.DeclaringType, true);
-                var gen = dm.GetILGenerator();
-                for (int i = 0; i < arg.Length; i++)
-                    gen.Emit(System.Reflection.Emit.OpCodes.Ldarg, i);
-                gen.Emit((fld.Name[1] == '\r') ? System.Reflection.Emit.OpCodes.Callvirt : System.Reflection.Emit.OpCodes.Call, mtd);
-                gen.Emit(System.Reflection.Emit.OpCodes.Ret);
-
-                fld.SetValue(null, dm.CreateDelegate(fld.FieldType));
-            }
         }
     }
 }

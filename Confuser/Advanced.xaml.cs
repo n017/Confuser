@@ -327,6 +327,10 @@ namespace Confuser
             var cr = new Core.Confuser();
             progress.ScrollToBeginning();
             (this.Resources["resetProgress"] as Storyboard).Begin();
+            Helper.FindChild<TextBox>(phase1, null).Text = "";
+            Helper.FindChild<TextBox>(phase2, null).Text = "";
+            Helper.FindChild<TextBox>(phase3, null).Text = "";
+            Helper.FindChild<TextBox>(phase4, null).Text = "";
             (this.Resources["showProgress"] as Storyboard).Begin();
             Dispatcher.Invoke(new Action(delegate { Thread.Sleep(100); }), DispatcherPriority.Render);
             MoniterValue();

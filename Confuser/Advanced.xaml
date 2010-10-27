@@ -418,7 +418,7 @@
                                     <Label FontWeight="Thin" Content=" Phase 1 (Initalization)" VerticalContentAlignment="Center"/>
                                 </Border>
                                 <Grid VerticalAlignment="Stretch" Margin="0,20,0,0">
-                                    <TextBox FontWeight="Thin" BorderBrush="{x:Null}" Background="Transparent" IsReadOnly="True"/>
+                                    <TextBox FontWeight="Thin" BorderBrush="{x:Null}" Background="Transparent" IsReadOnly="True" ScrollViewer.VerticalScrollBarVisibility="Auto"/>
                                 </Grid>
                             </Grid>
                         </Border>
@@ -433,7 +433,7 @@
                                         <RowDefinition Height="0.2*"/>
                                         <RowDefinition Height="0.3*"/>
                                     </Grid.RowDefinitions>
-                                    <TextBox FontWeight="Thin" Grid.Row="0" BorderBrush="{x:Null}" Background="Transparent" IsReadOnly="True" VerticalAlignment="Top"/>
+                                    <TextBox FontWeight="Thin" Grid.Row="0" BorderBrush="{x:Null}" Background="Transparent" IsReadOnly="True" VerticalAlignment="Top" ScrollViewer.VerticalScrollBarVisibility="Auto"/>
                                     <ProgressBar Grid.Row="1" VerticalAlignment="Stretch" Maximum="1" Minimum="0"/>
                                 </Grid>
                             </Grid>
@@ -449,7 +449,7 @@
                                         <RowDefinition Height="0.2*"/>
                                         <RowDefinition Height="0.3*"/>
                                     </Grid.RowDefinitions>
-                                    <TextBox FontWeight="Thin" Grid.Row="0" BorderBrush="{x:Null}" Background="Transparent" IsReadOnly="True" VerticalAlignment="Top"/>
+                                    <TextBox FontWeight="Thin" Grid.Row="0" BorderBrush="{x:Null}" Background="Transparent" IsReadOnly="True" VerticalAlignment="Top" ScrollViewer.VerticalScrollBarVisibility="Auto"/>
                                     <ProgressBar Grid.Row="1" VerticalAlignment="Stretch" Maximum="1" Minimum="0"/>
                                 </Grid>
                             </Grid>
@@ -457,10 +457,16 @@
                         <Border x:Name="phase4" CornerRadius="2" BorderThickness="1" BorderBrush="White" Background="{DynamicResource ControlBackgroundBrush}" Width="0" Height="225" Margin="5,0,5,0">
                             <Grid>
                                 <Border VerticalAlignment="Top" Height="20" BorderThickness="0,0,0,0.75" BorderBrush="White">
-                                    <Label FontWeight="Thin" Content=" Phase 4 (Post Processes)" VerticalContentAlignment="Center"/>
+                                    <Label FontWeight="Thin" Content=" Phase 4 (Processing PE)" VerticalContentAlignment="Center"/>
                                 </Border>
                                 <Grid VerticalAlignment="Stretch" Margin="0,20,0,0">
-                                    <TextBox FontWeight="Thin" BorderBrush="{x:Null}" Background="Transparent" IsReadOnly="True"/>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="0.5*"/>
+                                        <RowDefinition Height="0.2*"/>
+                                        <RowDefinition Height="0.3*"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBox FontWeight="Thin" Grid.Row="0" BorderBrush="{x:Null}" Background="Transparent" IsReadOnly="True" VerticalAlignment="Top" ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+                                    <ProgressBar Grid.Row="1" VerticalAlignment="Stretch" Maximum="1" Minimum="0"/>
                                 </Grid>
                             </Grid>
                         </Border>

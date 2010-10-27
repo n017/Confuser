@@ -9,7 +9,7 @@ namespace Confuser.Core.Confusions
 {
     public class InvalidMdConfusion : IConfusion
     {
-        class Phase1 : AdvancedPhase
+        class Phase1 : MetadataPhase
         {
             InvalidMdConfusion cion;
             public Phase1(InvalidMdConfusion cion) { this.cion = cion; }
@@ -25,18 +25,6 @@ namespace Confuser.Core.Confusions
             {
                 get { return 1; }
             }
-            public override bool WholeRun
-            {
-                get { return true; }
-            }
-            public override void Initialize(ModuleDefinition mod)
-            {
-                //
-            }
-            public override void DeInitialize()
-            {
-                //
-            }
 
 
             public override void Process(MetadataProcessor.MetadataAccessor accessor)
@@ -45,7 +33,7 @@ namespace Confuser.Core.Confusions
                 accessor.TableHeap.GetTable<ManifestResourceTable>(Table.ManifestResource).AddRow(new Row<uint, ManifestResourceAttributes, uint, uint>(0xffffffff, ManifestResourceAttributes.Private, 0xffffffff, 2));
             }
         }
-        class Phase2 : AdvancedPhase
+        class Phase2 : MetadataPhase
         {
             InvalidMdConfusion cion;
             public Phase2(InvalidMdConfusion cion) { this.cion = cion; }
@@ -60,18 +48,6 @@ namespace Confuser.Core.Confusions
             public override int PhaseID
             {
                 get { return 2; }
-            }
-            public override bool WholeRun
-            {
-                get { return true; }
-            }
-            public override void Initialize(ModuleDefinition mod)
-            {
-                //
-            }
-            public override void DeInitialize()
-            {
-                //
             }
 
 

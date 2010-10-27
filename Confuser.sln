@@ -9,9 +9,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mono.Cecil.Rocks", "MonoCec
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Confuser", "Confuser\Confuser.csproj", "{063E983E-5BE7-4675-97E4-3D8D9CEB3660}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Confuser.Core.Injections", "Confuser.Core.Injections\Confuser.Core.Injections.csproj", "{DB542CC5-561B-4DBD-920B-25A34C8FB1BA}"
+EndProject
 Global
 	GlobalSection(TeamFoundationVersionControl) = preSolution
-		SccNumberOfProjects = 5
+		SccNumberOfProjects = 6
 		SccEnterpriseProvider = {4CA58AB2-18FA-4F8D-95D4-32DDF27D184C}
 		SccTeamFoundationServer = https://tfs.codeplex.com/tfs/TFS09
 		SccLocalPath0 = .
@@ -27,6 +29,9 @@ Global
 		SccProjectUniqueName4 = Confuser\\Confuser.csproj
 		SccProjectName4 = Confuser
 		SccLocalPath4 = Confuser
+		SccProjectUniqueName5 = Confuser.Core.Injections\\Confuser.Core.Injections.csproj
+		SccProjectName5 = Confuser.Core.Injections
+		SccLocalPath5 = Confuser.Core.Injections
 	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug - No System.dll|Any CPU = Debug - No System.dll|Any CPU
@@ -58,6 +63,12 @@ Global
 		{063E983E-5BE7-4675-97E4-3D8D9CEB3660}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{063E983E-5BE7-4675-97E4-3D8D9CEB3660}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{063E983E-5BE7-4675-97E4-3D8D9CEB3660}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DB542CC5-561B-4DBD-920B-25A34C8FB1BA}.Debug - No System.dll|Any CPU.ActiveCfg = Debug|Any CPU
+		{DB542CC5-561B-4DBD-920B-25A34C8FB1BA}.Debug - No System.dll|Any CPU.Build.0 = Debug|Any CPU
+		{DB542CC5-561B-4DBD-920B-25A34C8FB1BA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DB542CC5-561B-4DBD-920B-25A34C8FB1BA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DB542CC5-561B-4DBD-920B-25A34C8FB1BA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DB542CC5-561B-4DBD-920B-25A34C8FB1BA}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

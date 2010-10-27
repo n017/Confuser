@@ -56,8 +56,8 @@ namespace Confuser.Core.Confusions
             public override void DeInitialize()
             {
                 TypeDefinition modType = mod.GetType("<Module>");
-                AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(CtorProxyConfusion).Assembly.Location);
-                cc.proxy = i.MainModule.GetType(typeof(CtorProxyConfusion).FullName).Methods.FirstOrDefault(mtd => mtd.Name == "Injection");
+                AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(Iid).Assembly.Location);
+                cc.proxy = i.MainModule.GetType("Proxies").Methods.FirstOrDefault(mtd => mtd.Name == "CtorProxy");
                 cc.proxy = CecilHelper.Inject(mod, cc.proxy);
                 modType.Methods.Add(cc.proxy);
                 cc.proxy.IsAssembly = true;
@@ -268,10 +268,10 @@ namespace Confuser.Core.Confusions
                 this.progresser = progresser;
             }
         }
-        class MetadataPhase : AdvancedPhase
+        class MdPhase : MetadataPhase
         {
             CtorProxyConfusion cc;
-            public MetadataPhase(CtorProxyConfusion cc) { this.cc = cc; }
+            public MdPhase(CtorProxyConfusion cc) { this.cc = cc; }
             public override IConfusion Confusion
             {
                 get { return cc; }
@@ -287,19 +287,6 @@ namespace Confuser.Core.Confusions
                 get { return Priority.TypeLevel; }
             }
 
-            public override bool WholeRun
-            {
-                get { return true; }
-            }
-
-            public override void Initialize(ModuleDefinition mod)
-            {
-                //
-            }
-            public override void DeInitialize()
-            {
-                //
-            }
             public override void Process(MetadataProcessor.MetadataAccessor accessor)
             {
                 foreach (Context txt in cc.txts)
@@ -345,7 +332,7 @@ namespace Confuser.Core.Confusions
         {
             get
             {
-                if (ps == null) ps = new Phase[] { new Phase1(this), new Phase2(this), new MetadataPhase(this) };
+                if (ps == null) ps = new Phase[] { new Phase1(this), new Phase2(this), new MdPhase(this) };
                 return ps;
             }
         }
@@ -403,29 +390,6 @@ namespace Confuser.Core.Confusions
         {
             char asmRef = (char)(mod.AssemblyReferences.IndexOf(mtd.DeclaringType.Scope as AssemblyNameReference) + 2);
             return asmRef + Encoding.Unicode.GetString(BitConverter.GetBytes(mtd.Resolve().MetadataToken.ToUInt32()));
-        }
-
-        [System.Reflection.Obfuscation(Feature = "-[rename]", Exclude = false)]
-        private static void Injection(RuntimeFieldHandle f)
-        {
-            var fld = System.Reflection.FieldInfo.GetFieldFromHandle(f);
-            var asm = System.Reflection.Assembly.GetExecutingAssembly();
-            var mtd = asm.GetModules()[0].ResolveMethod(BitConverter.ToInt32(Encoding.Unicode.GetBytes(fld.Name.ToCharArray(), 1, 2), 0)) as System.Reflection.ConstructorInfo;
-            System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(mtd.DeclaringType.TypeHandle);
-
-            var args = mtd.GetParameters();
-            Type[] arg = new Type[args.Length];
-            for (int i = 0; i < args.Length; i++)
-                arg[i] = args[i].ParameterType;
-
-            var dm = new System.Reflection.Emit.DynamicMethod("", mtd.DeclaringType, arg, mtd.DeclaringType, true);
-            var gen = dm.GetILGenerator();
-            for (int i = 0; i < arg.Length; i++)
-                gen.Emit(System.Reflection.Emit.OpCodes.Ldarg_S, i);
-            gen.Emit(System.Reflection.Emit.OpCodes.Newobj, mtd);
-            gen.Emit(System.Reflection.Emit.OpCodes.Ret);
-
-            fld.SetValue(null, dm.CreateDelegate(fld.FieldType));
         }
     }
 }
