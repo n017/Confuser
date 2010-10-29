@@ -5,6 +5,7 @@ using System.Text;
 using System.Collections.ObjectModel;
 using Mono.Cecil;
 using System.Collections.Specialized;
+using System.IO;
 
 namespace Confuser.Core
 {
@@ -85,14 +86,14 @@ namespace Confuser.Core
     }
     public abstract class MetadataPhase : Phase
     {
-        public abstract void Process(MetadataProcessor.MetadataAccessor accessor);
+        public abstract void Process(NameValueCollection parameters, MetadataProcessor.MetadataAccessor accessor);
         public override sealed void Initialize(ModuleDefinition mod) { }
         public override sealed void DeInitialize() { }
         public override sealed bool WholeRun { get { return true; } }
     }
     public abstract class PePhase : Phase
     {
-        public abstract void Process(ref byte[] mod);
+        public abstract void Process(NameValueCollection parameters, Stream stream);
         public override sealed void Initialize(ModuleDefinition mod) { }
         public override sealed void DeInitialize() { }
         public override sealed bool WholeRun { get { return true; } }

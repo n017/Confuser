@@ -75,6 +75,7 @@
     <Compile Include="Compressor.cs" />
     <Compile Include="Confuser.cs" />
     <Compile Include="Confusions\AntiDebugConfusion.cs" />
+    <Compile Include="Confusions\AntiTamperConfusion.cs" />
     <Compile Include="Confusions\InvalidMdConfusion.cs" />
     <Compile Include="Confusions\MdReduceConfusion.cs" />
     <Compile Include="Confusions\ControlFlowConfusion.cs" />

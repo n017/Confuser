@@ -9,6 +9,7 @@ using System.Security.Cryptography;
 using System.IO;
 using System.Globalization;
 using System.IO.Compression;
+using System.Collections.Specialized;
 
 namespace Confuser.Core.Confusions
 {
@@ -287,7 +288,7 @@ namespace Confuser.Core.Confusions
                 get { return Priority.TypeLevel; }
             }
 
-            public override void Process(MetadataProcessor.MetadataAccessor accessor)
+            public override void Process(NameValueCollection parameters, MetadataProcessor.MetadataAccessor accessor)
             {
                 foreach (Context txt in cc.txts)
                 {
@@ -310,8 +311,7 @@ namespace Confuser.Core.Confusions
         {
             get
             {
-                return @"This confusion create proxies between references of constructors and methods code.
-***This confusion could affect the startup performance***";
+                return @"This confusion create proxies between references of constructors and methods code.";
             }
         }
         public Target Target

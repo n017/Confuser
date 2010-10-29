@@ -620,7 +620,7 @@ namespace Confuser
                     now.Add(set.Key, set.Value);
             }
             dst.Annotations["ConfusionSets"] = now;
-            dst.Annotations["GlobalParams"] = new Dictionary<Core.IConfusion, NameValueCollection>();
+            dst.Annotations["GlobalParams"] = now;
         }
 
         public override void MarkAssembly(AssemblyDefinition asm, Core.Preset preset)

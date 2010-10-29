@@ -1453,7 +1453,8 @@ namespace Mono.Cecil {
     ////////////Added
     public sealed class MetadataProcessor
     {
-        public delegate void Do(MetadataAccessor accessor);
+        public delegate void MetadataProcess(MetadataAccessor accessor);
+        public delegate void PeProcess(Stream pe);
 
         public void Process(ModuleDefinition mod, string fileName)
         {
@@ -1477,7 +1478,7 @@ namespace Mono.Cecil {
             }
         }
 
-        public void Process(ModuleDefinition mod, Stream stream, WriterParameters parameters)
+        public void Process(ModuleDefinition module, Stream stream, WriterParameters parameters)
         {
             if (stream == null)
                 throw new ArgumentNullException("stream");
@@ -1491,25 +1492,65 @@ namespace Mono.Cecil {
             var symbol_writer_provider = parameters.SymbolWriterProvider;
             if (symbol_writer_provider == null && parameters.WriteSymbols)
                 symbol_writer_provider = SymbolProvider.GetPlatformWriterProvider();
-            var symbol_writer = symbol_writer_provider == null ? null : symbol_writer_provider.GetSymbolWriter(mod, fq_name);
-            ModuleWriter.WriteModuleTo(mod, stream, parameters, new TrueProcessor(this, mod, fq_name,
-                symbol_writer_provider, symbol_writer));
+            var symbol_writer = symbol_writer_provider == null ? null : symbol_writer_provider.GetSymbolWriter(module, fq_name);
+            
+			if ((module.Attributes & ModuleAttributes.ILOnly) == 0)
+				throw new ArgumentException ();
+
+			if (module.HasImage && module.ReadingMode == ReadingMode.Deferred)
+				ImmediateModuleReader.ReadModule (module);
+
+			module.MetadataSystem.Clear ();
+
+			var name = module.assembly != null ? module.assembly.Name : null;
+
+#if !SILVERLIGHT && !CF
+			if (parameters.StrongNameKeyPair != null && name != null)
+				name.PublicKey = parameters.StrongNameKeyPair.PublicKey;
+#endif
+
+			if (name != null && name.HasPublicKey)
+				module.Attributes |= ModuleAttributes.StrongNameSigned;
+
+            MetadataBuilder metadata = new TrueProcessor(this, module, fq_name, symbol_writer_provider, symbol_writer);
+            metadata.BuildMetadata();
+
+			if (module.SymbolReader != null)
+				module.SymbolReader.Dispose ();
+
+			var writer = ImageWriter.CreateWriter (module, metadata, stream);
+
+			writer.WriteImage ();
+
+            OnProcessPe(stream);
+
+#if !SILVERLIGHT && !CF
+			if (parameters.StrongNameKeyPair != null)
+				CryptoService.StrongName (stream, writer, parameters.StrongNameKeyPair);
+#endif
+			if (metadata.symbol_writer != null)
+                metadata.symbol_writer.Dispose();
         }
 
-        public event Do PreProcess;
-        private void PrePs(MetadataAccessor accessor)
+        public event MetadataProcess BeforeBuildModule;
+        private void OnBeforeBuildModule(MetadataAccessor accessor)
         {
-            if (PreProcess != null) PreProcess(accessor);
+            if (BeforeBuildModule != null) BeforeBuildModule(accessor);
         }
-        public event Do DoProcess;
-        private void DoPs(MetadataAccessor accessor)
+        public event MetadataProcess BeforeWriteTables;
+        private void OnBeforeWriteTables(MetadataAccessor accessor)
         {
-            if (DoProcess != null) DoProcess(accessor);
+            if (BeforeWriteTables != null) BeforeWriteTables(accessor);
         }
-        public event Do PostProcess;
-        private void PostPs(MetadataAccessor accessor)
+        public event MetadataProcess AfterWriteTables;
+        private void OnAfterWriteTables(MetadataAccessor accessor)
         {
-            if (PostProcess != null) PostProcess(accessor);
+            if (AfterWriteTables != null) AfterWriteTables(accessor);
+        }
+        public event PeProcess ProcessPe;
+        private void OnProcessPe(Stream pe)
+        {
+            if (ProcessPe != null) ProcessPe(pe);
         }
 
 
@@ -1521,12 +1562,13 @@ namespace Mono.Cecil {
             public override void BuildMetadata()
             {
                 MetadataAccessor accessor = new MetadataAccessor(this);
-                psr.PrePs(accessor);
+                psr.OnBeforeBuildModule(accessor);
                 BuildModule();
-                psr.DoPs(accessor);
+                psr.OnBeforeWriteTables(accessor);
                 table_heap.WriteTableHeap();
-                psr.PostPs(accessor);
+                psr.OnAfterWriteTables(accessor);
             }
+
         }
         public class MetadataAccessor
         {

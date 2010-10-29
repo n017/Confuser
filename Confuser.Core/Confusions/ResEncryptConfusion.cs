@@ -9,6 +9,7 @@ using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
 using System.IO.Compression;
+using System.Collections.Specialized;
 
 namespace Confuser.Core.Confusions
 {
@@ -109,7 +110,7 @@ namespace Confuser.Core.Confusions
             {
                 get { return Priority.MetadataLevel; }
             }
-            public override void Process(MetadataProcessor.MetadataAccessor accessor)
+            public override void Process(NameValueCollection parameters, MetadataProcessor.MetadataAccessor accessor)
             {
                 ModuleDefinition mod = accessor.Module;
                 for (int i = 0; i < mod.Resources.Count; i++)

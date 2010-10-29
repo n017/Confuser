@@ -283,47 +283,49 @@ namespace Confuser.Core
                             MetadataProcessor psr = new MetadataProcessor();
                             double total1 = (from i in trueMems.Keys where (i is MetadataPhase) select i).Count();
                             int now1 = 1;
-                            psr.PreProcess += new MetadataProcessor.Do(delegate(MetadataProcessor.MetadataAccessor accessor)
+                            psr.BeforeBuildModule += new MetadataProcessor.MetadataProcess(delegate(MetadataProcessor.MetadataAccessor accessor)
                             {
                                 foreach (MetadataPhase i in from i in trueMems.Keys where (i is MetadataPhase) && i.PhaseID == 1 orderby i.Priority ascending select i)
                                 {
                                     param.Logger.Log("Executing " + i.Confusion.Name + " Phase 1...");
-                                    i.Process(accessor);
+                                    i.Process(globalParams[i.Confusion], accessor);
                                     param.Logger.Progress(now1 / total1); now1++;
                                 }
                             });
-                            psr.DoProcess += new MetadataProcessor.Do(delegate(MetadataProcessor.MetadataAccessor accessor)
+                            psr.BeforeWriteTables += new MetadataProcessor.MetadataProcess(delegate(MetadataProcessor.MetadataAccessor accessor)
                             {
                                 foreach (MetadataPhase i in from i in trueMems.Keys where (i is MetadataPhase) && i.PhaseID == 2 orderby i.Priority ascending select i)
                                 {
                                     param.Logger.Log("Executing " + i.Confusion.Name + " Phase 2...");
-                                    i.Process(accessor);
+                                    i.Process(globalParams[i.Confusion], accessor);
                                     param.Logger.Progress(now1 / total1); now1++;
                                 }
                             });
-                            psr.PostProcess += new MetadataProcessor.Do(delegate(MetadataProcessor.MetadataAccessor accessor)
+                            psr.AfterWriteTables += new MetadataProcessor.MetadataProcess(delegate(MetadataProcessor.MetadataAccessor accessor)
                             {
                                 foreach (MetadataPhase i in from i in trueMems.Keys where (i is MetadataPhase) && i.PhaseID == 3 orderby i.Priority ascending select i)
                                 {
                                     param.Logger.Log("Executing " + i.Confusion.Name + " Phase 3...");
-                                    i.Process(accessor);
+                                    i.Process(globalParams[i.Confusion], accessor);
                                     param.Logger.Progress(now1 / total1); now1++;
+                                }
+                            });
+                            psr.ProcessPe += new MetadataProcessor.PeProcess(delegate(Stream stream)
+                            {
+                                param.Logger.StartPhase(4);
+                                param.Logger.Log(string.Format("Obfuscating PE of module {0}...", mod.Name));
+                                PePhase[] phases = (from i in trueMems.Keys where (i is PePhase) orderby (int)i.Priority + i.PhaseID * 10 ascending select (PePhase)i).ToArray();
+                                for (int i = 0; i < phases.Length; i++)
+                                {
+                                    param.Logger.Log("Executing " + phases[i].Confusion.Name + " Phase 3...");
+                                    phases[i].Process(globalParams[phases[i].Confusion], stream);
+                                    param.Logger.Progress((double)i / phases.Length);
                                 }
                             });
                             param.Logger.Log(string.Format("Obfuscating metadata of module {0}...", mod.Name));
                             psr.Process(mod, final, new WriterParameters() { StrongNameKeyPair = sn });
 
-                            param.Logger.StartPhase(4);
-
                             byte[] pe = final.ToArray();
-                            param.Logger.Log(string.Format("Obfuscating PE of module {0}...", mod.Name));
-                            PePhase[] phases = (from i in trueMems.Keys where (i is PePhase) orderby (int)i.Priority + i.PhaseID * 10 ascending select (PePhase)i).ToArray();
-                            for (int i = 0; i < phases.Length; i++)
-                            {
-                                param.Logger.Log("Executing " + phases[i].Confusion.Name + " Phase 3...");
-                                phases[i].Process(ref pe);
-                                param.Logger.Progress((double)i / phases.Length);
-                            }
                             if (param.CompressOutput)
                             {
                                 param.Logger.Log("Compressing output module " + mod.Name + "...");
