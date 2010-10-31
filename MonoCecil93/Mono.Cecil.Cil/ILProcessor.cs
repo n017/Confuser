@@ -237,7 +237,7 @@ namespace Mono.Cecil.Cil {
             if (instruction == null)
                 throw new ArgumentNullException("instruction");
             if (targetIndex > instructions.Count || targetIndex < 0)
-                throw new ArgumentOutOfRangeException("target");
+                throw new ArgumentOutOfRangeException("targetIndex");
 
             instructions.Insert(targetIndex, instruction);
         }
@@ -260,7 +260,7 @@ namespace Mono.Cecil.Cil {
             if (instruction == null)
                 throw new ArgumentNullException("instruction");
             if (targetIndex > instructions.Count || targetIndex < 0)
-                throw new ArgumentOutOfRangeException("target");
+                throw new ArgumentOutOfRangeException("targetIndex");
 
             instructions.Insert(targetIndex + 1, instruction);
         }

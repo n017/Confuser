@@ -148,7 +148,7 @@ namespace Mono.Cecil {
 
 		string SearchDirectory (AssemblyNameReference name, IEnumerable<string> directories)
 		{
-			var extensions = new [] { ".exe", ".dll" };
+			var extensions = new [] { ".exe", ".dll", "" };
 			foreach (var directory in directories) {
 				foreach (var extension in extensions) {
 					string file = Path.Combine (directory, name.Name + extension);

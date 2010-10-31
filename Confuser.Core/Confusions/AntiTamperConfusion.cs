@@ -50,10 +50,18 @@ namespace Confuser.Core.Confusions
             {
                 AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(Iid).Assembly.Location);
                 cion.root = CecilHelper.Inject(mod, i.MainModule.GetType("AntiTamper"));
-                cion.root.Name = "AntiTemperingModule"; cion.root.Namespace = "";
                 mod.Types.Add(cion.root);
                 MethodDefinition cctor = mod.GetType("<Module>").GetStaticConstructor();
                 cctor.Body.GetILProcessor().InsertBefore(0, Instruction.Create(OpCodes.Call, cion.root.Methods.FirstOrDefault(mtd => mtd.Name == "Initalize")));
+
+                cion.root.Name = ObfuscationHelper.GetNewName("AntiTamperModule" + Guid.NewGuid().ToString());
+                cion.root.Namespace = "";
+                AddHelper(cion.root, HelperAttribute.NoInjection);
+                foreach (MethodDefinition mtdDef in cion.root.Methods)
+                {
+                    mtdDef.Name = ObfuscationHelper.GetNewName(mtdDef.Name + Guid.NewGuid().ToString());
+                    AddHelper(mtdDef, HelperAttribute.NoInjection);
+                }
             }
         }
         class Phase2 : StructurePhase
@@ -124,6 +132,7 @@ namespace Confuser.Core.Confusions
             {
                 MethodTable tbl = accessor.TableHeap.GetTable<MethodTable>(Table.Method);
                 cion.rvas = new uint[tbl.Length];
+                cion.ptrs = new uint[tbl.Length];
                 cion.codes = new byte[tbl.Length][];
                 for (int i = 0; i < tbl.Length; i++)
                 {
@@ -163,23 +172,29 @@ namespace Confuser.Core.Confusions
                 bool pe32 = (rdr.ReadUInt16() == 0x010b);
                 csOffset = offset + 0x40;
                 stream.Seek(offset = offset + (pe32 ? 0xE0U : 0xF0U), SeekOrigin.Begin);   //sections
+                uint sampleRva = 0xffffffff;
+                foreach(uint i in cion.rvas)
+                    if (i != 0) { sampleRva = i; break; }
                 for (int i = 0; i < sections; i++)
                 {
                     string name = Encoding.ASCII.GetString(rdr.ReadBytes(8)).Trim('\0');
-                    if (name != ".text") { stream.Seek(0x20, SeekOrigin.Current); continue; }
                     uint vSize = rdr.ReadUInt32();
                     uint vAdr = rdr.ReadUInt32();
                     uint dSize = rdr.ReadUInt32();
                     uint dAdr = rdr.ReadUInt32();
                     stream.Seek(0x10, SeekOrigin.Current);
-                    rvaOffset = (int)dAdr - (int)vAdr;
-                    break;
+                    if (sampleRva > vAdr && sampleRva < (vAdr + vSize))
+                    {
+                        rvaOffset = (int)dAdr - (int)vAdr;
+                        break;
+                    }
                 }
 
                 for (int i = 0; i < cion.rvas.Length; i++)
                 {
                     if (cion.rvas[i] == 0) continue;
                     long ptr = cion.rvas[i] + rvaOffset;
+                    cion.ptrs[i] = (uint)ptr;
                     stream.Seek(ptr, SeekOrigin.Begin);
                     byte b = rdr.ReadByte();
                     if ((b & 0x3) == 0x2)
@@ -278,8 +293,9 @@ namespace Confuser.Core.Confusions
                 wtr.Write((uint)cion.codes.Length);
                 for (int i = 0; i < cion.codes.Length; i++)
                 {
+                    wtr.Write(cion.ptrs[i]);
+                    if (cion.ptrs[i] == 0) continue;
                     wtr.Write(cion.rvas[i]);
-                    if (cion.rvas[i] == 0) continue;
                     wtr.Write(cion.codes[i].Length);
                     wtr.Write(cion.codes[i]);
                 }
@@ -306,6 +322,7 @@ namespace Confuser.Core.Confusions
         TypeDefinition root;
         List<int> excludes;
         uint[] rvas;
+        uint[] ptrs;
         byte[][] codes;
 
         public string Name
@@ -331,6 +348,14 @@ namespace Confuser.Core.Confusions
         public Preset Preset
         {
             get { return Preset.Maximum; }
+        }
+        public bool SupportLateAddition
+        {
+            get { return true; }
+        }
+        public Behaviour Behaviour
+        {
+            get { return Behaviour.Inject | Behaviour.AlterCode | Behaviour.Encrypt; }
         }
 
         Phase[] phases;

@@ -41,6 +41,14 @@ namespace Confuser.Core.Confusions
         {
             get { return new Phase[] { this }; }
         }
+        public bool SupportLateAddition
+        {
+            get { return false; }
+        }
+        public Behaviour Behaviour
+        {
+            get { return Behaviour.Inject; }
+        }
 
         public override Priority Priority
         {
@@ -75,12 +83,20 @@ namespace Confuser.Core.Confusions
             if (Array.IndexOf(parameter.GlobalParameters.AllKeys, "win32") != -1)
             {
                 TypeDefinition type = CecilHelper.Inject(mod, self.MainModule.GetType("AntiDebugger"));
-                type.Name = "AntiDebugModule"; type.Namespace = "";
                 type.Methods.Remove(type.Methods.FirstOrDefault(mtd => mtd.Name == "AntiDebugSafe"));
                 mod.Types.Add(type);
                 TypeDefinition modType = mod.GetType("<Module>");
                 ILProcessor psr = modType.GetStaticConstructor().Body.GetILProcessor();
                 psr.InsertBefore(psr.Body.Instructions.Count - 1, Instruction.Create(OpCodes.Call, type.Methods.FirstOrDefault(mtd => mtd.Name == "Initialize")));
+
+                type.Name = ObfuscationHelper.GetNewName("AntiDebugModule" + Guid.NewGuid().ToString()); 
+                type.Namespace = "";
+                AddHelper(type, HelperAttribute.NoInjection);
+                foreach (MethodDefinition mtdDef in type.Methods)
+                {
+                    mtdDef.Name = ObfuscationHelper.GetNewName(mtdDef.Name + Guid.NewGuid().ToString());
+                    AddHelper(mtdDef, HelperAttribute.NoInjection);
+                }
             }
             else
             {
@@ -89,8 +105,11 @@ namespace Confuser.Core.Confusions
                 modType.Methods.Add(i);
                 ILProcessor psr = modType.GetStaticConstructor().Body.GetILProcessor();
                 psr.InsertBefore(psr.Body.Instructions.Count - 1, Instruction.Create(OpCodes.Call, i));
+
+                i.Name = ObfuscationHelper.GetNewName(i.Name + Guid.NewGuid().ToString());
+                i.IsAssembly = true;
+                AddHelper(i, HelperAttribute.NoInjection);
             }
         }
-
     }
 }

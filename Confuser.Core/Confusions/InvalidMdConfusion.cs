@@ -176,6 +176,14 @@ namespace Confuser.Core.Confusions
         {
             get { return Preset.Maximum; }
         }
+        public bool SupportLateAddition
+        {
+            get { return true; }
+        }
+        public Behaviour Behaviour
+        {
+            get { return Behaviour.AlterStructure; }
+        }
 
         Phase[] phases;
         public Phase[] Phases

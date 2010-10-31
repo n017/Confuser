@@ -63,6 +63,7 @@ namespace Confuser.Core.Confusions
                 modType.Methods.Add(mc.proxy);
                 mc.proxy.IsAssembly = true;
                 mc.proxy.Name = ObfuscationHelper.GetNewName("Proxy" + Guid.NewGuid().ToString());
+                AddHelper(mc.proxy, 0);
             }
 
             public override void Process(ConfusionParameter parameter)
@@ -349,6 +350,14 @@ namespace Confuser.Core.Confusions
         public bool StandardCompatible
         {
             get { return true; }
+        }
+        public bool SupportLateAddition
+        {
+            get { return false; }
+        }
+        public Behaviour Behaviour
+        {
+            get { return Behaviour.Inject | Behaviour.AlterCode | Behaviour.AlterStructure; }
         }
 
         Phase[] ps;

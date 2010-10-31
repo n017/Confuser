@@ -28,7 +28,7 @@ namespace Confuser.Core.Confusions
 
             public override Priority Priority
             {
-                get { return Priority.Safe; }
+                get { return Priority.MetadataLevel; }
             }
 
             public override bool WholeRun
@@ -159,6 +159,14 @@ namespace Confuser.Core.Confusions
         public bool StandardCompatible
         {
             get { return true; }
+        }
+        public bool SupportLateAddition
+        {
+            get { return true; }
+        }
+        public Behaviour Behaviour
+        {
+            get { return Behaviour.AlterStructure; }
         }
 
         Phase[] ps;

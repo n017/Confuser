@@ -58,6 +58,7 @@ namespace Confuser.Core.Confusions
                 byte[] n = Guid.NewGuid().ToByteArray();
                 rc.reso.Name = Encoding.UTF8.GetString(n);
                 rc.reso.IsAssembly = true;
+                AddHelper(rc.reso, HelperAttribute.NoInjection);
 
                 n = Guid.NewGuid().ToByteArray();
                 rc.key0 = n[0];
@@ -184,6 +185,14 @@ namespace Confuser.Core.Confusions
         public bool StandardCompatible
         {
             get { return true; }
+        }
+        public bool SupportLateAddition
+        {
+            get { return true; }
+        }
+        public Behaviour Behaviour
+        {
+            get { return Behaviour.Inject | Behaviour.AlterCode | Behaviour.Encrypt; }
         }
 
 

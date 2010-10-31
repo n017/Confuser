@@ -1,0 +1,29 @@
+﻿using System;
+
+[AttributeUsage(AttributeTargets.All & ~AttributeTargets.GenericParameter & ~AttributeTargets.Parameter & ~AttributeTargets.ReturnValue)]
+class ConfusingAttribute : Attribute
+{
+    public ConfusingAttribute()
+    {
+        ApplyToMembers = true;
+        Exclude = false;
+        Config = "all";
+        StripAfterObfuscation = true;
+    }
+    public bool ApplyToMembers { get; set; }
+    public bool Exclude { get; set; }
+    public string Config { get; set; }
+    public bool StripAfterObfuscation { get; set; }
+}
+
+[AttributeUsage(AttributeTargets.Module)]
+class PackerAttribute : Attribute
+{
+    public PackerAttribute()
+    {
+        Config = "";
+        StripAfterObfuscation = true;
+    }
+    public string Config { get; set; }
+    public bool StripAfterObfuscation { get; set; }
+}

@@ -47,6 +47,7 @@ namespace Confuser.Core
                 ret.BaseType = mod.Import(type.BaseType);
 
             Dictionary<MetadataToken, IMemberDefinition> mems = new Dictionary<MetadataToken, IMemberDefinition>();
+            mems.Add(type.MetadataToken, ret);
             foreach (FieldDefinition fld in type.Fields)
             {
                 FieldDefinition n = new FieldDefinition(fld.Name, fld.Attributes, fld.FieldType == type ? ret : mod.Import(fld.FieldType));
@@ -63,9 +64,9 @@ namespace Confuser.Core
                 if (mtd.HasBody)
                     foreach (Instruction inst in mtd.Body.Instructions)
                     {
-                        if ((inst.Operand is FieldReference && ((FieldReference)inst.Operand).DeclaringType == type) ||
-                            (inst.Operand is MethodReference && ((MethodReference)inst.Operand).DeclaringType == type))
-                            inst.Operand = mems[((MemberReference)inst.Operand).MetadataToken];
+                        if ((inst.Operand is MemberReference && ((MemberReference)inst.Operand).DeclaringType == type) ||
+                            (inst.Operand is MemberReference && ((MemberReference)inst.Operand) == type))
+                            inst.Operand = mems[(inst.Operand as MemberReference).MetadataToken];
                     }
 
 
@@ -137,12 +138,25 @@ namespace Confuser.Core
                             psr.Emit(inst.OpCode, mod.Import(inst.Operand as TypeReference));
                             break;
                         case OperandType.InlineTok:
-                            if (inst.Operand is TypeReference)
-                                psr.Emit(inst.OpCode, mod.Import(inst.Operand as TypeReference));
-                            else if (inst.Operand is FieldReference)
-                                psr.Emit(inst.OpCode, mod.Import(inst.Operand as FieldReference));
-                            else if (inst.Operand is MethodReference)
-                                psr.Emit(inst.OpCode, mod.Import(inst.Operand as MethodReference));
+                            if (((MemberReference)inst.Operand).DeclaringType != mtd.DeclaringType &&
+                                ((TypeReference)inst.Operand) != mtd.DeclaringType)
+                            {
+                                if (inst.Operand is TypeReference)
+                                    psr.Emit(inst.OpCode, mod.Import(inst.Operand as TypeReference));
+                                else if (inst.Operand is FieldReference)
+                                    psr.Emit(inst.OpCode, mod.Import(inst.Operand as FieldReference));
+                                else if (inst.Operand is MethodReference)
+                                    psr.Emit(inst.OpCode, mod.Import(inst.Operand as MethodReference));
+                            }
+                            else
+                            {
+                                if (inst.Operand is TypeReference)
+                                    psr.Emit(inst.OpCode, inst.Operand as TypeReference);
+                                else if (inst.Operand is FieldReference)
+                                    psr.Emit(inst.OpCode, inst.Operand as FieldReference);
+                                else if (inst.Operand is MethodReference)
+                                    psr.Emit(inst.OpCode, inst.Operand as MethodReference);
+                            }
                             break;
                         default:
                             psr.Append(inst);

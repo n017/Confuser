@@ -358,13 +358,8 @@
 				    <Label Margin="5,40,0,0" VerticalAlignment="Top" Height="25" Content="Strong Name Key :" HorizontalAlignment="Left" Width="105" HorizontalContentAlignment="Right" VerticalContentAlignment="Center" FontWeight="Thin"/>
 				    <TextBox x:Name="sn" Margin="115,40,40,0" VerticalAlignment="Top" Height="25" FontWeight="Thin" BorderThickness="0.75" VerticalContentAlignment="Center" BorderBrush="White"/>
 				    <Button x:Name="browseSn" HorizontalAlignment="Right" Margin="0,40,10,0" VerticalAlignment="Top" Width="25" Height="25" Content="..." Background="#00000000" BorderBrush="White" BorderThickness="0.5" FontWeight="Thin" FontSize="10.667" Click="browseClick"/>
-				    <CheckBox x:Name="compress" HorizontalAlignment="Left" Margin="25,80,0,0" VerticalAlignment="Top" Width="120" Height="20" Background="Transparent" FontWeight="Thin">
-					    <CheckBox.Content>
-						    <Label Content="Compress output" VerticalContentAlignment="Center" Margin="0,1,0,0" FontWeight="Thin"/>
-					    </CheckBox.Content>
-				    </CheckBox>
-				    <Label Margin="140,76,0,0" VerticalAlignment="Top" Height="25" Content="Preset :" HorizontalAlignment="Left" Width="50" HorizontalContentAlignment="Right" VerticalContentAlignment="Center" FontWeight="Thin"/>
-				    <ComboBox x:Name="preset" Margin="200,77,0,0" VerticalAlignment="Top" BorderThickness="0.75" Width="140" HorizontalAlignment="Left" Height="22" FontWeight="Thin">
+				    <Label Margin="5,76,0,0" VerticalAlignment="Top" Height="25" Content="Preset :" HorizontalAlignment="Left" Width="105" HorizontalContentAlignment="Right" VerticalContentAlignment="Center" FontWeight="Thin"/>
+				    <ComboBox x:Name="preset" Margin="115,77,0,0" VerticalAlignment="Top" BorderThickness="0.75" Width="175" HorizontalAlignment="Left" Height="22" FontWeight="Thin">
 					    <TextBlock FontWeight="Thin" Foreground="White" Text="None"/>
 					    <TextBlock FontWeight="Thin" Foreground="White" Text="Minimum"/>
 					    <TextBlock FontWeight="Thin" Foreground="White" Text="Normal" Selector.IsSelected="True"/>
@@ -448,24 +443,52 @@
 					</StackPanel>
 				</local:Scroller>
 			</Grid>
-			<Grid x:Name="confusions" Opacity="0" Visibility="Hidden">
-				<ListBox x:Name="confusionList" VerticalAlignment="Top" Height="100" BorderBrush="White" BorderThickness="1" ItemContainerStyle="{DynamicResource HollowListBoxItem}" Style="{DynamicResource HollowListBox}" Background="{x:Null}" SelectionChanged="confusionList_SelectionChanged">
-					<ListBox.ItemTemplate>
-						<DataTemplate>
-							<TextBlock FontWeight="Thin" Focusable="False" Text="{Binding Path=Name}" Foreground="White"/>
-						</DataTemplate>
-					</ListBox.ItemTemplate>
-				</ListBox>
-				<Grid x:Name="confusionDetail" Margin="0,100,0,0">
-					<TextBlock FontWeight="Thin" Foreground="White" VerticalAlignment="Top" Text="{Binding Path=Name}" Height="30" FontSize="21.333" Margin="10,10,10,0"/>
-					<TextBlock FontWeight="Thin" Foreground="White" VerticalAlignment="Top" Text="{Binding Path=ID, StringFormat=ID : {0}}" Height="25" FontSize="13.333" Margin="10,50,10,0"/>
-					<TextBlock FontWeight="Thin" Foreground="White" VerticalAlignment="Top" Text="{Binding Path=Description, StringFormat=Description : {0}}" Height="75" FontSize="13.333" Margin="10,75,10,0" TextWrapping="Wrap"/>
-					<TextBlock FontWeight="Thin" Foreground="White" VerticalAlignment="Top" Text="{Binding Path=Target, StringFormat=Target : {0}}" Height="25" FontSize="13.333" Margin="10,175,10,0"/>
-					<TextBlock FontWeight="Thin" Foreground="White" VerticalAlignment="Top" Text="{Binding Path=Preset, StringFormat=Preset : {0}}" Height="25" FontSize="13.333" Margin="10,200,10,0"/>
-					<TextBlock FontWeight="Thin" Foreground="White" VerticalAlignment="Top" Text="{Binding Path=StandardCompatible, StringFormat=Verifiable : {0}}" Height="25" FontSize="13.333" Margin="10,225,10,0"/>
-				</Grid>
-			</Grid>
-			<Grid x:Name="about" Opacity="0" Visibility="Hidden" Loaded="AboutLoaded">
+            <Grid x:Name="confusions" Opacity="0" Visibility="Hidden">
+                <ListBox x:Name="confusionList" VerticalAlignment="Top" Height="100" BorderBrush="White" BorderThickness="1" ItemContainerStyle="{DynamicResource HollowListBoxItem}" Style="{DynamicResource HollowListBox}" Background="{x:Null}" SelectionChanged="list_SelectionChanged">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock FontWeight="Thin" Focusable="False" Text="{Binding Path=Name}" Foreground="White"/>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <Grid x:Name="confusionsDetail" Margin="0,100,0,0">
+                    <TextBlock FontWeight="Thin" Foreground="White" VerticalAlignment="Top" Text="{Binding Path=Name}" Height="30" FontSize="21.333" Margin="10,10,10,0"/>
+                    <TextBlock FontWeight="Thin" Foreground="White" VerticalAlignment="Top" Text="{Binding Path=ID, StringFormat=ID : {0}}" Height="25" FontSize="13.333" Margin="10,50,10,0"/>
+                    <TextBlock FontWeight="Thin" Foreground="White" VerticalAlignment="Top" Text="{Binding Path=Description, StringFormat=Description : {0}}" Height="75" FontSize="13.333" Margin="10,75,10,0" TextWrapping="Wrap"/>
+                    <TextBlock FontWeight="Thin" Foreground="White" VerticalAlignment="Top" Text="{Binding Path=Target, StringFormat=Target : {0}}" Height="25" FontSize="13.333" Margin="10,175,10,0"/>
+                    <TextBlock FontWeight="Thin" Foreground="White" VerticalAlignment="Top" Text="{Binding Path=Preset, StringFormat=Preset : {0}}" Height="25" FontSize="13.333" Margin="10,200,10,0"/>
+                    <TextBlock FontWeight="Thin" Foreground="White" VerticalAlignment="Top" Text="{Binding Path=StandardCompatible, StringFormat=Verifiable : {0}}" Height="25" FontSize="13.333" Margin="10,225,10,0"/>
+                </Grid>
+            </Grid>
+            <Grid x:Name="packers" Opacity="0" Visibility="Hidden">
+                <ListBox x:Name="packersList" VerticalAlignment="Top" Height="100" BorderBrush="White" BorderThickness="1" ItemContainerStyle="{DynamicResource HollowListBoxItem}" Style="{DynamicResource HollowListBox}" Background="{x:Null}" SelectionChanged="list_SelectionChanged">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock FontWeight="Thin" Focusable="False" Text="{Binding Path=Name}" Foreground="White"/>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <Grid x:Name="packersDetail" Margin="0,100,0,0">
+                    <TextBlock FontWeight="Thin" Foreground="White" VerticalAlignment="Top" Text="{Binding Path=Name}" Height="30" FontSize="21.333" Margin="10,10,10,0"/>
+                    <TextBlock FontWeight="Thin" Foreground="White" VerticalAlignment="Top" Text="{Binding Path=ID, StringFormat=ID : {0}}" Height="25" FontSize="13.333" Margin="10,50,10,0"/>
+                    <TextBlock FontWeight="Thin" Foreground="White" VerticalAlignment="Top" Text="{Binding Path=Description, StringFormat=Description : {0}}" Height="75" FontSize="13.333" Margin="10,75,10,0" TextWrapping="Wrap"/>
+                </Grid>
+            </Grid>
+            <Grid x:Name="packermods" Opacity="0" Visibility="Hidden">
+                <ListBox x:Name="packermodsList" VerticalAlignment="Top" Height="100" BorderBrush="White" BorderThickness="1" ItemContainerStyle="{DynamicResource HollowListBoxItem}" Style="{DynamicResource HollowListBox}" Background="{x:Null}" SelectionChanged="list_SelectionChanged">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock FontWeight="Thin" Focusable="False" Text="{Binding Path=Name}" Foreground="White"/>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <Grid x:Name="packermodsDetail" Margin="0,100,0,0">
+                    <TextBlock FontWeight="Thin" Foreground="White" VerticalAlignment="Top" Text="{Binding Path=Name}" Height="30" FontSize="21.333" Margin="10,10,10,0"/>
+                    <TextBlock FontWeight="Thin" Foreground="White" VerticalAlignment="Top" Text="{Binding Path=ID, StringFormat=ID : {0}}" Height="25" FontSize="13.333" Margin="10,50,10,0"/>
+                    <TextBlock FontWeight="Thin" Foreground="White" VerticalAlignment="Top" Text="{Binding Path=Description, StringFormat=Description : {0}}" Height="75" FontSize="13.333" Margin="10,75,10,0" TextWrapping="Wrap"/>
+                </Grid>
+            </Grid>
+            <Grid x:Name="about" Opacity="0" Visibility="Hidden" Loaded="AboutLoaded">
 				<Grid Width="250" Height="150">
 					<Border BorderBrush="White" BorderThickness="0.5" />
 					<TextBlock Margin="10,10,10,0" Foreground="White">
@@ -483,10 +506,12 @@
 			</MenuItem>
 		</Menu>
 		<StackPanel x:Name="seltor" Margin="0,0,0,0" Grid.Row="1">
-			<RadioButton x:Name="assemblyButton"  Focusable="False" Margin="5" Height="35" Content="Assembly"  Template="{DynamicResource RadioButtonButton}" FontWeight="Thin" FontSize="14" Checked="radioChecked" Unchecked="radioUnchecked"/>
-			<RadioButton x:Name="confuseButton"	Focusable="False" Margin="5" Height="35" Content="Confuse"	Template="{DynamicResource RadioButtonButton}" FontWeight="Thin" FontSize="14" Checked="radioChecked" Unchecked="radioUnchecked"/>
-			<RadioButton x:Name="confusionsButton" Focusable="False" Margin="5" Height="35" Content="Confusions" Template="{DynamicResource RadioButtonButton}" FontWeight="Thin" FontSize="14" Checked="radioChecked" Unchecked="radioUnchecked"/>
-			<RadioButton x:Name="aboutButton"	 Focusable="False" Margin="5" Height="35" Content="About"	 Template="{DynamicResource RadioButtonButton}" FontWeight="Thin" FontSize="14" Checked="radioChecked" Unchecked="radioUnchecked"/>
+			<RadioButton x:Name="assemblyButton" Focusable="False" Margin="5" Height="35" Content="Assembly" Template="{DynamicResource RadioButtonButton}" FontWeight="Thin" FontSize="14" Checked="radioChecked" Unchecked="radioUnchecked"/>
+			<RadioButton x:Name="confuseButton"	Focusable="False" Margin="5" Height="35" Content="Confuse" Template="{DynamicResource RadioButtonButton}" FontWeight="Thin" FontSize="14" Checked="radioChecked" Unchecked="radioUnchecked"/>
+            <RadioButton x:Name="confusionsButton" Focusable="False" Margin="5" Height="35" Content="Confusions" Template="{DynamicResource RadioButtonButton}" FontWeight="Thin" FontSize="14" Checked="radioChecked" Unchecked="radioUnchecked"/>
+            <RadioButton x:Name="packersButton" Focusable="False" Margin="5" Height="35" Content="Packers" Template="{DynamicResource RadioButtonButton}" FontWeight="Thin" FontSize="14" Checked="radioChecked" Unchecked="radioUnchecked"/>
+            <RadioButton x:Name="packermodsButton" Focusable="False" Margin="5" Height="35" Content="Packer Modules" Template="{DynamicResource RadioButtonButton}" FontWeight="Thin" FontSize="14" Checked="radioChecked" Unchecked="radioUnchecked"/>
+            <RadioButton x:Name="aboutButton" Focusable="False" Margin="5" Height="35" Content="About" Template="{DynamicResource RadioButtonButton}" FontWeight="Thin" FontSize="14" Checked="radioChecked" Unchecked="radioUnchecked"/>
 		</StackPanel>
 	</Grid>
 </Window>

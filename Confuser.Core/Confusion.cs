@@ -40,6 +40,21 @@ namespace Confuser.Core
         Aggressive = 3,
         Maximum = 4,
     }
+    [Flags]
+    public enum Behaviour
+    {
+        Inject = 1,
+        AlterCode = 2,
+        Encrypt = 4,
+        AlterStructure = 8,
+    }
+    [Flags]
+    public enum HelperAttribute
+    {
+        NoInjection = 1,
+        NoAlter = 2,
+        NoEncrypt = 4,
+    }
 
     public class ConfusionParameter
     {
@@ -63,6 +78,8 @@ namespace Confuser.Core
         Target Target { get; }
         Preset Preset { get; }
         bool StandardCompatible { get; }
+        bool SupportLateAddition { get; }
+        Behaviour Behaviour { get; }
     }
 
     public abstract class Phase
@@ -71,6 +88,8 @@ namespace Confuser.Core
         Confuser cr;
         internal Confuser Confuser { get { return cr; } set { cr = value; } }
         protected void Log(string message) { cr.Log(message); }
+        protected void AddHelper(IMemberDefinition helper, HelperAttribute attr) { cr.helpers.Add(helper, attr); }
+        protected IEnumerable<IMemberDefinition> GetHelpers() { return cr.helpers.Keys; }
 
         public abstract IConfusion Confusion { get; }
         public abstract int PhaseID { get; }

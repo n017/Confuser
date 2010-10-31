@@ -54,6 +54,14 @@ namespace Confuser.Core.Confusions
         {
             get { return true; }
         }
+        public bool SupportLateAddition
+        {
+            get { return false; }
+        }
+        public Behaviour Behaviour
+        {
+            get { return Behaviour.AlterStructure; }
+        }
         public override void Initialize(ModuleDefinition mod)
         {
             this.mod = mod;

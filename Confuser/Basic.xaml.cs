@@ -37,7 +37,7 @@ namespace Confuser
         private void radioChecked(object sender, RoutedEventArgs e)
         {
             RadioButton radio = sender as RadioButton;
-            UIElement element = Helper.FindChild<UIElement>(space, radio.Content.ToString().ToLower());
+            UIElement element = Helper.FindChild<UIElement>(space, (radio.Name).Substring(0, radio.Name.Length - 6).ToLower());
             Storyboard sb = new Storyboard();
             DoubleAnimation ani = new DoubleAnimation(1, new Duration(TimeSpan.FromSeconds(0.25)));
             Storyboard.SetTarget(ani, element);
@@ -49,7 +49,7 @@ namespace Confuser
         private void radioUnchecked(object sender, RoutedEventArgs e)
         {
             RadioButton radio = sender as RadioButton;
-            UIElement element = Helper.FindChild<UIElement>(space, radio.Content.ToString().ToLower());
+            UIElement element = Helper.FindChild<UIElement>(space, (radio.Name).Substring(0, radio.Name.Length - 6).ToLower());
             Storyboard sb = new Storyboard();
             DoubleAnimation ani = new DoubleAnimation(0, new Duration(TimeSpan.FromSeconds(0.25)));
             Storyboard.SetTarget(ani, element);
@@ -188,17 +188,26 @@ namespace Confuser
         }
 
 
-        Dictionary<string, Core.IConfusion> ldConfusions = new Dictionary<string, Confuser.Core.IConfusion>();
+        Dictionary<string, Core.IConfusion> ldConfusions = new Dictionary<string, Core.IConfusion>();
+        Dictionary<string, Core.Packer> ldPackers = new Dictionary<string, Core.Packer>();
+        Dictionary<string, Core.PackerModule> ldPackerModules = new Dictionary<string, Core.PackerModule>();
         private void LoadAssembly(Assembly asm)
         {
-            foreach (Type type in asm.GetTypes())
+            foreach (Type type in asm.GetTypes()){
                 if (typeof(Core.IConfusion).IsAssignableFrom(type) && type != typeof(Core.IConfusion))
                     ldConfusions.Add(type.FullName, Activator.CreateInstance(type) as Core.IConfusion);
+                if (typeof(Core.Packer).IsAssignableFrom(type) && type != typeof(Core.Packer))
+                    ldPackers.Add(type.FullName, Activator.CreateInstance(type) as Core.Packer);
+                if (typeof(Core.PackerModule).IsAssignableFrom(type) && type != typeof(Core.PackerModule))
+                    ldPackerModules.Add(type.FullName, Activator.CreateInstance(type) as Core.PackerModule);
+            }
         }
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
             LoadAssembly(typeof(Core.IConfusion).Assembly);
 			confusionList.ItemsSource = ldConfusions.Values;
+			packersList.ItemsSource = ldPackers.Values;
+			packermodsList.ItemsSource = ldPackerModules.Values;
         }
 
         Thread confuser;
@@ -217,8 +226,9 @@ namespace Confuser
             param.DestinationPath = output.Text;
             param.ReferencesPath = System.IO.Path.GetDirectoryName(path);
             param.Confusions = ldConfusions.Values.ToArray();
+            param.Packers = ldPackers.Values.ToArray();
+            param.PackerModules = ldPackerModules.Values.ToArray();
             param.DefaultPreset = (Core.Preset)Enum.Parse(typeof(Core.Preset), (preset.SelectedItem as TextBlock).Text);
-            param.CompressOutput = compress.IsChecked.GetValueOrDefault();
             param.StrongNameKeyPath = sn.Text;
             param.Logger.BeginPhase += new EventHandler<Core.PhaseEventArgs>((sender1, e1) =>
             {
@@ -333,25 +343,25 @@ namespace Confuser
             this.Dispatcher.BeginInvoke(new Action(MoniterValue), DispatcherPriority.Background, null);
         }
 
-        private void confusionList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void list_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
 			Storyboard sb = new Storyboard();
 			
 			DoubleAnimation fadeOut = new DoubleAnimation(0, new Duration(TimeSpan.FromSeconds(0.25)));
 			Storyboard.SetTargetProperty(fadeOut, new PropertyPath(UIElement.OpacityProperty));
-			Storyboard.SetTarget(fadeOut, confusionDetail);
+            Storyboard.SetTarget(fadeOut, Helper.FindChild<Grid>((sender as ListBox).Parent, ((Grid)(sender as ListBox).Parent).Name + "Detail"));
 			sb.Children.Add(fadeOut);
 			
 			var obj = new ObjectAnimationUsingKeyFrames();
-			obj.KeyFrames.Add(new DiscreteObjectKeyFrame(confusionList.SelectedItem, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(0.25))));
+            obj.KeyFrames.Add(new DiscreteObjectKeyFrame((sender as ListBox).SelectedItem, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(0.25))));
 			Storyboard.SetTargetProperty(obj, new PropertyPath(FrameworkElement.DataContextProperty));
-			Storyboard.SetTarget(obj, confusionDetail);
+            Storyboard.SetTarget(obj, Helper.FindChild<Grid>((sender as ListBox).Parent, ((Grid)(sender as ListBox).Parent).Name + "Detail"));
 			sb.Children.Add(obj);
 			
 			DoubleAnimation fadeIn = new DoubleAnimation(1, new Duration(TimeSpan.FromSeconds(0.25)));
 			fadeIn.BeginTime = TimeSpan.FromSeconds(0.25);
 			Storyboard.SetTargetProperty(fadeIn, new PropertyPath(UIElement.OpacityProperty));
-			Storyboard.SetTarget(fadeIn, confusionDetail);
+            Storyboard.SetTarget(fadeIn, Helper.FindChild<Grid>((sender as ListBox).Parent, ((Grid)(sender as ListBox).Parent).Name + "Detail"));
 			sb.Children.Add(fadeIn);
 			
         	sb.Begin();

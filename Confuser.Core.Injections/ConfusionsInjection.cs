@@ -281,86 +281,97 @@ static class AntiTamper
 
     public static unsafe void Initalize()
     {
-        try
+        Module mod = typeof(AntiTamper).Module;
+        IntPtr modPtr = Marshal.GetHINSTANCE(mod);
+        if (modPtr == (IntPtr)(-1)) Environment.FailFast("Module error");
+        File.WriteAllText("E:\\1.txt", modPtr.ToString("X8"));
+        Stream stream;
+        bool inMem;
+        if (mod.FullyQualifiedName == "<Unknown>")
         {
-            Module mod = new StackFrame(1).GetMethod().Module;
-            IntPtr modPtr = Marshal.GetHINSTANCE(mod);
-            if (modPtr == (IntPtr)(-1) || mod.FullyQualifiedName == "<Unknown>") return;
-            Stream stream = new FileStream(mod.FullyQualifiedName, FileMode.Open, FileAccess.Read, FileShare.Read);
+            inMem = true;
+            stream = new UnmanagedMemoryStream((byte*)modPtr.ToPointer(), 0xfffffff, 0xfffffff, FileAccess.ReadWrite);
+        }
+        else
+        {
+            inMem = false;
+            stream = new FileStream(mod.FullyQualifiedName, FileMode.Open, FileAccess.Read, FileShare.Read);
+        }
 
-            byte[] file;
-            uint checkSumOffset;
-            ulong checkSum;
-            byte[] iv;
-            byte[] dats;
-            using (BinaryReader rdr = new BinaryReader(stream))
+        byte[] file;
+        uint checkSumOffset;
+        ulong checkSum;
+        byte[] iv;
+        byte[] dats;
+        using (BinaryReader rdr = new BinaryReader(stream))
+        {
+            stream.Seek(0x3c, SeekOrigin.Begin);
+            uint offset = rdr.ReadUInt32();
+            stream.Seek(offset, SeekOrigin.Begin);
+            stream.Seek(0x6, SeekOrigin.Current);
+            uint sections = rdr.ReadUInt16();
+            stream.Seek(offset = offset + 0x18, SeekOrigin.Begin);  //Optional hdr
+            bool pe32 = (rdr.ReadUInt16() == 0x010b);
+            stream.Seek(0x3e, SeekOrigin.Current);
+            checkSumOffset = (uint)stream.Position;
+            int len = rdr.ReadInt32();
+            if (len == 0)
+                Environment.FailFast("Broken file");
+
+            stream.Seek(0, SeekOrigin.Begin);
+            file = rdr.ReadBytes(len);
+            checkSum = rdr.ReadUInt64();
+            iv = rdr.ReadBytes(rdr.ReadInt32());
+            dats = rdr.ReadBytes(rdr.ReadInt32());
+        }
+
+        file[checkSumOffset] = 0;
+        file[checkSumOffset + 1] = 0;
+        file[checkSumOffset + 2] = 0;
+        file[checkSumOffset + 3] = 0;
+        byte[] md5 = MD5.Create().ComputeHash(file);
+        ulong tCs = BitConverter.ToUInt64(md5, 0) ^ BitConverter.ToUInt64(md5, 8);
+        if (tCs != checkSum)
+            Environment.FailFast("Broken file");
+
+        byte[] b = Decrypt(file, iv, dats);
+        if (b[0] != 0xd6 || b[1] != 0x6f)
+            Environment.FailFast("Broken file");
+        byte[] tB = new byte[b.Length - 2];
+        Buffer.BlockCopy(b, 2, tB, 0, tB.Length);
+        using (BinaryReader rdr = new BinaryReader(new MemoryStream(tB)))
+        {
+            uint len = rdr.ReadUInt32();
+            int[] codeLens = new int[len];
+            IntPtr[] ptrs = new IntPtr[len];
+            for (int i = 0; i < len; i++)
             {
-                stream.Seek(0x3c, SeekOrigin.Begin);
-                uint offset = rdr.ReadUInt32();
-                stream.Seek(offset, SeekOrigin.Begin);
-                stream.Seek(0x6, SeekOrigin.Current);
-                uint sections = rdr.ReadUInt16();
-                stream.Seek(offset = offset + 0x18, SeekOrigin.Begin);  //Optional hdr
-                bool pe32 = (rdr.ReadUInt16() == 0x010b);
-                stream.Seek(0x3e, SeekOrigin.Current);
-                checkSumOffset = (uint)stream.Position;
-                int len = rdr.ReadInt32();
-
-                stream.Seek(0, SeekOrigin.Begin);
-                file = rdr.ReadBytes(len);
-                checkSum = rdr.ReadUInt64();
-                iv = rdr.ReadBytes(rdr.ReadInt32());
-                dats = rdr.ReadBytes(rdr.ReadInt32());
+                uint pos = rdr.ReadUInt32();
+                if (pos == 0) continue;
+                uint rva = rdr.ReadUInt32();
+                byte[] cDat = rdr.ReadBytes(rdr.ReadInt32());
+                uint old;
+                IntPtr ptr = (IntPtr)((uint)modPtr + (inMem ? pos : rva));
+                VirtualProtect(ptr, (uint)cDat.Length, 0x04, out old);
+                Marshal.Copy(cDat, 0, ptr, cDat.Length);
+                VirtualProtect(ptr, (uint)cDat.Length, old, out old);
+                codeLens[i] = cDat.Length;
+                ptrs[i] = ptr;
             }
-
-            file[checkSumOffset] = 0;
-            file[checkSumOffset + 1] = 0;
-            file[checkSumOffset + 2] = 0;
-            file[checkSumOffset + 3] = 0;
-            byte[] md5 = MD5.Create().ComputeHash(file);
-            ulong tCs = BitConverter.ToUInt64(md5, 0) ^ BitConverter.ToUInt64(md5, 8);
-            if (tCs != checkSum)
-                Environment.FailFast("Broken file");
-
-            byte[] b = Decrypt(file, iv, dats);
-            if (b[0] != 0xd6 || b[1] != 0x6f)
-                Environment.FailFast("Broken file");
-            byte[] tB = new byte[b.Length - 2];
-            Buffer.BlockCopy(b, 2, tB, 0, tB.Length);
-            using (BinaryReader rdr = new BinaryReader(new MemoryStream(tB)))
+            for (int i = 0; i < len; i++)
             {
-                uint len = rdr.ReadUInt32();
-                int[] codeLens = new int[len];
-                IntPtr[] ptrs = new IntPtr[len];
-                for (int i = 0; i < len; i++)
-                {
-                    uint pos = rdr.ReadUInt32();
-                    if (pos == 0) continue;
-                    byte[] cDat = rdr.ReadBytes(rdr.ReadInt32());
-                    uint old;
-                    IntPtr ptr = (IntPtr)((uint)modPtr + pos);
-                    VirtualProtect(ptr, (uint)cDat.Length, 0x04, out old);
-                    Marshal.Copy(cDat, 0, ptr, cDat.Length);
-                    VirtualProtect(ptr, (uint)cDat.Length, old, out old);
-                    codeLens[i] = cDat.Length;
-                    ptrs[i] = ptr;
-                }
-                for (int i = 0; i < len; i++)
-                {
-                    if (codeLens[i] == 0) continue;
-                    RuntimeHelpers.PrepareMethod(mod.ModuleHandle.GetRuntimeMethodHandleFromMetadataToken(0x06000000 + i + 1));
-                }
-                for (int i = 0; i < len; i++)
-                {
-                    if (codeLens[i] == 0) continue;
-                    uint old;
-                    VirtualProtect(ptrs[i], (uint)codeLens[i], 0x04, out old);
-                    Marshal.Copy(new byte[codeLens[i]], 0, ptrs[i], codeLens[i]);
-                    VirtualProtect(ptrs[i], (uint)codeLens[i], old, out old);
-                }
+                if (codeLens[i] == 0) continue;
+                RuntimeHelpers.PrepareMethod(mod.ModuleHandle.GetRuntimeMethodHandleFromMetadataToken(0x06000000 + i + 1));
+            }
+            for (int i = 0; i < len; i++)
+            {
+                if (codeLens[i] == 0) continue;
+                uint old;
+                VirtualProtect(ptrs[i], (uint)codeLens[i], 0x04, out old);
+                Marshal.Copy(new byte[codeLens[i]], 0, ptrs[i], codeLens[i]);
+                VirtualProtect(ptrs[i], (uint)codeLens[i], old, out old);
             }
         }
-        catch (Exception ex) { File.WriteAllText("E:\\1", ex.Message + "\r\n" + ex.StackTrace); }
     }
 
     static byte[] Decrypt(byte[] file, byte[] iv, byte[] dat)

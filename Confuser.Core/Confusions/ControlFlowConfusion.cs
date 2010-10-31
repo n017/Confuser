@@ -147,6 +147,14 @@ namespace Confuser.Core.Confusions
         {
             get { return new Phase[] { this }; }
         }
+        public bool SupportLateAddition
+        {
+            get { return true; }
+        }
+        public Behaviour Behaviour
+        {
+            get { return Behaviour.AlterCode; }
+        }
 
         public override Priority Priority
         {
@@ -442,11 +450,11 @@ namespace Confuser.Core.Confusions
             for (int i = 0; i < insts.Length; i++)
             {
                 blk.Add(insts[i]);
-                if ((rad.NextDouble() > factor ||
-                    insts[i].OpCode.Name.StartsWith("new") ||
+                if ((rad.NextDouble() < factor ||
                     insts[i].OpCode.Name == "pop" ||
+                    insts[i].OpCode.Name[0] == 'c' ||
                     insts[i].OpCode.Name.StartsWith("ldloc")) &&
-                    insts[i].OpCode.Name[0] != 'c' &&
+                    
                     insts[i].OpCode.OpCodeType != OpCodeType.Prefix &&
                     insts[i].OpCode != OpCodes.Ldftn && insts[i].OpCode != OpCodes.Ldvirtftn &&
                     (i + 1 == insts.Length || (insts[i + 1].OpCode != OpCodes.Ldftn && insts[i + 1].OpCode != OpCodes.Ldvirtftn)) &&

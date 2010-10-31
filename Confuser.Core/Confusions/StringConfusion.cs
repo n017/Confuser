@@ -72,6 +72,7 @@ namespace Confuser.Core.Confusions
                 byte[] n = new byte[0x10]; rand.NextBytes(n);
                 sc.strer.Name = Encoding.UTF8.GetString(n);
                 sc.strer.IsAssembly = true;
+                AddHelper(sc.strer, HelperAttribute.NoInjection);
 
                 int seed;
                 sc.exp = ExpressionGenerator.Generate(5, out seed);
@@ -376,6 +377,14 @@ namespace Confuser.Core.Confusions
         public bool StandardCompatible
         {
             get { return true; }
+        }
+        public bool SupportLateAddition
+        {
+            get { return true; }
+        }
+        public Behaviour Behaviour
+        {
+            get { return Behaviour.Inject | Behaviour.AlterCode | Behaviour.Encrypt; }
         }
 
         Phase[] ps;

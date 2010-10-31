@@ -61,6 +61,14 @@ namespace Confuser.Core.Confusions
         {
             get { return false; }
         }
+        public bool SupportLateAddition
+        {
+            get { return true; }
+        }
+        public Behaviour Behaviour
+        {
+            get { return Behaviour.Encrypt | Behaviour.AlterCode; }
+        }
         public override void Initialize(ModuleDefinition mod)
         {
             //

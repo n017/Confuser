@@ -96,11 +96,19 @@ namespace Confuser.Core
         }
 
         protected Dictionary<string, IConfusion> Confusions;
-        public virtual void Initalize(IConfusion[] cions)
+        protected Dictionary<string, Packer> Packers;
+        protected Dictionary<string, PackerModule> PackerModules;
+        public virtual void Initalize(IConfusion[] cions,Packer[] packs,PackerModule[] packMods)
         {
             Confusions = new Dictionary<string, IConfusion>();
             foreach (IConfusion c in cions)
                 Confusions.Add(c.ID, c);
+            Packers = new Dictionary<string, Packer>();
+            foreach (Packer pack in packs)
+                Packers.Add(pack.ID, pack);
+            PackerModules = new Dictionary<string, PackerModule>();
+            foreach (PackerModule mod in packMods)
+                PackerModules.Add(mod.ID, mod);
         }
 
         private void FillPreset(Preset preset, Dictionary<IConfusion, NameValueCollection> cs)
@@ -112,7 +120,7 @@ namespace Confuser.Core
 
         private bool ProcessAttribute(ICustomAttributeProvider provider, Settings setting)
         {
-            CustomAttribute att = GetAttribute(provider.CustomAttributes);
+            CustomAttribute att = GetAttribute(provider.CustomAttributes, "ConfusingAttribute");
             if (att == null)
             {
                 setting.StartLevel();
@@ -128,7 +136,7 @@ namespace Confuser.Core
                 provider.CustomAttributes.Remove(att);
 
             CustomAttributeNamedArgument excludeArg = att.Properties.FirstOrDefault(arg => arg.Name == "Exclude");
-            bool exclude = true;
+            bool exclude = false;
             if (!excludeArg.Equals(default(CustomAttributeNamedArgument)))
                 exclude = (bool)excludeArg.Argument.Value;
 
@@ -147,7 +155,7 @@ namespace Confuser.Core
 
             if (!exclude)
             {
-                CustomAttributeNamedArgument featureArg = att.Properties.FirstOrDefault(arg => arg.Name == "Feature");
+                CustomAttributeNamedArgument featureArg = att.Properties.FirstOrDefault(arg => arg.Name == "Config");
                 string feature = "all";
                 if (!featureArg.Equals(default(CustomAttributeNamedArgument)))
                     feature = (string)featureArg.Argument.Value;
@@ -157,22 +165,23 @@ namespace Confuser.Core
                 else if (string.Equals(feature, "default", StringComparison.OrdinalIgnoreCase))
                     FillPreset(Preset.Normal, setting.CurrentConfusions);
                 else
-                    ProcessFeature(feature, setting.CurrentConfusions);
+                    ProcessConfig(feature, setting.CurrentConfusions);
             }
 
             return exclude && applyToMembers;
         }
-        private CustomAttribute GetAttribute(Collection<CustomAttribute> attributes)
+        private CustomAttribute GetAttribute(Collection<CustomAttribute> attributes, string name)
         {
-            return attributes.FirstOrDefault((att) => att.AttributeType.FullName == "System.Reflection.ObfuscationAttribute");
+            return attributes.FirstOrDefault((att) => att.AttributeType.FullName == name);
         }
-        private void ProcessFeature(string cfg, Dictionary<IConfusion, NameValueCollection> cs)
+        private void ProcessConfig(string cfg, Dictionary<IConfusion, NameValueCollection> cs)
         {
             if (string.Equals(cfg, "exclude", StringComparison.OrdinalIgnoreCase))
             {
                 cs.Clear();
                 return;
             }
+            if (cfg.StartsWith("packer:")) return;
             MatchCollection matches = Regex.Matches(cfg, @"(\+|\-|)\[([^,\]]*)(?:,([^\]]*))?\]");
             foreach (Match match in matches)
             {
@@ -211,6 +220,44 @@ namespace Confuser.Core
                 }
             }
         }
+        private void ProcessPackers(ICustomAttributeProvider provider, out NameValueCollection param, out Packer packer, out PackerModule[] packMods)
+        {
+            CustomAttribute attr = GetAttribute(provider.CustomAttributes, "PackerAttribute");
+
+            if (attr == null) { param = null; packer = null; packMods = null; return; }
+            CustomAttributeNamedArgument stripArg = attr.Properties.FirstOrDefault(arg => arg.Name == "StripAfterObfuscation");
+            bool strip = true;
+            if (!stripArg.Equals(default(CustomAttributeNamedArgument)))
+                strip = (bool)stripArg.Argument.Value;
+
+            if (strip)
+                provider.CustomAttributes.Remove(attr);
+
+            CustomAttributeNamedArgument cfgArg = attr.Properties.FirstOrDefault(arg => arg.Name == "Config");
+            string cfg = "";
+            if (!cfgArg.Equals(default(CustomAttributeNamedArgument)))
+                cfg = (string)cfgArg.Argument.Value;
+            if (string.IsNullOrEmpty(cfg)) { param = null; packer = null; packMods = null; return; }
+
+            param = new NameValueCollection();
+
+            Match match = Regex.Match(cfg, @"packer:([^;]*);?(?:([^=]*=[^,]*),?)*");
+            packer = Packers[match.Groups[1].Value];
+            packMods = new PackerModule[0];
+            foreach (Capture arg in match.Groups[2].Captures)
+            {
+                string[] args = arg.Value.Split('=');
+                if (args[0] != "modules")
+                    param.Add(args[0], args[1]);
+                else
+                {
+                    string[] mods = args[1].Split('|');
+                    packMods = new PackerModule[mods.Length];
+                    for (int i = 0; i < mods.Length; i++)
+                        packMods[i] = PackerModules[mods[i]];
+                }
+            }
+        }
 
         public virtual void MarkAssembly(AssemblyDefinition asm, Preset preset)
         {
@@ -232,6 +279,13 @@ namespace Confuser.Core
         private void MarkModule(ModuleDefinition mod, Settings setting)
         {
             bool exclude = ProcessAttribute(mod, setting);
+            NameValueCollection param;
+            Packer packer;
+            PackerModule[] mods;
+            ProcessPackers(mod, out param, out packer, out mods);
+            (mod as IAnnotationProvider).Annotations["Packer"] = packer;
+            (mod as IAnnotationProvider).Annotations["PackerParams"] = param;
+            (mod as IAnnotationProvider).Annotations["PackerModules"] = mods;
 
             if (!exclude)
                 foreach (TypeDefinition type in mod.Types)

@@ -405,9 +405,6 @@
                     <Label Margin="5,40,0,0" VerticalAlignment="Top" Height="25" Content="Strong Name Key :" HorizontalAlignment="Left" Width="105" HorizontalContentAlignment="Right" VerticalContentAlignment="Center" FontWeight="Thin"/>
                     <TextBox x:Name="sn" Margin="115,40,40,0" VerticalAlignment="Top" Height="25" FontWeight="Thin" BorderThickness="0.75" VerticalContentAlignment="Center" BorderBrush="White"/>
                     <Button x:Name="browseSn" HorizontalAlignment="Right" Margin="0,40,10,0" VerticalAlignment="Top" Width="25" Height="25" Content="..." Background="#00000000" BorderBrush="White" BorderThickness="0.5" FontWeight="Thin" FontSize="10.667" Click="browseClick"/>
-                    <CheckBox x:Name="compress" HorizontalAlignment="Left" Margin="25,80,0,0" VerticalAlignment="Top" Width="120" Height="20" Background="Transparent" FontWeight="Thin">
-                	    <Label Content="Compress output" VerticalContentAlignment="Center" Margin="0,1,0,0" FontWeight="Thin"/>
-                    </CheckBox>
                 </Grid>
                 <Button x:Name="doConfuse" HorizontalAlignment="Right" Margin="0,75,10,0" VerticalAlignment="Top" Width="75" Height="25" Content="Confuse!" Background="#00000000" BorderBrush="White" BorderThickness="0.5" FontWeight="Thin" Click="DoConfuse" />
                 <local:Scroller x:Name="progress" Margin="10,110,10,10" Opacity="0">

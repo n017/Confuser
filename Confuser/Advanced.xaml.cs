@@ -206,12 +206,20 @@ namespace Confuser
         }
 
 
-        Dictionary<string, Core.IConfusion> ldConfusions = new Dictionary<string, Confuser.Core.IConfusion>();
+        Dictionary<string, Core.IConfusion> ldConfusions = new Dictionary<string, Core.IConfusion>();
+        Dictionary<string, Core.Packer> ldPackers = new Dictionary<string, Core.Packer>();
+        Dictionary<string, Core.PackerModule> ldPackerModules = new Dictionary<string, Core.PackerModule>();
         private void LoadAssembly(Assembly asm)
         {
             foreach (Type type in asm.GetTypes())
+            {
                 if (typeof(Core.IConfusion).IsAssignableFrom(type) && type != typeof(Core.IConfusion))
                     ldConfusions.Add(type.FullName, Activator.CreateInstance(type) as Core.IConfusion);
+                if (typeof(Core.Packer).IsAssignableFrom(type) && type != typeof(Core.Packer))
+                    ldPackers.Add(type.FullName, Activator.CreateInstance(type) as Core.Packer);
+                if (typeof(Core.PackerModule).IsAssignableFrom(type) && type != typeof(Core.PackerModule))
+                    ldPackerModules.Add(type.FullName, Activator.CreateInstance(type) as Core.PackerModule);
+            }
         }
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
@@ -235,8 +243,9 @@ namespace Confuser
             param.DestinationPath = output.Text;
             param.ReferencesPath = System.IO.Path.GetDirectoryName(path);
             param.Confusions = ldConfusions.Values.ToArray();
+            param.Packers = ldPackers.Values.ToArray();
+            param.PackerModules = ldPackerModules.Values.ToArray();
             param.DefaultPreset = Core.Preset.None;
-            param.CompressOutput = compress.IsChecked.GetValueOrDefault();
             param.StrongNameKeyPath = sn.Text;
             param.Marker = marker;
             param.Logger.BeginPhase += new EventHandler<Core.PhaseEventArgs>((sender1, e1) =>

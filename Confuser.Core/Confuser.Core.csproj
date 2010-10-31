@@ -72,7 +72,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CecilHelper.cs" />
-    <Compile Include="Compressor.cs" />
+    <Compile Include="Packers\Compressor.cs" />
     <Compile Include="Confuser.cs" />
     <Compile Include="Confusions\AntiDebugConfusion.cs" />
     <Compile Include="Confusions\AntiTamperConfusion.cs" />
@@ -95,6 +95,7 @@
     <Compile Include="IEngine.cs" />
     <Compile Include="Marker.cs" />
     <Compile Include="ObfuscationHelper.cs" />
+    <Compile Include="Packer.cs" />
     <Compile Include="Poly\Expressions\AddExpression.cs" />
     <Compile Include="Poly\Expressions\ConstantExpression.cs" />
     <Compile Include="Poly\Expressions\DivExpression.cs" />
@@ -108,6 +109,9 @@
     <Compile Include="Poly\Visitors\ReflectionVisitor.cs" />
     <Compile Include="Poly\Expressions\VariableExpression.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <None Include="SDK.cs">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Content Include="Note.txt" />
