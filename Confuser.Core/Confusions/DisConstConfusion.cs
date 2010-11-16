@@ -82,7 +82,7 @@ namespace Confuser.Core.Confusions
         {
 
             List<Context> txts = new List<Context>();
-            List<Object> targets = parameter.Target as List<Object>;
+            List<IAnnotationProvider> targets = parameter.Target as List<IAnnotationProvider>;
             for (int i = 0; i < targets.Count; i++)
             {
                 MethodDefinition mtd = targets[i] as MethodDefinition;

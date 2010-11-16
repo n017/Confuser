@@ -223,7 +223,7 @@ namespace Confuser.Core.Confusions
 
                 List<Context> txts = new List<Context>();
 
-                foreach (MethodDefinition mtd in parameter.Target as List<object>)
+                foreach (MethodDefinition mtd in parameter.Target as List<IAnnotationProvider>)
                 {
                     if (mtd == sc.strer || !mtd.HasBody) continue;
                     var bdy = mtd.Body;
@@ -280,7 +280,7 @@ namespace Confuser.Core.Confusions
             {
                 List<Context> txts = new List<Context>();
 
-                foreach (MethodDefinition mtd in parameter.Target as List<object>)
+                foreach (MethodDefinition mtd in parameter.Target as List<IAnnotationProvider>)
                 {
                     if (mtd == sc.strer || !mtd.HasBody) continue;
                     var bdy = mtd.Body;

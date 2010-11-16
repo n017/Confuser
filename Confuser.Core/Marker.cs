@@ -95,9 +95,9 @@ namespace Confuser.Core
             }
         }
 
-        protected Dictionary<string, IConfusion> Confusions;
-        protected Dictionary<string, Packer> Packers;
-        protected Dictionary<string, PackerModule> PackerModules;
+        protected IDictionary<string, IConfusion> Confusions;
+        protected IDictionary<string, Packer> Packers;
+        protected IDictionary<string, PackerModule> PackerModules;
         public virtual void Initalize(IConfusion[] cions,Packer[] packs,PackerModule[] packMods)
         {
             Confusions = new Dictionary<string, IConfusion>();
@@ -110,7 +110,6 @@ namespace Confuser.Core
             foreach (PackerModule mod in packMods)
                 PackerModules.Add(mod.ID, mod);
         }
-
         private void FillPreset(Preset preset, Dictionary<IConfusion, NameValueCollection> cs)
         {
             foreach (IConfusion i in Confusions.Values)
@@ -241,7 +240,7 @@ namespace Confuser.Core
 
             param = new NameValueCollection();
 
-            Match match = Regex.Match(cfg, @"packer:([^;]*);?(?:([^=]*=[^,]*),?)*");
+            Match match = Regex.Match(cfg, @"([^;]*):?(?:([^=]*=[^,]*),?)*");
             packer = Packers[match.Groups[1].Value];
             packMods = new PackerModule[0];
             foreach (Capture arg in match.Groups[2].Captures)
@@ -279,13 +278,9 @@ namespace Confuser.Core
         private void MarkModule(ModuleDefinition mod, Settings setting)
         {
             bool exclude = ProcessAttribute(mod, setting);
-            NameValueCollection param;
-            Packer packer;
-            PackerModule[] mods;
-            ProcessPackers(mod, out param, out packer, out mods);
-            (mod as IAnnotationProvider).Annotations["Packer"] = packer;
-            (mod as IAnnotationProvider).Annotations["PackerParams"] = param;
-            (mod as IAnnotationProvider).Annotations["PackerModules"] = mods;
+            MarkModule(mod, setting.CurrentConfusions);
+
+            (mod as IAnnotationProvider).Annotations["ConfusionSets"] = setting.CurrentConfusions;
 
             if (!exclude)
                 foreach (TypeDefinition type in mod.Types)
@@ -293,10 +288,21 @@ namespace Confuser.Core
 
             setting.LeaveLevel();
         }
+        protected virtual void MarkModule(ModuleDefinition mod, IDictionary<IConfusion, NameValueCollection> current)
+        {
+            NameValueCollection param;
+            Packer packer;
+            PackerModule[] mods;
+            ProcessPackers(mod, out param, out packer, out mods);
+            (mod as IAnnotationProvider).Annotations["Packer"] = packer;
+            (mod as IAnnotationProvider).Annotations["PackerParams"] = param;
+            (mod as IAnnotationProvider).Annotations["PackerModules"] = mods;
+        }
 
         private void MarkType(TypeDefinition type, Settings setting)
         {
             bool exclude = ProcessAttribute(type, setting);
+            MarkType(type, setting.CurrentConfusions);
 
             (type as IAnnotationProvider).Annotations["ConfusionSets"] = setting.CurrentConfusions;
 
@@ -321,6 +327,7 @@ namespace Confuser.Core
 
             setting.LeaveLevel();
         }
+        protected virtual void MarkType(TypeDefinition type, IDictionary<IConfusion, NameValueCollection> current) { }
 
         private void MarkMember(IMemberDefinition mem, Settings setting, Target target)
         {
@@ -330,6 +337,7 @@ namespace Confuser.Core
             }
 
             bool exclude = ProcessAttribute(mem, setting);
+            MarkMember(mem, setting.CurrentConfusions);
 
             (mem as IAnnotationProvider).Annotations["ConfusionSets"] = setting.CurrentConfusions;
 
@@ -379,6 +387,8 @@ namespace Confuser.Core
 
             setting.LeaveLevel();
         }
+        protected virtual void MarkMember(IMemberDefinition mem, IDictionary<IConfusion, NameValueCollection> current) { }
+
 
         public virtual AssemblyData[] ExtractDatas(string src, string dstPath)
         {

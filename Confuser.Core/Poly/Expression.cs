@@ -7,6 +7,7 @@ namespace Confuser.Core.Poly
 {
     public abstract class Expression
     {
+        public object Evaluate(IExpressionEvaluator eval) { return eval.Evaluate(this); }
         public abstract void Visit(ExpressionVisitor visitor);
         public abstract void VisitReverse(ExpressionVisitor visitor, Expression child);
         public abstract Expression GetVariableExpression();

@@ -12,8 +12,8 @@ namespace Confuser.Core
 {
     public class PackerParameter
     {
-        ModuleDefinition mod=null;
-        byte[] pe=null;
+        ModuleDefinition mod = null;
+        byte[] pe = null;
         NameValueCollection parameters = new NameValueCollection();
         PackerModule[] mods = new PackerModule[0];
 
@@ -38,6 +38,35 @@ namespace Confuser.Core
 
     public abstract class Packer
     {
+        class PackerMarker : Marker
+        {
+            ModuleDefinition origin;
+            public PackerMarker(ModuleDefinition mod) { origin = mod; }
+
+            public override void MarkAssembly(AssemblyDefinition asm, Preset preset)
+            {
+                base.MarkAssembly(asm, preset);
+
+                IAnnotationProvider m = asm;
+                m.Annotations.Clear();
+                IAnnotationProvider src = (IAnnotationProvider)origin.Assembly;
+                foreach (object key in src.Annotations.Keys)
+                    m.Annotations[key] = src.Annotations[key];
+            }
+            protected override void MarkModule(ModuleDefinition mod, IDictionary<IConfusion, NameValueCollection> current)
+            {
+                IAnnotationProvider m = mod;
+                m.Annotations.Clear();
+                IAnnotationProvider src = (IAnnotationProvider)origin;
+                foreach (object key in src.Annotations.Keys)
+                    m.Annotations.Add(key, src.Annotations[src]);
+
+                var dict = (IDictionary<IConfusion, NameValueCollection>)src.Annotations["ConfusionSets"];
+                foreach (var i in dict)
+                    current.Add(i.Key, i.Value);
+            }
+        }
+
         public abstract string ID { get; }
         public abstract string Name { get; }
         public abstract string Description { get; }
@@ -81,6 +110,7 @@ namespace Confuser.Core
             par.Confusions = crParam.Confusions;
             par.DefaultPreset = crParam.DefaultPreset;
             par.StrongNameKeyPath = crParam.StrongNameKeyPath;
+            par.Marker = new PackerMarker(param.Module);
             cr.Confuse(par);
 
             return File.ReadAllBytes(tmp + mod.Name);

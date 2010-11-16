@@ -190,16 +190,16 @@ namespace Confuser.Core
 
                     try
                     {
-                        Dictionary<IConfusion, List<object>> mems = new Dictionary<IConfusion, List<object>>();
+                        Dictionary<IConfusion, List<IAnnotationProvider>> mems = new Dictionary<IConfusion, List<IAnnotationProvider>>();
                         foreach (IConfusion cion in param.Confusions)
-                            mems.Add(cion, new List<object>());
+                            mems.Add(cion, new List<IAnnotationProvider>());
                         IDictionary<IConfusion, NameValueCollection> globalParams = FillAssembly(asm.Assembly, mems);
-                        Dictionary<Phase, List<object>> trueMems = new Dictionary<Phase, List<object>>();
-                        foreach (KeyValuePair<IConfusion, List<object>> mem in mems)
+                        Dictionary<Phase, List<IAnnotationProvider>> trueMems = new Dictionary<Phase, List<IAnnotationProvider>>();
+                        foreach (KeyValuePair<IConfusion, List<IAnnotationProvider>> mem in mems)
                         {
                             if (mem.Value.Count == 0) continue;
                             foreach (Phase p in mem.Key.Phases)
-                                trueMems.Add(p, new List<object>(mem.Value));
+                                trueMems.Add(p, new List<IAnnotationProvider>(mem.Value));
                         }
 
                         foreach (ModuleDefinition mod in asm.Assembly.Modules)
@@ -217,7 +217,16 @@ namespace Confuser.Core
                                 cctor.Body.GetILProcessor().Emit(OpCodes.Ret);
                                 mod.GetType("<Module>").Methods.Add(cctor);
                             }
-                            helpers.Add(mod.GetType("<Module>").GetStaticConstructor(), HelperAttribute.NoEncrypt);
+                            else
+                            {
+                                MethodDefinition cctor = mod.GetType("<Module>").GetStaticConstructor();
+                                ((IAnnotationProvider)cctor).Annotations.Clear();
+                                foreach (List<IAnnotationProvider> objs in mems.Values)
+                                    if (objs.Contains(cctor)) objs.Remove(cctor);
+                                foreach (List<IAnnotationProvider> objs in trueMems.Values)
+                                    if (objs.Contains(cctor)) objs.Remove(cctor);
+                            }
+                            helpers.Add(mod.GetType("<Module>").GetStaticConstructor(), HelperAttribute.NoEncrypt); 
 
 
                             ConfusionParameter cParam = new ConfusionParameter();
@@ -249,16 +258,16 @@ namespace Confuser.Core
                                 }
                                 else
                                 {
-                                    List<object> idk = trueMems[i];
+                                    List<IAnnotationProvider> idk = trueMems[i];
                                     if (idk.Count == 0)
                                         continue;
 
                                     if (i is IProgressProvider)
                                     {
                                         cParam.Parameters = new NameValueCollection();
-                                        foreach (object mem in idk)
+                                        foreach (IAnnotationProvider mem in idk)
                                         {
-                                            NameValueCollection memParam = (from set in (mem as IAnnotationProvider).Annotations["ConfusionSets"] as IDictionary<IConfusion, NameValueCollection> where set.Key.Phases.Contains(i) select set.Value).FirstOrDefault();
+                                            NameValueCollection memParam = (from set in mem.Annotations["ConfusionSets"] as IDictionary<IConfusion, NameValueCollection> where set.Key.Phases.Contains(i) select set.Value).FirstOrDefault();
                                             string hash = mem.GetHashCode().ToString("X8");
                                             foreach (string pkey in memParam.AllKeys)
                                                 cParam.Parameters[hash + "_" + pkey] = memParam[pkey];
@@ -274,9 +283,9 @@ namespace Confuser.Core
                                         if (total > 1000)
                                             interval = (int)total / 100;
                                         int now = 0;
-                                        foreach (object mem in idk)
+                                        foreach (IAnnotationProvider mem in idk)
                                         {
-                                            cParam.Parameters = (from set in (mem as IAnnotationProvider).Annotations["ConfusionSets"] as IDictionary<IConfusion, NameValueCollection> where set.Key.Phases.Contains(i) select set.Value).FirstOrDefault();
+                                            cParam.Parameters = (from set in mem.Annotations["ConfusionSets"] as IDictionary<IConfusion, NameValueCollection> where set.Key.Phases.Contains(i) select set.Value).FirstOrDefault();
                                             cParam.Target = mem;
                                             i.Process(cParam);
                                             if (now % interval == 0 || now == total - 1)
@@ -387,7 +396,7 @@ namespace Confuser.Core
             ca.ConstructorArguments.Add(new CustomAttributeArgument(mod.Import(typeof(string)), string.Format("Confuser v" + typeof(Confuser).Assembly.GetName().Version.ToString())));
             mod.CustomAttributes.Add(ca);
         }
-        IDictionary<IConfusion, NameValueCollection> FillAssembly(AssemblyDefinition asm, Dictionary<IConfusion, List<object>> mems)
+        IDictionary<IConfusion, NameValueCollection> FillAssembly(AssemblyDefinition asm, Dictionary<IConfusion, List<IAnnotationProvider>> mems)
         {
             IDictionary<IConfusion, NameValueCollection> sets = (asm as IAnnotationProvider).Annotations["ConfusionSets"] as IDictionary<IConfusion, NameValueCollection>;
             if (sets != null)
@@ -398,7 +407,7 @@ namespace Confuser.Core
                 FillModule(mod, mems);
             return (asm as IAnnotationProvider).Annotations["GlobalParams"] as IDictionary<IConfusion, NameValueCollection>;
         }
-        void FillModule(ModuleDefinition mod, Dictionary<IConfusion, List<object>> mems)
+        void FillModule(ModuleDefinition mod, Dictionary<IConfusion, List<IAnnotationProvider>> mems)
         {
             foreach (TypeDefinition type in mod.Types)
             {
@@ -410,7 +419,7 @@ namespace Confuser.Core
                 FillType(type, mems);
             }
         }
-        void FillType(TypeDefinition type, Dictionary<IConfusion, List<object>> mems)
+        void FillType(TypeDefinition type, Dictionary<IConfusion, List<IAnnotationProvider>> mems)
         {
             foreach (TypeDefinition nType in type.NestedTypes)
             {
@@ -455,7 +464,7 @@ namespace Confuser.Core
             }
         }
         internal Dictionary<IMemberDefinition, HelperAttribute> helpers;
-        void MarkObfuscateHelpers(ModuleDefinition mod, Dictionary<Phase, List<object>> mems)
+        void MarkObfuscateHelpers(ModuleDefinition mod, Dictionary<Phase, List<IAnnotationProvider>> mems)
         {
             TypeDefinition modType = mod.GetType("<Module>");
             IDictionary<IConfusion, NameValueCollection> sets = (modType as IAnnotationProvider).Annotations["ConfusionSets"] as IDictionary<IConfusion, NameValueCollection>;
@@ -475,6 +484,7 @@ namespace Confuser.Core
             }
             foreach (KeyValuePair<IMemberDefinition, HelperAttribute> def in helpers)
             {
+                if ((def.Key as IAnnotationProvider).Annotations.Contains("ConfusionSets")) continue;
                 (def.Key as IAnnotationProvider).Annotations["ConfusionSets"] = sub;
                 Target target = 0;
                 if (def.Key is TypeDefinition) target = Target.Types;
@@ -486,7 +496,7 @@ namespace Confuser.Core
                 {
                     if (cion.Target != target || (cion.Behaviour & (Behaviour)def.Value) != 0) continue;
                     foreach (Phase phase in cion.Phases)
-                        mems[phase].Add(def.Key);
+                        mems[phase].Add((IAnnotationProvider)def.Key);
                 }
             }
         }

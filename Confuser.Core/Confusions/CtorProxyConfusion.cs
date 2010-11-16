@@ -68,7 +68,7 @@ namespace Confuser.Core.Confusions
 
             public override void Process(ConfusionParameter parameter)
             {
-                List<object> targets = parameter.Target as List<object>;
+                List<IAnnotationProvider> targets = parameter.Target as List<IAnnotationProvider>;
                 for (int i = 0; i < targets.Count; i++)
                 {
                     MethodDefinition mtd = targets[i] as MethodDefinition;

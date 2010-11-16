@@ -46,6 +46,7 @@ namespace Confuser.Core.Confusions
             {
                 foreach (Resource res in mod.Resources)
                 {
+                    if (!res.Name.EndsWith(".resources")) continue;
                     string cult = mod.Assembly.Name.Culture;
                     Identifier id = new Identifier()
                     {

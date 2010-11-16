@@ -96,6 +96,7 @@
     <Compile Include="Marker.cs" />
     <Compile Include="ObfuscationHelper.cs" />
     <Compile Include="Packer.cs" />
+    <Compile Include="Poly\ExpressionEvaluator.cs" />
     <Compile Include="Poly\Expressions\AddExpression.cs" />
     <Compile Include="Poly\Expressions\ConstantExpression.cs" />
     <Compile Include="Poly\Expressions\DivExpression.cs" />
