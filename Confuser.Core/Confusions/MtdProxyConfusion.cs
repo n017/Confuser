@@ -64,11 +64,16 @@ namespace Confuser.Core.Confusions
                 mc.proxy.IsAssembly = true;
                 mc.proxy.Name = ObfuscationHelper.GetNewName("Proxy" + Guid.NewGuid().ToString());
                 AddHelper(mc.proxy, 0);
+
+                mc.key = new Random().Next();
+                foreach (Instruction inst in mc.proxy.Body.Instructions)
+                    if (inst.Operand is int && (int)inst.Operand == 0x12345678)
+                    { inst.Operand = mc.key; break; }
             }
 
             public override void Process(ConfusionParameter parameter)
             {
-                List<IAnnotationProvider> targets = parameter.Target as List<IAnnotationProvider>;
+                IList<IAnnotationProvider> targets = parameter.Target as IList<IAnnotationProvider>;
                 for (int i = 0; i < targets.Count; i++)
                 {
                     MethodDefinition mtd = targets[i] as MethodDefinition;
@@ -318,7 +323,7 @@ namespace Confuser.Core.Confusions
                 foreach (Context txt in mc.txts)
                 {
                     MetadataToken tkn = accessor.LookupToken(txt.mtdRef);
-                    txt.fld.Name = new string(new char[] { txt.fld.Name[0] , txt.fld.Name[1] }) + Encoding.Unicode.GetString(BitConverter.GetBytes(tkn.ToUInt32()));
+                    txt.fld.Name = new string(new char[] { txt.fld.Name[0], txt.fld.Name[1] }) + Encoding.Unicode.GetString(BitConverter.GetBytes(tkn.ToUInt32() ^ mc.key));
                 }
             }
         }
@@ -374,6 +379,7 @@ namespace Confuser.Core.Confusions
         Dictionary<string, FieldDefinition> fields;
         Dictionary<string, MethodDefinition> bridges;
         MethodDefinition proxy;
+        int key;
         private class Context { public MethodBody bdy; public bool isVirt; public Instruction inst; public FieldDefinition fld; public TypeDefinition dele; public MethodReference mtdRef;}
         List<Context> txts;
         TypeReference mcd;

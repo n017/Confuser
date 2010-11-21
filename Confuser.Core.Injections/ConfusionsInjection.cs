@@ -111,8 +111,7 @@ static class Proxies
     {
         var fld = System.Reflection.FieldInfo.GetFieldFromHandle(f);
         var asm = System.Reflection.Assembly.GetExecutingAssembly();
-        var mtd = asm.GetModules()[0].ResolveMethod(BitConverter.ToInt32(Encoding.Unicode.GetBytes(fld.Name.ToCharArray(), 1, 2), 0)) as System.Reflection.ConstructorInfo;
-        System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(mtd.DeclaringType.TypeHandle);
+        var mtd = asm.GetModules()[0].ResolveMethod(BitConverter.ToInt32(Encoding.Unicode.GetBytes(fld.Name.ToCharArray(), 1, 2), 0) ^ 0x12345678) as System.Reflection.ConstructorInfo;
 
         var args = mtd.GetParameters();
         Type[] arg = new Type[args.Length];
@@ -133,13 +132,10 @@ static class Proxies
     {
         var fld = System.Reflection.FieldInfo.GetFieldFromHandle(f);
         var asm = System.Reflection.Assembly.GetExecutingAssembly();
-        var mtd = asm.GetModules()[0].ResolveMethod(BitConverter.ToInt32(Encoding.Unicode.GetBytes(fld.Name.ToCharArray(), 2, 2), 0)) as System.Reflection.MethodInfo;
+        var mtd = asm.GetModules()[0].ResolveMethod(BitConverter.ToInt32(Encoding.Unicode.GetBytes(fld.Name.ToCharArray(), 2, 2), 0) ^ 0x12345678) as System.Reflection.MethodInfo;
 
         if (mtd.IsStatic)
-        {
-            System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(mtd.DeclaringType.TypeHandle);
             fld.SetValue(null, Delegate.CreateDelegate(fld.FieldType, mtd));
-        }
         else
         {
             var tmp = mtd.GetParameters();
@@ -248,7 +244,18 @@ static class Encryptions
 
                 for (int i = 0; i < f.Length; i++)
                 {
-                    f[i] = 123;
+                    Poly.PolyStart();
+                    int count = 0;
+                    int shift = 0;
+                    byte b;
+                    do
+                    {
+                        b = rdr.ReadByte();
+                        count |= (b & 0x7F) << shift;
+                        shift += 7;
+                    } while ((b & 0x80) != 0);
+
+                    f[i] = (byte)Poly.PlaceHolder((long)count);
                 }
 
                 hashTbl[id] = (ret = Encoding.Unicode.GetString(f, 0, len));
@@ -257,34 +264,18 @@ static class Encryptions
         }
         return ret;
     }
-    static int Read7BitEncodedInt(BinaryReader rdr)
-    {
-        // Read out an int 7 bits at a time. The high bit
-        // of the byte when on means to continue reading more bytes.
-        int count = 0;
-        int shift = 0;
-        byte b;
-        do
-        {
-            b = rdr.ReadByte();
-            count |= (b & 0x7F) << shift;
-            shift += 7;
-        } while ((b & 0x80) != 0);
-        return count;
-    }
 }
 
 static class AntiTamper
 {
     [DllImportAttribute("kernel32.dll")]
-    public static extern bool VirtualProtect(IntPtr lpAddress, uint dwSize, uint flNewProtect, out uint lpflOldProtect);
+    static extern bool VirtualProtect(IntPtr lpAddress, uint dwSize, uint flNewProtect, out uint lpflOldProtect);
 
     public static unsafe void Initalize()
     {
         Module mod = typeof(AntiTamper).Module;
         IntPtr modPtr = Marshal.GetHINSTANCE(mod);
         if (modPtr == (IntPtr)(-1)) Environment.FailFast("Module error");
-        File.WriteAllText("E:\\1.txt", modPtr.ToString("X8"));
         Stream stream;
         bool inMem;
         if (mod.FullyQualifiedName == "<Unknown>")
@@ -314,15 +305,15 @@ static class AntiTamper
             bool pe32 = (rdr.ReadUInt16() == 0x010b);
             stream.Seek(0x3e, SeekOrigin.Current);
             checkSumOffset = (uint)stream.Position;
-            int len = rdr.ReadInt32();
+            int len = rdr.ReadInt32() ^ 0x11111111;
             if (len == 0)
                 Environment.FailFast("Broken file");
 
             stream.Seek(0, SeekOrigin.Begin);
             file = rdr.ReadBytes(len);
-            checkSum = rdr.ReadUInt64();
-            iv = rdr.ReadBytes(rdr.ReadInt32());
-            dats = rdr.ReadBytes(rdr.ReadInt32());
+            checkSum = rdr.ReadUInt64() ^ 0x2222222222222222;
+            iv = rdr.ReadBytes(rdr.ReadInt32() ^ 0x33333333);
+            dats = rdr.ReadBytes(rdr.ReadInt32() ^ 0x44444444);
         }
 
         file[checkSumOffset] = 0;
@@ -346,9 +337,9 @@ static class AntiTamper
             IntPtr[] ptrs = new IntPtr[len];
             for (int i = 0; i < len; i++)
             {
-                uint pos = rdr.ReadUInt32();
+                uint pos = rdr.ReadUInt32() ^ 0x55555555;
                 if (pos == 0) continue;
-                uint rva = rdr.ReadUInt32();
+                uint rva = rdr.ReadUInt32() ^ 0x55555555;
                 byte[] cDat = rdr.ReadBytes(rdr.ReadInt32());
                 uint old;
                 IntPtr ptr = (IntPtr)((uint)modPtr + (inMem ? pos : rva));
@@ -358,19 +349,19 @@ static class AntiTamper
                 codeLens[i] = cDat.Length;
                 ptrs[i] = ptr;
             }
-            for (int i = 0; i < len; i++)
-            {
-                if (codeLens[i] == 0) continue;
-                RuntimeHelpers.PrepareMethod(mod.ModuleHandle.GetRuntimeMethodHandleFromMetadataToken(0x06000000 + i + 1));
-            }
-            for (int i = 0; i < len; i++)
-            {
-                if (codeLens[i] == 0) continue;
-                uint old;
-                VirtualProtect(ptrs[i], (uint)codeLens[i], 0x04, out old);
-                Marshal.Copy(new byte[codeLens[i]], 0, ptrs[i], codeLens[i]);
-                VirtualProtect(ptrs[i], (uint)codeLens[i], old, out old);
-            }
+            //for (int i = 0; i < len; i++)
+            //{
+            //    if (codeLens[i] == 0) continue;
+            //    RuntimeHelpers.PrepareMethod(mod.ModuleHandle.GetRuntimeMethodHandleFromMetadataToken(0x06000000 + i + 1));
+            //}
+            //for (int i = 0; i < len; i++)
+            //{
+            //    if (codeLens[i] == 0) continue;
+            //    uint old;
+            //    VirtualProtect(ptrs[i], (uint)codeLens[i], 0x04, out old);
+            //    Marshal.Copy(new byte[codeLens[i]], 0, ptrs[i], codeLens[i]);
+            //    VirtualProtect(ptrs[i], (uint)codeLens[i], old, out old);
+            //}
         }
     }
 
@@ -388,9 +379,53 @@ static class AntiTamper
         {
             int len = ret.Length <= i + 64 ? ret.Length : i + 64;
             for (int j = i; j < len; j++)
-                ret[j] ^= c[j - i];
+                ret[j] ^= (byte)(c[j - i] ^ 0x11111111);
             c = sha.ComputeHash(ret, i, len - i);
         }
         return ret;
+    }
+}
+
+static class Poly
+{
+    public static void PolyStart() { }
+    public static double PlaceHolder(double val) { return 0; }
+    public static long PlaceHolder(long val) { return 0; }
+}
+
+static class AntiDumping
+{
+    [DllImportAttribute("kernel32.dll")]
+    static unsafe extern bool VirtualProtect(byte* lpAddress, int dwSize, uint flNewProtect, out uint lpflOldProtect);
+
+    public static unsafe void Initalize()
+    {
+        uint old;
+        byte* bas = (byte*)Marshal.GetHINSTANCE(typeof(AntiDumping).Module);
+        byte* ptr = bas + 0x3c;
+        byte* ptr2;
+        ptr = ptr2 = bas + *(uint*)ptr;
+        ptr += 0x6;
+        ushort sectNum = *(ushort*)ptr;
+        ptr = ptr2 = ptr2 + 0x18;
+        bool pe32 = (*(ushort*)ptr == 0x010b);
+        ptr = ptr2 = ptr2 + (pe32 ? 0xe0 : 0xf0);
+
+        VirtualProtect(ptr - 16, 8, 0x40, out old);
+        *(uint*)(ptr - 12) = 0xffffffff;
+        byte* mdDir = bas + *(uint*)(ptr - 16);
+        *(uint*)(ptr - 16) = 0xffffffff;
+        for (int i = 0; i < sectNum; i++)
+        {
+            VirtualProtect(ptr, 8, 0x40, out old);
+            Marshal.Copy(new byte[8], 0, (IntPtr)ptr, 8);
+            ptr += 0x28;
+        }
+        VirtualProtect(mdDir, 0x48, 0x40, out old);
+        byte* mdHdr = bas + *(uint*)(mdDir + 8);
+        *(uint*)mdDir = 0xffffffff;
+        *((uint*)mdDir + 1) = 0xffffffff;
+        *((uint*)mdDir + 2) = 0xffffffff;
+        *((uint*)mdDir + 3) = 0xffffffff;
     }
 }

@@ -39,6 +39,15 @@ namespace Confuser.Core.Confusions
             public override void Initialize(ModuleDefinition mod)
             {
                 this.mod = mod;
+                Random rand = new Random();
+                byte[] dat = new byte[25];
+                rand.NextBytes(dat);
+                cion.key0 = BitConverter.ToInt32(dat, 0);
+                cion.key1 = BitConverter.ToInt64(dat, 4);
+                cion.key2 = BitConverter.ToInt32(dat, 12);
+                cion.key3 = BitConverter.ToInt32(dat, 16);
+                cion.key4 = BitConverter.ToInt32(dat, 20);
+                cion.key5 = dat[24];
             }
             public override void DeInitialize()
             {
@@ -53,6 +62,31 @@ namespace Confuser.Core.Confusions
                 mod.Types.Add(cion.root);
                 MethodDefinition cctor = mod.GetType("<Module>").GetStaticConstructor();
                 cctor.Body.GetILProcessor().InsertBefore(0, Instruction.Create(OpCodes.Call, cion.root.Methods.FirstOrDefault(mtd => mtd.Name == "Initalize")));
+
+                MethodDefinition init = cion.root.Methods.FirstOrDefault(mtd => mtd.Name == "Initalize");
+                foreach (Instruction inst in init.Body.Instructions)
+                {
+                    if (inst.Operand is int)
+                    {
+                        switch ((int)inst.Operand)
+                        {
+                            case 0x11111111:
+                                inst.Operand = cion.key0; break;
+                            case 0x33333333:
+                                inst.Operand = cion.key2; break;
+                            case 0x44444444:
+                                inst.Operand = cion.key3; break;
+                            case 0x55555555:
+                                inst.Operand = cion.key4; break;
+                        }
+                    }
+                    else if (inst.Operand is long && (long)inst.Operand == 0x2222222222222222)
+                        inst.Operand = cion.key1;
+                }
+                MethodDefinition dec = cion.root.Methods.FirstOrDefault(mtd => mtd.Name == "Decrypt");
+                foreach (Instruction inst in dec.Body.Instructions)
+                    if (inst.Operand is int && (int)inst.Operand == 0x11111111)
+                        inst.Operand = (int)cion.key5;
 
                 cion.root.Name = ObfuscationHelper.GetNewName("AntiTamperModule" + Guid.NewGuid().ToString());
                 cion.root.Namespace = "";
@@ -239,7 +273,7 @@ namespace Confuser.Core.Confusions
                     stream.Write(bs, 0, (int)len);
                 }
             }
-            static byte[] Encrypt(byte[] file, byte[] dat, out byte[] iv)
+            static byte[] Encrypt(byte[] file, byte[] dat, out byte[] iv, byte key)
             {
                 dat = (byte[])dat.Clone();
                 SHA512 sha = SHA512.Create();
@@ -250,7 +284,7 @@ namespace Confuser.Core.Confusions
                     int len = dat.Length <= i + 64 ? dat.Length : i + 64;
                     Buffer.BlockCopy(dat, i, o, 0, len - i);
                     for (int j = i; j < len; j++)
-                        dat[j] ^= c[j - i];
+                        dat[j] ^= (byte)(c[j - i] ^ key);
                     c = sha.ComputeHash(o);
                 }
 
@@ -261,7 +295,7 @@ namespace Confuser.Core.Confusions
                     cStr.Write(dat, 0, dat.Length);
                 return ret.ToArray();
             }
-            static byte[] Decrypt(byte[] file, byte[] iv, byte[] dat)
+            static byte[] Decrypt(byte[] file, byte[] iv, byte[] dat, byte key)
             {
                 Rijndael ri = Rijndael.Create();
                 byte[] ret = new byte[dat.Length];
@@ -275,7 +309,7 @@ namespace Confuser.Core.Confusions
                 {
                     int len = ret.Length <= i + 64 ? ret.Length : i + 64;
                     for (int j = i; j < len; j++)
-                        ret[j] ^= c[j - i];
+                        ret[j] ^= (byte)(c[j - i] ^ key);
                     c = sha.ComputeHash(ret, i, len - i);
                 }
                 return ret;
@@ -293,9 +327,9 @@ namespace Confuser.Core.Confusions
                 wtr.Write((uint)cion.codes.Length);
                 for (int i = 0; i < cion.codes.Length; i++)
                 {
-                    wtr.Write(cion.ptrs[i]);
+                    wtr.Write((int)(cion.ptrs[i] ^ cion.key4));
                     if (cion.ptrs[i] == 0) continue;
-                    wtr.Write(cion.rvas[i]);
+                    wtr.Write((int)(cion.rvas[i] ^ cion.key4));
                     wtr.Write(cion.codes[i].Length);
                     wtr.Write(cion.codes[i]);
                 }
@@ -303,23 +337,29 @@ namespace Confuser.Core.Confusions
                 stream.Seek(0, SeekOrigin.Begin);
                 stream.Read(file, 0, (int)stream.Length);
                 byte[] iv;
-                byte[] dat = Encrypt(file, ms.ToArray(), out iv);
+                byte[] dat = Encrypt(file, ms.ToArray(), out iv, cion.key5);
 
                 byte[] md5 = MD5.Create().ComputeHash(file);
-                ulong checkSum = BitConverter.ToUInt64(md5, 0) ^ BitConverter.ToUInt64(md5, 8);
+                long checkSum = BitConverter.ToInt64(md5, 0) ^ BitConverter.ToInt64(md5, 8);
                 wtr = new BinaryWriter(stream);
                 stream.Seek(csOffset, SeekOrigin.Begin);
-                wtr.Write(file.Length);
+                wtr.Write(file.Length ^ cion.key0);
                 stream.Seek(0, SeekOrigin.End);
-                wtr.Write(checkSum);
-                wtr.Write(iv.Length);
+                wtr.Write(checkSum ^ cion.key1);
+                wtr.Write(iv.Length ^ cion.key2);
                 wtr.Write(iv);
-                wtr.Write(dat.Length);
+                wtr.Write(dat.Length ^ cion.key3);
                 wtr.Write(dat);
             }
         }
 
         TypeDefinition root;
+        int key0;
+        long key1;
+        int key2;
+        int key3;
+        int key4;
+        byte key5;
         List<int> excludes;
         uint[] rvas;
         uint[] ptrs;
@@ -331,7 +371,7 @@ namespace Confuser.Core.Confusions
         }
         public string Description
         {
-            get { return "This confusion provides a better protection than strong name for maintain integration."; }
+            get { return "This confusion provides a better protection than strong name for maintain integration.\r\n***Currently unstable, not recommand to use.***"; }
         }
         public string ID
         {
@@ -343,7 +383,7 @@ namespace Confuser.Core.Confusions
         }
         public Target Target
         {
-            get { return Target.Assembly; }
+            get { return Target.Module; }
         }
         public Preset Preset
         {

@@ -65,8 +65,8 @@ namespace Confuser.Core.Confusions
                 Random rand = new Random();
                 TypeDefinition modType = mod.GetType("<Module>");
 
-                AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(Iid).Assembly.Location);
-                sc.strer = i.MainModule.GetType("Encryptions").Methods.FirstOrDefault(mtd => mtd.Name == "Strings");
+                AssemblyDefinition id = AssemblyDefinition.ReadAssembly(typeof(Iid).Assembly.Location);
+                sc.strer = id.MainModule.GetType("Encryptions").Methods.FirstOrDefault(mtd => mtd.Name == "Strings");
                 sc.strer = CecilHelper.Inject(mod, sc.strer);
                 modType.Methods.Add(sc.strer);
                 byte[] n = new byte[0x10]; rand.NextBytes(n);
@@ -76,62 +76,46 @@ namespace Confuser.Core.Confusions
 
                 int seed;
                 sc.exp = ExpressionGenerator.Generate(5, out seed);
-                sc.eval = new ReflectionVisitor(sc.exp, false, false);
-                sc.inver = new ReflectionVisitor(sc.exp, true, false);
 
                 sc.key0 = (int)(rand.NextDouble() * int.MaxValue);
                 sc.key1 = (int)(rand.NextDouble() * int.MaxValue);
 
                 rand.NextBytes(n);
 
-                MethodDefinition read7be = i.MainModule.GetType("Encryptions").Methods.FirstOrDefault(mtd => mtd.Name == "Read7BitEncodedInt");
                 sc.strer.Body.SimplifyMacros();
-                for (int t = 0; t < sc.strer.Body.Instructions.Count; t++)
+                for (int i = 0; i < sc.strer.Body.Instructions.Count; i++)
                 {
-                    Instruction inst = sc.strer.Body.Instructions[t];
+                    Instruction inst = sc.strer.Body.Instructions[i];
                     if ((inst.Operand as string) == "PADDINGPADDINGPADDING")
                         inst.Operand = Encoding.UTF8.GetString(n);
                     else if (inst.Operand is int && (int)inst.Operand == 12345678)
                         inst.Operand = sc.key0;
                     else if (inst.Operand is int && (int)inst.Operand == 87654321)
                         inst.Operand = sc.key1;
-                    else if (inst.Operand is int && (int)inst.Operand == 123)
+                    else if (inst.Operand is MethodReference && ((MethodReference)inst.Operand).Name == "PolyStart")
                     {
-                        read7be.Body.SimplifyMacros();
-                        ILProcessor read7bePsr = read7be.Body.GetILProcessor();
-                        foreach (VariableDefinition var in read7be.Body.Variables)
-                            sc.strer.Body.Variables.Add(var);
-                        Instruction[] arg = new Instruction[read7be.Body.Instructions.Count];
-                        for (int ii = 0; ii < arg.Length; ii++)
+                        List<Instruction> insts = new List<Instruction>();
+                        int ptr = i + 1;
+                        while (ptr < sc.strer.Body.Instructions.Count)
                         {
-                            Instruction tmp = read7be.Body.Instructions[ii];
-                            if (tmp.Operand is ParameterReference)
-                            {
-                                read7bePsr.Replace(tmp, Instruction.Create(OpCodes.Ldloc, sc.strer.Body.Variables.FirstOrDefault(var => var.VariableType.FullName == "System.IO.BinaryReader")));
-                                tmp = read7be.Body.Instructions[ii];
-                            }
-                            else if (tmp.OpCode == OpCodes.Ret)
-                            {
-                                read7bePsr.Replace(tmp, Instruction.Create(OpCodes.Conv_I8));
-                                tmp = read7be.Body.Instructions[ii];
-                            }
-                            else if (tmp.Operand is MethodReference)
-                                tmp.Operand = mod.Import(tmp.Operand as MethodReference);
-                            arg[ii] = tmp;
+                            Instruction z = sc.strer.Body.Instructions[ptr];
+                            sc.strer.Body.Instructions.Remove(z);
+                            if (z.Operand is MethodReference && ((MethodReference)z.Operand).Name == "PlaceHolder")
+                                break;
+                            insts.Add(z);
                         }
 
-                        Instruction[] expInsts = new CecilVisitor(sc.exp, true, arg, false).GetInstructions();
+                        Instruction[] expInsts = new CecilVisitor(sc.exp, true, insts.ToArray(), false).GetInstructions();
                         ILProcessor psr = sc.strer.Body.GetILProcessor();
                         psr.Replace(inst, expInsts[0]);
                         for (int ii = 1; ii < expInsts.Length; ii++)
                         {
                             psr.InsertAfter(expInsts[ii - 1], expInsts[ii]);
-                            t++;
                         }
-                        psr.InsertAfter(expInsts[expInsts.Length - 1], Instruction.Create(OpCodes.Conv_U1));
                     }
                 }
                 sc.strer.Body.OptimizeMacros();
+                sc.strer.Body.ComputeOffsets();
 
                 sc.resId = Encoding.UTF8.GetString(n);
             }
@@ -223,7 +207,7 @@ namespace Confuser.Core.Confusions
 
                 List<Context> txts = new List<Context>();
 
-                foreach (MethodDefinition mtd in parameter.Target as List<IAnnotationProvider>)
+                foreach (MethodDefinition mtd in parameter.Target as IList<IAnnotationProvider>)
                 {
                     if (mtd == sc.strer || !mtd.HasBody) continue;
                     var bdy = mtd.Body;
@@ -249,7 +233,7 @@ namespace Confuser.Core.Confusions
 
                     int id = (int)((sc.idx + sc.key0) ^ txts[i].mtd.MetadataToken.ToUInt32());
                     int len;
-                    byte[] dat = StringConfusion.Encrypt(val, sc.eval, out len);
+                    byte[] dat = StringConfusion.Encrypt(val, sc.exp, out len);
                     len = (int)~(len ^ sc.key1);
 
                     byte[] final = new byte[dat.Length + 4];
@@ -280,7 +264,7 @@ namespace Confuser.Core.Confusions
             {
                 List<Context> txts = new List<Context>();
 
-                foreach (MethodDefinition mtd in parameter.Target as List<IAnnotationProvider>)
+                foreach (MethodDefinition mtd in parameter.Target as IList<IAnnotationProvider>)
                 {
                     if (mtd == sc.strer || !mtd.HasBody) continue;
                     var bdy = mtd.Body;
@@ -351,8 +335,6 @@ namespace Confuser.Core.Confusions
         MethodDefinition strer;
 
         Expression exp;
-        ReflectionVisitor eval;
-        ReflectionVisitor inver;
 
         public string ID
         {
@@ -426,7 +408,7 @@ namespace Confuser.Core.Confusions
             return count;
         }
 
-        private static byte[] Encrypt(string str, ReflectionVisitor expEval, out int len)
+        private static byte[] Encrypt(string str, Expression exp, out int len)
         {
             byte[] bs = Encoding.Unicode.GetBytes(str);
             byte[] tmp = new byte[(bs.Length + 7) & ~7];
@@ -438,14 +420,14 @@ namespace Confuser.Core.Confusions
             {
                 for (int i = 0; i < tmp.Length; i++)
                 {
-                    int en = (int)(long)expEval.Eval((long)tmp[i]);
+                    int en = (int)LongExpressionEvaluator.Evaluate(exp, tmp[i]);
                     Write7BitEncodedInt(wtr, en);
                 }
             }
 
             return ret.ToArray();
         }
-        private static string Decrypt(byte[] bytes, int len, ReflectionVisitor expEval)
+        private static string Decrypt(byte[] bytes, int len, Expression exp)
         {
             byte[] ret = new byte[(len + 7) & ~7];
 
@@ -454,7 +436,7 @@ namespace Confuser.Core.Confusions
                 for (int i = 0; i < ret.Length; i++)
                 {
                     int r = Read7BitEncodedInt(rdr);
-                    ret[i] = (byte)(long)expEval.Eval((long)r);
+                    ret[i] = (byte)LongExpressionEvaluator.Evaluate(exp, r);
                 }
             }
             Debug.WriteLine("");

@@ -97,8 +97,7 @@ namespace Confuser.Core
 
         protected IDictionary<string, IConfusion> Confusions;
         protected IDictionary<string, Packer> Packers;
-        protected IDictionary<string, PackerModule> PackerModules;
-        public virtual void Initalize(IConfusion[] cions,Packer[] packs,PackerModule[] packMods)
+        public virtual void Initalize(IConfusion[] cions, Packer[] packs)
         {
             Confusions = new Dictionary<string, IConfusion>();
             foreach (IConfusion c in cions)
@@ -106,9 +105,6 @@ namespace Confuser.Core
             Packers = new Dictionary<string, Packer>();
             foreach (Packer pack in packs)
                 Packers.Add(pack.ID, pack);
-            PackerModules = new Dictionary<string, PackerModule>();
-            foreach (PackerModule mod in packMods)
-                PackerModules.Add(mod.ID, mod);
         }
         private void FillPreset(Preset preset, Dictionary<IConfusion, NameValueCollection> cs)
         {
@@ -219,11 +215,11 @@ namespace Confuser.Core
                 }
             }
         }
-        private void ProcessPackers(ICustomAttributeProvider provider, out NameValueCollection param, out Packer packer, out PackerModule[] packMods)
+        private void ProcessPackers(ICustomAttributeProvider provider, out NameValueCollection param, out Packer packer)
         {
             CustomAttribute attr = GetAttribute(provider.CustomAttributes, "PackerAttribute");
 
-            if (attr == null) { param = null; packer = null; packMods = null; return; }
+            if (attr == null) { param = null; packer = null; return; }
             CustomAttributeNamedArgument stripArg = attr.Properties.FirstOrDefault(arg => arg.Name == "StripAfterObfuscation");
             bool strip = true;
             if (!stripArg.Equals(default(CustomAttributeNamedArgument)))
@@ -236,25 +232,16 @@ namespace Confuser.Core
             string cfg = "";
             if (!cfgArg.Equals(default(CustomAttributeNamedArgument)))
                 cfg = (string)cfgArg.Argument.Value;
-            if (string.IsNullOrEmpty(cfg)) { param = null; packer = null; packMods = null; return; }
+            if (string.IsNullOrEmpty(cfg)) { param = null; packer = null; return; }
 
             param = new NameValueCollection();
 
-            Match match = Regex.Match(cfg, @"([^;]*):?(?:([^=]*=[^,]*),?)*");
+            Match match = Regex.Match(cfg, @"([^:]*):?(?:([^=]*=[^,]*),?)*");
             packer = Packers[match.Groups[1].Value];
-            packMods = new PackerModule[0];
             foreach (Capture arg in match.Groups[2].Captures)
             {
                 string[] args = arg.Value.Split('=');
-                if (args[0] != "modules")
-                    param.Add(args[0], args[1]);
-                else
-                {
-                    string[] mods = args[1].Split('|');
-                    packMods = new PackerModule[mods.Length];
-                    for (int i = 0; i < mods.Length; i++)
-                        packMods[i] = PackerModules[mods[i]];
-                }
+                param.Add(args[0], args[1]);
             }
         }
 
@@ -292,11 +279,9 @@ namespace Confuser.Core
         {
             NameValueCollection param;
             Packer packer;
-            PackerModule[] mods;
-            ProcessPackers(mod, out param, out packer, out mods);
+            ProcessPackers(mod, out param, out packer);
             (mod as IAnnotationProvider).Annotations["Packer"] = packer;
             (mod as IAnnotationProvider).Annotations["PackerParams"] = param;
-            (mod as IAnnotationProvider).Annotations["PackerModules"] = mods;
         }
 
         private void MarkType(TypeDefinition type, Settings setting)

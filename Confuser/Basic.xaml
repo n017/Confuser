@@ -474,20 +474,6 @@
                     <TextBlock FontWeight="Thin" Foreground="White" VerticalAlignment="Top" Text="{Binding Path=Description, StringFormat=Description : {0}}" Height="75" FontSize="13.333" Margin="10,75,10,0" TextWrapping="Wrap"/>
                 </Grid>
             </Grid>
-            <Grid x:Name="packermods" Opacity="0" Visibility="Hidden">
-                <ListBox x:Name="packermodsList" VerticalAlignment="Top" Height="100" BorderBrush="White" BorderThickness="1" ItemContainerStyle="{DynamicResource HollowListBoxItem}" Style="{DynamicResource HollowListBox}" Background="{x:Null}" SelectionChanged="list_SelectionChanged">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <TextBlock FontWeight="Thin" Focusable="False" Text="{Binding Path=Name}" Foreground="White"/>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-                <Grid x:Name="packermodsDetail" Margin="0,100,0,0">
-                    <TextBlock FontWeight="Thin" Foreground="White" VerticalAlignment="Top" Text="{Binding Path=Name}" Height="30" FontSize="21.333" Margin="10,10,10,0"/>
-                    <TextBlock FontWeight="Thin" Foreground="White" VerticalAlignment="Top" Text="{Binding Path=ID, StringFormat=ID : {0}}" Height="25" FontSize="13.333" Margin="10,50,10,0"/>
-                    <TextBlock FontWeight="Thin" Foreground="White" VerticalAlignment="Top" Text="{Binding Path=Description, StringFormat=Description : {0}}" Height="75" FontSize="13.333" Margin="10,75,10,0" TextWrapping="Wrap"/>
-                </Grid>
-            </Grid>
             <Grid x:Name="about" Opacity="0" Visibility="Hidden" Loaded="AboutLoaded">
 				<Grid Width="250" Height="150">
 					<Border BorderBrush="White" BorderThickness="0.5" />
@@ -510,7 +496,6 @@
 			<RadioButton x:Name="confuseButton"	Focusable="False" Margin="5" Height="35" Content="Confuse" Template="{DynamicResource RadioButtonButton}" FontWeight="Thin" FontSize="14" Checked="radioChecked" Unchecked="radioUnchecked"/>
             <RadioButton x:Name="confusionsButton" Focusable="False" Margin="5" Height="35" Content="Confusions" Template="{DynamicResource RadioButtonButton}" FontWeight="Thin" FontSize="14" Checked="radioChecked" Unchecked="radioUnchecked"/>
             <RadioButton x:Name="packersButton" Focusable="False" Margin="5" Height="35" Content="Packers" Template="{DynamicResource RadioButtonButton}" FontWeight="Thin" FontSize="14" Checked="radioChecked" Unchecked="radioUnchecked"/>
-            <RadioButton x:Name="packermodsButton" Focusable="False" Margin="5" Height="35" Content="Packer Modules" Template="{DynamicResource RadioButtonButton}" FontWeight="Thin" FontSize="14" Checked="radioChecked" Unchecked="radioUnchecked"/>
             <RadioButton x:Name="aboutButton" Focusable="False" Margin="5" Height="35" Content="About" Template="{DynamicResource RadioButtonButton}" FontWeight="Thin" FontSize="14" Checked="radioChecked" Unchecked="radioUnchecked"/>
 		</StackPanel>
 	</Grid>

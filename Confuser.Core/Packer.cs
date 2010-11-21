@@ -15,25 +15,10 @@ namespace Confuser.Core
         ModuleDefinition mod = null;
         byte[] pe = null;
         NameValueCollection parameters = new NameValueCollection();
-        PackerModule[] mods = new PackerModule[0];
 
         public ModuleDefinition Module { get { return mod; } internal set { mod = value; } }
         public byte[] PE { get { return pe; } internal set { pe = value; } }
         public NameValueCollection Parameters { get { return parameters; } internal set { parameters = value; } }
-        public PackerModule[] PackerModules { get { return mods; } internal set { mods = value; } }
-    }
-
-    public abstract class PackerModule
-    {
-        public abstract string ID { get; }
-        public abstract string Name { get; }
-        public abstract string Description { get; }
-        public abstract bool StandardCompatible { get; }
-        Confuser cr;
-        internal Confuser Confuser { get { return cr; } set { cr = value; } }
-        protected void Log(string message) { cr.Log(message); }
-
-        public abstract MethodDefinition GetModuleRunner(PackerParameter parameter);
     }
 
     public abstract class Packer
@@ -62,6 +47,7 @@ namespace Confuser.Core
                     m.Annotations.Add(key, src.Annotations[src]);
 
                 var dict = (IDictionary<IConfusion, NameValueCollection>)src.Annotations["ConfusionSets"];
+                current.Clear();
                 foreach (var i in dict)
                     current.Add(i.Key, i.Value);
             }
@@ -79,23 +65,6 @@ namespace Confuser.Core
         {
             ModuleDefinition mod;
             PackCore(out mod, param);
-            TypeDefinition typeDef = mod.GetType("<Module>");
-            MethodDefinition cctor;
-            if ((cctor = typeDef.GetStaticConstructor()) == null)
-            {
-                cctor = new MethodDefinition(".cctor", MethodAttributes.Private | MethodAttributes.HideBySig |
-                    MethodAttributes.SpecialName | MethodAttributes.RTSpecialName |
-                    MethodAttributes.Static, mod.Import(typeof(void)));
-                cctor.Body = new MethodBody(cctor);
-                cctor.Body.GetILProcessor().Emit(OpCodes.Ret);
-                typeDef.Methods.Add(cctor);
-            }
-            ILProcessor psr = cctor.Body.GetILProcessor();
-            foreach (PackerModule packMod in param.PackerModules)
-            {
-                packMod.Confuser = Confuser;
-                psr.InsertBefore(0, Instruction.Create(OpCodes.Call, packMod.GetModuleRunner(param)));
-            }
 
             string tmp = Path.GetTempPath() + "\\" + Path.GetRandomFileName() + "\\";
             Directory.CreateDirectory(tmp);

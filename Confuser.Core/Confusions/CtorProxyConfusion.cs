@@ -64,11 +64,16 @@ namespace Confuser.Core.Confusions
                 cc.proxy.IsAssembly = true;
                 cc.proxy.Name = ObfuscationHelper.GetNewName("Proxy" + Guid.NewGuid().ToString());
                 AddHelper(cc.proxy, 0);
+
+                cc.key = new Random().Next();
+                foreach (Instruction inst in cc.proxy.Body.Instructions)
+                    if (inst.Operand is int && (int)inst.Operand == 0x12345678)
+                    { inst.Operand = cc.key; break; }
             }
 
             public override void Process(ConfusionParameter parameter)
             {
-                List<IAnnotationProvider> targets = parameter.Target as List<IAnnotationProvider>;
+                IList<IAnnotationProvider> targets = parameter.Target as IList<IAnnotationProvider>;
                 for (int i = 0; i < targets.Count; i++)
                 {
                     MethodDefinition mtd = targets[i] as MethodDefinition;
@@ -294,7 +299,7 @@ namespace Confuser.Core.Confusions
                 foreach (Context txt in cc.txts)
                 {
                     MetadataToken tkn = accessor.LookupToken(txt.mtdRef);
-                    txt.fld.Name = txt.fld.Name[0] + Encoding.Unicode.GetString(BitConverter.GetBytes(tkn.ToUInt32()));
+                    txt.fld.Name = txt.fld.Name[0] + Encoding.Unicode.GetString(BitConverter.GetBytes(tkn.ToUInt32() ^ cc.key));
                 }
             }
         }
@@ -350,6 +355,7 @@ namespace Confuser.Core.Confusions
         Dictionary<string, FieldDefinition> fields;
         Dictionary<string, MethodDefinition> bridges;
         MethodDefinition proxy;
+        int key;
         private class Context { public MethodBody bdy; public Instruction inst; public FieldDefinition fld; public TypeDefinition dele; public MethodReference mtdRef;}
         List<Context> txts;
         TypeReference mcd;
@@ -395,7 +401,7 @@ namespace Confuser.Core.Confusions
             return sig.ToString();
         }
 
-        private static string GetId(ModuleDefinition mod, MethodReference mtd)
+        static string GetId(ModuleDefinition mod, MethodReference mtd)
         {
             char asmRef = (char)(mod.AssemblyReferences.IndexOf(mtd.DeclaringType.Scope as AssemblyNameReference) + 2);
             return asmRef + Encoding.Unicode.GetString(BitConverter.GetBytes(mtd.Resolve().MetadataToken.ToUInt32()));

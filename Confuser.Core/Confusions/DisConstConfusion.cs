@@ -82,7 +82,7 @@ namespace Confuser.Core.Confusions
         {
 
             List<Context> txts = new List<Context>();
-            List<IAnnotationProvider> targets = parameter.Target as List<IAnnotationProvider>;
+            IList<IAnnotationProvider> targets = parameter.Target as IList<IAnnotationProvider>;
             for (int i = 0; i < targets.Count; i++)
             {
                 MethodDefinition mtd = targets[i] as MethodDefinition;
@@ -121,10 +121,10 @@ namespace Confuser.Core.Confusions
                 do
                 {
                     exp = ExpressionGenerator.Generate(txt.lv, out seed);
-                    eval = (double)new ReflectionVisitor(exp, false, true).Eval(val);
+                    eval = DoubleExpressionEvaluator.Evaluate(exp, val);
                     try
                     {
-                        tmp = (double)new ReflectionVisitor(exp, true, true).Eval(eval);
+                        tmp = DoubleExpressionEvaluator.ReverseEvaluate(exp, eval);
                     }
                     catch { continue; }
                 } while (tmp != val);

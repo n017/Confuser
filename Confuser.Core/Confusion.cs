@@ -28,9 +28,8 @@ namespace Confuser.Core
         Fields = 4,
         Events = 8,
         Properties = 16,
-        Module = 64,
-        Assembly = 128,
-        All = 255,
+        Module = 32,
+        All = 63,
     }
     public enum Preset
     {

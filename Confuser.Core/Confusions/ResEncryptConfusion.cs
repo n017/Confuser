@@ -176,7 +176,7 @@ namespace Confuser.Core.Confusions
         }
         public Target Target
         {
-            get { return Target.Assembly; }
+            get { return Target.Module; }
         }
         public Preset Preset
         {
