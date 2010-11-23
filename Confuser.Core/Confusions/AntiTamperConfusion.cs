@@ -11,6 +11,8 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 using Mono.Cecil.Cil;
 
+//TODO: Implement better version by JIT hooking
+#if false
 namespace Confuser.Core.Confusions
 {
     public class AntiTamperConfusion : IConfusion
@@ -405,3 +407,5 @@ namespace Confuser.Core.Confusions
         }
     }
 }
+
+#endif

@@ -6,8 +6,8 @@ using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
 
-//TODO: Fix it, unstable
-
+//TODO : Make a more stable version.
+#if false
 namespace Confuser.Core.Confusions
 {
     public class AntiDumpConfusion : StructurePhase, IConfusion
@@ -18,7 +18,7 @@ namespace Confuser.Core.Confusions
         }
         public string Description
         {
-            get { return "This confusion prevent the assembly from dumping from memory.\r\n***Currently unstable, not recommand to use.***"; }
+            get { return "This confusion prevent the assembly from dumping from memory."; }
         }
         public string ID
         {
@@ -96,3 +96,4 @@ namespace Confuser.Core.Confusions
         }
     }
 }
+#endif
