@@ -156,10 +156,10 @@ namespace Confuser
                                     GlobalAssemblyResolver.Instance.ClearSearchDirectory();
                                     GlobalAssemblyResolver.Instance.AddSearchDirectory(System.IO.Path.GetDirectoryName(path));
                                     elements.ClearAssemblies();
-                                    foreach (Core.AssemblyData dat in marker.ExtractDatas(path, ""))
+                                    foreach (AssemblyDefinition dat in marker.ExtractDatas(path))
                                     {
-                                        asms.Add(dat.Assembly.FullName, dat.Assembly);
-                                        elements.LoadAssembly(dat.Assembly);
+                                        asms.Add(dat.FullName, dat);
+                                        elements.LoadAssembly(dat);
                                     }
                                     marker = new MarkingCopyer(asms);
                                 }
@@ -628,7 +628,7 @@ namespace Confuser
             dst.Annotations["GlobalParams"] = now;
         }
 
-        public override void MarkAssembly(AssemblyDefinition asm, Core.Preset preset)
+        public override void MarkAssembly(AssemblyDefinition asm, Core.Preset preset, Core.Confuser cr)
         {
             Copy(srcs[asm.FullName], asm);
             for (int i = 0; i < asm.Modules.Count; i++)

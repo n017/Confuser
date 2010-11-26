@@ -12,12 +12,12 @@ namespace Confuser.Core
 {
     public class PackerParameter
     {
-        ModuleDefinition mod = null;
-        byte[] pe = null;
+        ModuleDefinition[] mods = null;
+        byte[][] pes = null;
         NameValueCollection parameters = new NameValueCollection();
 
-        public ModuleDefinition Module { get { return mod; } internal set { mod = value; } }
-        public byte[] PE { get { return pe; } internal set { pe = value; } }
+        public ModuleDefinition[] Modules { get { return mods; } internal set { mods = value; } }
+        public byte[][] PEs { get { return pes; } internal set { pes = value; } }
         public NameValueCollection Parameters { get { return parameters; } internal set { parameters = value; } }
     }
 
@@ -28,17 +28,20 @@ namespace Confuser.Core
             ModuleDefinition origin;
             public PackerMarker(ModuleDefinition mod) { origin = mod; }
 
-            public override void MarkAssembly(AssemblyDefinition asm, Preset preset)
+            public override void MarkAssembly(AssemblyDefinition asm, Preset preset, Confuser cr)
             {
-                base.MarkAssembly(asm, preset);
+                base.MarkAssembly(asm, preset, cr);
 
                 IAnnotationProvider m = asm;
                 m.Annotations.Clear();
                 IAnnotationProvider src = (IAnnotationProvider)origin.Assembly;
                 foreach (object key in src.Annotations.Keys)
+                {
+                    if (key.ToString() == "Packer" || key.ToString() == "PackerParams") continue;
                     m.Annotations[key] = src.Annotations[key];
+                }
             }
-            protected override void MarkModule(ModuleDefinition mod, IDictionary<IConfusion, NameValueCollection> current)
+            protected override void MarkModule(ModuleDefinition mod, IDictionary<IConfusion, NameValueCollection> current, Confuser cr)
             {
                 IAnnotationProvider m = mod;
                 m.Annotations.Clear();
@@ -63,27 +66,27 @@ namespace Confuser.Core
 
         public byte[] Pack(ConfuserParameter crParam, PackerParameter param)
         {
-            ModuleDefinition mod;
-            PackCore(out mod, param);
+            AssemblyDefinition asm;
+            PackCore(out asm, param);
 
             string tmp = Path.GetTempPath() + "\\" + Path.GetRandomFileName() + "\\";
             Directory.CreateDirectory(tmp);
-            mod.Write(tmp + mod.Name);
+            asm.Write(tmp + asm.MainModule.Name);
 
             Confuser cr = new Confuser();
             ConfuserParameter par = new ConfuserParameter();
-            par.SourceAssembly = tmp + mod.Name;
+            par.SourceAssembly = tmp + asm.MainModule.Name;
             par.ReferencesPath = tmp;
             tmp = Path.GetTempPath() + "\\" + Path.GetRandomFileName() + "\\";
             par.DestinationPath = tmp;
             par.Confusions = crParam.Confusions;
             par.DefaultPreset = crParam.DefaultPreset;
             par.StrongNameKeyPath = crParam.StrongNameKeyPath;
-            par.Marker = new PackerMarker(param.Module);
+            par.Marker = new PackerMarker(param.Modules[0]);
             cr.Confuse(par);
 
-            return File.ReadAllBytes(tmp + mod.Name);
+            return File.ReadAllBytes(tmp + asm.MainModule.Name);
         }
-        protected abstract void PackCore(out ModuleDefinition mod, PackerParameter parameter);
+        protected abstract void PackCore(out AssemblyDefinition asm, PackerParameter parameter);
     }
 }

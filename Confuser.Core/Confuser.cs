@@ -135,15 +135,16 @@ namespace Confuser.Core
         {
             try
             {
-                param.Logger.StartPhase(1);
-                param.Logger.Log("Started at " + DateTime.Now.ToShortTimeString() + ".");
-                param.Logger.Log("Loading...");
+                log = param.Logger;
+                log.StartPhase(1);
+                log.Log("Started at " + DateTime.Now.ToShortTimeString() + ".");
+                log.Log("Loading...");
 
                 System.Reflection.StrongNameKeyPair sn = null;
                 if (string.IsNullOrEmpty(param.StrongNameKeyPath))
-                    param.Logger.Log("Strong name key not specified.");
+                    log.Log("Strong name key not specified.");
                 else if (!File.Exists(param.StrongNameKeyPath))
-                    param.Logger.Log("Strong name key not found. Output assembly will not be signed.");
+                    log.Log("Strong name key not found. Output assembly will not be signed.");
                 else
                     sn = new System.Reflection.StrongNameKeyPair(new FileStream(param.StrongNameKeyPath, FileMode.Open));
 
@@ -152,211 +153,240 @@ namespace Confuser.Core
                 GlobalAssemblyResolver.Instance.AssemblyCache.Clear();
                 GlobalAssemblyResolver.Instance.ClearSearchDirectory();
                 GlobalAssemblyResolver.Instance.AddSearchDirectory(param.ReferencesPath);
-                AssemblyData[] asms = mkr.ExtractDatas(param.SourceAssembly, param.DestinationPath);
+                AssemblyDefinition[] asms = mkr.ExtractDatas(param.SourceAssembly);
 
                 mkr.Initalize(param.Confusions, param.Packers);
-                param.Logger.Log(string.Format("Analysing assemblies..."));
+                log.Log(string.Format("Analysing assemblies..."));
                 for (int z = 0; z < asms.Length; z++)
                 {
-                    mkr.MarkAssembly(asms[z].Assembly, param.DefaultPreset);
+                    mkr.MarkAssembly(asms[z], param.DefaultPreset, this);
                 }
+
+                helpers = new Dictionary<IMemberDefinition, HelperAttribute>();
 
                 List<IEngine> engines = new List<IEngine>();
                 foreach (IConfusion cion in param.Confusions)
                     foreach (Phase phase in cion.Phases)
                         if (phase.GetEngine() != null)
                             engines.Add(phase.GetEngine());
-                AssemblyDefinition[] asmDefs = new AssemblyDefinition[asms.Length];
-                for (int i = 0; i < asmDefs.Length; i++) asmDefs[i] = asms[i].Assembly;
                 for (int i = 0; i < engines.Count; i++)
                 {
-                    engines[i].Analysis(param.Logger, asmDefs);
-                    param.Logger.Progress((double)(i + 1) / engines.Count);
+                    engines[i].Analysis(param.Logger, asms);
+                    log.Progress((double)(i + 1) / engines.Count);
                 }
 
-                log = param.Logger;
-                helpers = new Dictionary<IMemberDefinition, HelperAttribute>();
-
-                foreach (AssemblyData asm in asms)
+                List<byte[]> pes = new List<byte[]>();
+                List<ModuleDefinition> mods = new List<ModuleDefinition>();
+                foreach (AssemblyDefinition asm in asms)
                 {
-                    param.Logger.StartPhase(2);
-                    param.Logger.Log(string.Format("Obfuscating assembly {0}...", asm.Assembly.FullName));
-                    if (!Directory.Exists(System.IO.Path.GetDirectoryName(asm.TargetPath)))
-                        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(asm.TargetPath));
-                    Stream dstStream = new FileStream(asm.TargetPath, FileMode.Create, FileAccess.Write);
+                    log.StartPhase(2);
+                    log.Log(string.Format("Obfuscating assembly {0}...", asm.FullName));
 
-                    try
+                    IDictionary<IConfusion, NameValueCollection> globalParams = GetGlobalParams(asm);
+                    List<Phase> phases = new List<Phase>();
+                    foreach (IConfusion cion in param.Confusions)
+                        foreach (Phase phase in cion.Phases)
+                            phases.Add(phase);
+
+                    foreach (ModuleDefinition mod in asm.Modules)
                     {
-                        IDictionary<IConfusion, NameValueCollection> globalParams = GetGlobalParams(asm.Assembly);
-                        List<Phase> phases = new List<Phase>();
-                        foreach (IConfusion cion in param.Confusions)
-                            foreach (Phase phase in cion.Phases)
-                                phases.Add(phase);
+                        log.Log(string.Format("Obfuscating structure of module {0}...", mod.Name));
 
-                        foreach (ModuleDefinition mod in asm.Assembly.Modules)
+                        helpers.Clear();
+                        //global cctor which used in many confusion
+                        if (mod.GetType("<Module>").GetStaticConstructor() == null)
                         {
-                            param.Logger.Log(string.Format("Obfuscating structure of module {0}...", mod.Name));
+                            MethodDefinition cctor = new MethodDefinition(".cctor", MethodAttributes.Private | MethodAttributes.HideBySig |
+                                MethodAttributes.SpecialName | MethodAttributes.RTSpecialName |
+                                MethodAttributes.Static, mod.Import(typeof(void)));
+                            cctor.Body = new MethodBody(cctor);
+                            cctor.Body.GetILProcessor().Emit(OpCodes.Ret);
+                            mod.GetType("<Module>").Methods.Add(cctor);
+                        }
+                        else
+                        {
+                            MethodDefinition cctor = mod.GetType("<Module>").GetStaticConstructor();
+                            ((IAnnotationProvider)cctor).Annotations.Clear();
+                        }
+                        helpers.Add(mod.GetType("<Module>").GetStaticConstructor(), HelperAttribute.NoEncrypt);
 
-                            helpers.Clear();
-                            //global cctor which used in many confusion
-                            if (mod.GetType("<Module>").GetStaticConstructor() == null)
+
+                        ConfusionParameter cParam = new ConfusionParameter();
+                        bool end1 = false;
+                        foreach (StructurePhase i in from i in phases where (i is StructurePhase) orderby (int)i.Priority + i.PhaseID * 10 ascending select i)
+                        {
+                            if (!end1 && i.PhaseID > 1)
                             {
-                                MethodDefinition cctor = new MethodDefinition(".cctor", MethodAttributes.Private | MethodAttributes.HideBySig |
-                                    MethodAttributes.SpecialName | MethodAttributes.RTSpecialName |
-                                    MethodAttributes.Static, mod.Import(typeof(void)));
-                                cctor.Body = new MethodBody(cctor);
-                                cctor.Body.GetILProcessor().Emit(OpCodes.Ret);
-                                mod.GetType("<Module>").Methods.Add(cctor);
+                                MarkModule(mod);
+                                MarkObfuscateHelpers(mod);
+                                CecilHelper.RefreshTokens(mod);
+                                end1 = true;
+                            }
+                            List<IAnnotationProvider> mems = GetTargets(mod, i.Confusion);
+                            if (mems.Count == 0) continue;
+
+                            i.Confuser = this;
+                            log.Log("Executing " + i.Confusion.Name + " Phase " + i.PhaseID + "...");
+
+                            i.Initialize(mod);
+                            if (globalParams.ContainsKey(i.Confusion))
+                                cParam.GlobalParameters = globalParams[i.Confusion];
+                            else
+                                cParam.GlobalParameters = new NameValueCollection();
+                            if (i.WholeRun == true)
+                            {
+                                cParam.Parameters = null;
+                                cParam.Target = null;
+                                i.Process(cParam);
+                                log.Progress(1);
                             }
                             else
                             {
-                                MethodDefinition cctor = mod.GetType("<Module>").GetStaticConstructor();
-                                ((IAnnotationProvider)cctor).Annotations.Clear();
-                            }
-                            helpers.Add(mod.GetType("<Module>").GetStaticConstructor(), HelperAttribute.NoEncrypt); 
-
-
-                            ConfusionParameter cParam = new ConfusionParameter();
-                            bool end1 = false;
-                            foreach (StructurePhase i in from i in phases where (i is StructurePhase) orderby (int)i.Priority + i.PhaseID * 10 ascending select i)
-                            {
-                                if (!end1 && i.PhaseID > 1)
+                                if (i is IProgressProvider)
                                 {
-                                    MarkModule(mod);
-                                    MarkObfuscateHelpers(mod);
-                                    CecilHelper.RefreshTokens(mod);
-                                    end1 = true;
-                                }
-                                List<IAnnotationProvider> mems = GetTargets(mod, i.Confusion);
-                                if (mems.Count == 0) continue;
-
-                                i.Confuser = this;
-                                param.Logger.Log("Executing " + i.Confusion.Name + " Phase " + i.PhaseID + "...");
-
-                                i.Initialize(mod);
-                                if (globalParams.ContainsKey(i.Confusion))
-                                    cParam.GlobalParameters = globalParams[i.Confusion];
-                                else
-                                    cParam.GlobalParameters = new NameValueCollection();
-                                if (i.WholeRun == true)
-                                {
-                                    cParam.Parameters = null;
-                                    cParam.Target = null;
+                                    cParam.Parameters = new NameValueCollection();
+                                    foreach (IAnnotationProvider mem in mems)
+                                    {
+                                        NameValueCollection memParam = (from set in mem.Annotations["ConfusionSets"] as IDictionary<IConfusion, NameValueCollection> where set.Key.Phases.Contains(i) select set.Value).FirstOrDefault();
+                                        string hash = mem.GetHashCode().ToString("X8");
+                                        foreach (string pkey in memParam.AllKeys)
+                                            cParam.Parameters[hash + "_" + pkey] = memParam[pkey];
+                                    }
+                                    cParam.Target = mems;
+                                    (i as IProgressProvider).SetProgresser(log);
                                     i.Process(cParam);
-                                    param.Logger.Progress(1);
                                 }
                                 else
                                 {
-                                    if (i is IProgressProvider)
+                                    double total = mems.Count;
+                                    int interval = 1;
+                                    if (total > 1000)
+                                        interval = (int)total / 100;
+                                    int now = 0;
+                                    foreach (IAnnotationProvider mem in mems)
                                     {
-                                        cParam.Parameters = new NameValueCollection();
-                                        foreach (IAnnotationProvider mem in mems)
-                                        {
-                                            NameValueCollection memParam = (from set in mem.Annotations["ConfusionSets"] as IDictionary<IConfusion, NameValueCollection> where set.Key.Phases.Contains(i) select set.Value).FirstOrDefault();
-                                            string hash = mem.GetHashCode().ToString("X8");
-                                            foreach (string pkey in memParam.AllKeys)
-                                                cParam.Parameters[hash + "_" + pkey] = memParam[pkey];
-                                        }
-                                        cParam.Target = mems;
-                                        (i as IProgressProvider).SetProgresser(param.Logger);
+                                        cParam.Parameters = (from set in mem.Annotations["ConfusionSets"] as IDictionary<IConfusion, NameValueCollection> where set.Key.Phases.Contains(i) select set.Value).FirstOrDefault();
+                                        cParam.Target = mem;
                                         i.Process(cParam);
+                                        if (now % interval == 0 || now == total - 1)
+                                            log.Progress((now + 1) / total);
+                                        now++;
                                     }
-                                    else
-                                    {
-                                        double total = mems.Count;
-                                        int interval = 1;
-                                        if (total > 1000)
-                                            interval = (int)total / 100;
-                                        int now = 0;
-                                        foreach (IAnnotationProvider mem in mems)
-                                        {
-                                            cParam.Parameters = (from set in mem.Annotations["ConfusionSets"] as IDictionary<IConfusion, NameValueCollection> where set.Key.Phases.Contains(i) select set.Value).FirstOrDefault();
-                                            cParam.Target = mem;
-                                            i.Process(cParam);
-                                            if (now % interval == 0 || now == total - 1)
-                                                param.Logger.Progress((now + 1) / total);
-                                            now++;
-                                        }
-                                    }
-                                    param.Logger.Progress(1);
                                 }
-                                i.DeInitialize();
+                                log.Progress(1);
                             }
-
-                            param.Logger.StartPhase(3);
-
-                            MemoryStream final = new MemoryStream();
-                            MetadataProcessor psr = new MetadataProcessor();
-                            double total1 = (from i in phases where (i is MetadataPhase) select i).Count();
-                            int now1 = 1;
-                            psr.BeforeBuildModule += new MetadataProcessor.MetadataProcess(delegate(MetadataProcessor.MetadataAccessor accessor)
-                            {
-                                foreach (MetadataPhase i in from i in phases where (i is MetadataPhase) && i.PhaseID == 1 orderby i.Priority ascending select i)
-                                {
-                                    if (GetTargets(mod, i.Confusion).Count == 0) continue;
-                                    param.Logger.Log("Executing " + i.Confusion.Name + " Phase 1...");
-                                    i.Process(globalParams[i.Confusion], accessor);
-                                    param.Logger.Progress(now1 / total1); now1++;
-                                }
-                            });
-                            psr.BeforeWriteTables += new MetadataProcessor.MetadataProcess(delegate(MetadataProcessor.MetadataAccessor accessor)
-                            {
-                                foreach (MetadataPhase i in from i in phases where (i is MetadataPhase) && i.PhaseID == 2 orderby i.Priority ascending select i)
-                                {
-                                    if (GetTargets(mod, i.Confusion).Count == 0) continue;
-                                    param.Logger.Log("Executing " + i.Confusion.Name + " Phase 2...");
-                                    i.Process(globalParams[i.Confusion], accessor);
-                                    param.Logger.Progress(now1 / total1); now1++;
-                                }
-                            });
-                            psr.AfterWriteTables += new MetadataProcessor.MetadataProcess(delegate(MetadataProcessor.MetadataAccessor accessor)
-                            {
-                                foreach (MetadataPhase i in from i in phases where (i is MetadataPhase) && i.PhaseID == 3 orderby i.Priority ascending select i)
-                                {
-                                    if (GetTargets(mod, i.Confusion).Count == 0) continue;
-                                    param.Logger.Log("Executing " + i.Confusion.Name + " Phase 3...");
-                                    i.Process(globalParams[i.Confusion], accessor);
-                                    param.Logger.Progress(now1 / total1); now1++;
-                                }
-                            });
-                            psr.ProcessPe += new MetadataProcessor.PeProcess(delegate(Stream stream)
-                            {
-                                param.Logger.StartPhase(4);
-                                param.Logger.Log(string.Format("Obfuscating PE of module {0}...", mod.Name));
-                                PePhase[] pePhases = (from i in phases where (i is PePhase) orderby (int)i.Priority + i.PhaseID * 10 ascending select (PePhase)i).ToArray();
-                                for (int i = 0; i < pePhases.Length; i++)
-                                {
-                                    if (GetTargets(mod, pePhases[i].Confusion).Count == 0) continue;
-                                    param.Logger.Log("Executing " + phases[i].Confusion.Name + " Phase 3...");
-                                    pePhases[i].Process(globalParams[phases[i].Confusion], stream);
-                                    param.Logger.Progress((double)i / pePhases.Length);
-                                }
-                            });
-                            param.Logger.Log(string.Format("Obfuscating metadata of module {0}...", mod.Name));
-                            psr.Process(mod, final, new WriterParameters() { StrongNameKeyPair = sn });
-
-                            byte[] pe = final.ToArray();
-                            if ((mod as IAnnotationProvider).Annotations["Packer"] != null)
-                            {
-                                param.Logger.Log("Packing output module " + mod.Name + "...");
-                                Packer packer = (Packer)(mod as IAnnotationProvider).Annotations["Packer"];
-                                packer.Confuser = this;
-                                PackerParameter pParam = new PackerParameter();
-                                pParam.Module = mod; pParam.PE = pe;
-                                pParam.Parameters = (NameValueCollection)(mod as IAnnotationProvider).Annotations["PackerParams"];
-                                pe = packer.Pack(param, pParam);
-                            }
-                            dstStream.Write(pe, 0, pe.Length);
-
-                            param.Logger.Log("Module " + mod.Name + " Saved.");
+                            i.DeInitialize();
                         }
+
+                        log.StartPhase(3);
+
+                        MemoryStream final = new MemoryStream();
+                        MetadataProcessor psr = new MetadataProcessor();
+                        double total1 = (from i in phases where (i is MetadataPhase) select i).Count();
+                        int now1 = 1;
+                        psr.BeforeBuildModule += new MetadataProcessor.MetadataProcess(delegate(MetadataProcessor.MetadataAccessor accessor)
+                        {
+                            foreach (MetadataPhase i in from i in phases where (i is MetadataPhase) && i.PhaseID == 1 orderby i.Priority ascending select i)
+                            {
+                                if (GetTargets(mod, i.Confusion).Count == 0) continue;
+                                log.Log("Executing " + i.Confusion.Name + " Phase 1...");
+                                i.Process(globalParams[i.Confusion], accessor);
+                                log.Progress(now1 / total1); now1++;
+                            }
+                        });
+                        psr.BeforeWriteTables += new MetadataProcessor.MetadataProcess(delegate(MetadataProcessor.MetadataAccessor accessor)
+                        {
+                            foreach (MetadataPhase i in from i in phases where (i is MetadataPhase) && i.PhaseID == 2 orderby i.Priority ascending select i)
+                            {
+                                if (GetTargets(mod, i.Confusion).Count == 0) continue;
+                                log.Log("Executing " + i.Confusion.Name + " Phase 2...");
+                                i.Process(globalParams[i.Confusion], accessor);
+                                log.Progress(now1 / total1); now1++;
+                            }
+                        });
+                        psr.AfterWriteTables += new MetadataProcessor.MetadataProcess(delegate(MetadataProcessor.MetadataAccessor accessor)
+                        {
+                            foreach (MetadataPhase i in from i in phases where (i is MetadataPhase) && i.PhaseID == 3 orderby i.Priority ascending select i)
+                            {
+                                if (GetTargets(mod, i.Confusion).Count == 0) continue;
+                                log.Log("Executing " + i.Confusion.Name + " Phase 3...");
+                                i.Process(globalParams[i.Confusion], accessor);
+                                log.Progress(now1 / total1); now1++;
+                            }
+                        });
+                        psr.ProcessPe += new MetadataProcessor.PeProcess(delegate(Stream stream)
+                        {
+                            log.StartPhase(4);
+                            log.Log(string.Format("Obfuscating PE of module {0}...", mod.Name));
+                            PePhase[] pePhases = (from i in phases where (i is PePhase) orderby (int)i.Priority + i.PhaseID * 10 ascending select (PePhase)i).ToArray();
+                            for (int i = 0; i < pePhases.Length; i++)
+                            {
+                                if (GetTargets(mod, pePhases[i].Confusion).Count == 0) continue;
+                                log.Log("Executing " + pePhases[i].Confusion.Name + " Phase 3...");
+                                pePhases[i].Process(globalParams[pePhases[i].Confusion], stream);
+                                log.Progress((double)i / pePhases.Length);
+                            }
+                        });
+                        log.Log(string.Format("Obfuscating metadata of module {0}...", mod.Name));
+                        psr.Process(mod, final, new WriterParameters() { StrongNameKeyPair = sn });
+
+                        pes.Add(final.ToArray());
+                        mods.Add(mod);
+
+                        log.Log("Module " + mod.Name + " Done.");
+                    }
+                }
+
+                Packer packer = (Packer)(asms[0] as IAnnotationProvider).Annotations["Packer"];
+                if (asms[0].MainModule.Kind == ModuleKind.Dll ||
+                    asms[0].MainModule.Kind == ModuleKind.NetModule)
+                {
+                    log.Log("Warning: Cannot pack a library or net module!");
+                    packer = null;
+                }
+                if (packer != null)
+                {
+                    string dest = param.Marker.GetDestinationPath(asms[0].MainModule, param.DestinationPath);
+                    if (!Directory.Exists(System.IO.Path.GetDirectoryName(dest)))
+                        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(dest));
+                    Stream dstStream = new FileStream(dest, FileMode.Create, FileAccess.Write);
+
+                    try
+                    {
+                        log.Log("Packing output assemblies...");
+                        packer.Confuser = this;
+                        PackerParameter pParam = new PackerParameter();
+                        pParam.Modules = mods.ToArray(); pParam.PEs = pes.ToArray();
+                        pParam.Parameters = (NameValueCollection)(asms[0] as IAnnotationProvider).Annotations["PackerParams"];
+                        byte[] final = packer.Pack(param, pParam);
+                        dstStream.Write(final, 0, final.Length);
                     }
                     finally
                     {
                         dstStream.Dispose();
                     }
                 }
-                param.Logger.Finish("Ended at " + DateTime.Now.ToShortTimeString() + ".");
+                else
+                {
+                    log.Log("Writing outputs...");
+                    for (int i = 0; i < pes.Count; i++)
+                    {
+                        string dest = param.Marker.GetDestinationPath(mods[i], param.DestinationPath);
+                        if (!Directory.Exists(System.IO.Path.GetDirectoryName(dest)))
+                            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(dest));
+                        Stream dstStream = new FileStream(dest, FileMode.Create, FileAccess.Write);
+                        try
+                        {
+                            dstStream.Write(pes[i], 0, pes[i].Length);
+                        }
+                        finally
+                        {
+                            dstStream.Dispose();
+                        }
+                    }
+                }
+
+                log.Finish("Ended at " + DateTime.Now.ToShortTimeString() + ".");
             }
             catch (Exception ex)
             {
@@ -365,6 +395,7 @@ namespace Confuser.Core
             finally
             {
                 GlobalAssemblyResolver.Instance.AssemblyCache.Clear();
+                GC.Collect();
             }
         }
 
@@ -418,7 +449,7 @@ namespace Confuser.Core
                     foreach (KeyValuePair<IConfusion, NameValueCollection> kv in sets)
                         if (kv.Key == cion && (kv.Key.Target & Target.Types) == Target.Types)
                             mems.Add(nType);
-                GetTargets(nType, mems, cion); 
+                GetTargets(nType, mems, cion);
             }
             foreach (MethodDefinition mtd in type.Methods)
             {

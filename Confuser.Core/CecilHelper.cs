@@ -79,11 +79,19 @@ namespace Confuser.Core
             {
                 ret.PInvokeInfo = mtd.PInvokeInfo;
                 bool has = false;
-                foreach(ModuleReference modRef in mod.ModuleReferences)
+                foreach (ModuleReference modRef in mod.ModuleReferences)
                     if (modRef.Name == ret.PInvokeInfo.Module.Name)
                     { has = true; break; }
                 if (!has)
                     mod.ModuleReferences.Add(ret.PInvokeInfo.Module);
+            }
+            if (mtd.HasCustomAttributes)
+            {
+                foreach (CustomAttribute attr in mtd.CustomAttributes)
+                {
+                    CustomAttribute nAttr = new CustomAttribute(mod.Import(attr.Constructor), attr.GetBlob());
+                    ret.CustomAttributes.Add(nAttr);
+                }
             }
 
             foreach (ParameterDefinition param in mtd.Parameters)

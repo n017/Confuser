@@ -6,11 +6,11 @@ using System.Runtime.InteropServices;
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
 [assembly: AssemblyTitle("Confuser.Core.Injections")]
-[assembly: AssemblyDescription("")]
+[assembly: AssemblyDescription("An obfuscator in .NET")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Ki")]
 [assembly: AssemblyProduct("Confuser.Core.Injections")]
-[assembly: AssemblyCopyright("Copyright © Ki 2010")]
+[assembly: AssemblyCopyright("Make by Ki")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
@@ -32,5 +32,6 @@ using System.Runtime.InteropServices;
 // You can specify all the values or you can default the Build and Revision Numbers 
 // by using the '*' as shown below:
 // [assembly: AssemblyVersion("1.0.*")]
-[assembly: AssemblyVersion("1.0.0.0")]
-[assembly: AssemblyFileVersion("1.0.0.0")]
+[assembly: AssemblyVersion("1.4.0.0")]
+[assembly: AssemblyFileVersion("1.4.0.0")]
+[assembly: Confusing(Config = "[new]")]

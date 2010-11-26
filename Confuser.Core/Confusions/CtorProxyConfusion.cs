@@ -298,8 +298,9 @@ namespace Confuser.Core.Confusions
             {
                 foreach (Context txt in cc.txts)
                 {
+                    if (txt.fld.Name[0] != '\0') continue;
                     MetadataToken tkn = accessor.LookupToken(txt.mtdRef);
-                    txt.fld.Name = txt.fld.Name[0] + Encoding.Unicode.GetString(BitConverter.GetBytes(tkn.ToUInt32() ^ cc.key));
+                    txt.fld.Name = Encoding.Unicode.GetString(BitConverter.GetBytes(tkn.ToInt32() ^ cc.key));
                 }
             }
         }
@@ -404,7 +405,7 @@ namespace Confuser.Core.Confusions
         static string GetId(ModuleDefinition mod, MethodReference mtd)
         {
             char asmRef = (char)(mod.AssemblyReferences.IndexOf(mtd.DeclaringType.Scope as AssemblyNameReference) + 2);
-            return asmRef + Encoding.Unicode.GetString(BitConverter.GetBytes(mtd.Resolve().MetadataToken.ToUInt32()));
+            return "\0" + asmRef + mtd.ToString();
         }
     }
 }

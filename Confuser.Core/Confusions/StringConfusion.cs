@@ -44,6 +44,10 @@ namespace Confuser.Core.Confusions
             public override void Initialize(ModuleDefinition mod)
             {
                 this.mod = mod;
+
+                sc.dats = new List<byte[]>();
+                sc.idx = 0;
+                sc.dict = new Dictionary<string, int>();
             }
 
             public override void DeInitialize()
@@ -54,13 +58,10 @@ namespace Confuser.Core.Confusions
             ModuleDefinition mod;
             public override void Process(ConfusionParameter parameter)
             {
-                if (Array.IndexOf(parameter.GlobalParameters.AllKeys, "safe") != -1)
+                if (Array.IndexOf(parameter.GlobalParameters.AllKeys, "dynamic") == -1)
                 {
                     ProcessSafe(parameter); return;
                 }
-
-                sc.dats = new List<byte[]>();
-                sc.idx = 0;
 
                 Random rand = new Random();
                 TypeDefinition modType = mod.GetType("<Module>");
@@ -74,13 +75,12 @@ namespace Confuser.Core.Confusions
                 sc.strer.IsAssembly = true;
                 AddHelper(sc.strer, HelperAttribute.NoInjection);
 
-                int seed;
-                sc.exp = ExpressionGenerator.Generate(5, out seed);
-
                 sc.key0 = (int)(rand.NextDouble() * int.MaxValue);
                 sc.key1 = (int)(rand.NextDouble() * int.MaxValue);
 
                 rand.NextBytes(n);
+                byte[] dat = new byte[0x10];
+                rand.NextBytes(dat);
 
                 sc.strer.Body.SimplifyMacros();
                 for (int i = 0; i < sc.strer.Body.Instructions.Count; i++)
@@ -88,42 +88,18 @@ namespace Confuser.Core.Confusions
                     Instruction inst = sc.strer.Body.Instructions[i];
                     if ((inst.Operand as string) == "PADDINGPADDINGPADDING")
                         inst.Operand = Encoding.UTF8.GetString(n);
+                    if ((inst.Operand as string) == "PADDINGPADDINGPADDINGPADDING")
+                        inst.Operand = Encoding.UTF8.GetString(dat);
                     else if (inst.Operand is int && (int)inst.Operand == 12345678)
                         inst.Operand = sc.key0;
                     else if (inst.Operand is int && (int)inst.Operand == 87654321)
                         inst.Operand = sc.key1;
-                    else if (inst.Operand is MethodReference && ((MethodReference)inst.Operand).Name == "PolyStart")
-                    {
-                        List<Instruction> insts = new List<Instruction>();
-                        int ptr = i + 1;
-                        while (ptr < sc.strer.Body.Instructions.Count)
-                        {
-                            Instruction z = sc.strer.Body.Instructions[ptr];
-                            sc.strer.Body.Instructions.Remove(z);
-                            if (z.Operand is MethodReference && ((MethodReference)z.Operand).Name == "PlaceHolder")
-                                break;
-                            insts.Add(z);
-                        }
-
-                        Instruction[] expInsts = new CecilVisitor(sc.exp, true, insts.ToArray(), false).GetInstructions();
-                        ILProcessor psr = sc.strer.Body.GetILProcessor();
-                        psr.Replace(inst, expInsts[0]);
-                        for (int ii = 1; ii < expInsts.Length; ii++)
-                        {
-                            psr.InsertAfter(expInsts[ii - 1], expInsts[ii]);
-                        }
-                    }
                 }
-                sc.strer.Body.OptimizeMacros();
-                sc.strer.Body.ComputeOffsets();
 
                 sc.resId = Encoding.UTF8.GetString(n);
             }
             private void ProcessSafe(ConfusionParameter parameter)
             {
-                sc.dats = new List<byte[]>();
-                sc.idx = 0;
-
                 Random rand = new Random();
                 TypeDefinition modType = mod.GetType("<Module>");
 
@@ -137,18 +113,25 @@ namespace Confuser.Core.Confusions
 
                 sc.key0 = (int)(rand.NextDouble() * int.MaxValue);
                 sc.key1 = (int)(rand.NextDouble() * int.MaxValue);
+                sc.key2 = (int)(rand.NextDouble() * int.MaxValue);
 
                 rand.NextBytes(n);
+                byte[] dat = new byte[0x10];
+                rand.NextBytes(dat);
 
                 sc.strer.Body.SimplifyMacros();
                 foreach (Instruction inst in sc.strer.Body.Instructions)
                 {
                     if ((inst.Operand as string) == "PADDINGPADDINGPADDING")
                         inst.Operand = Encoding.UTF8.GetString(n);
+                    if ((inst.Operand as string) == "PADDINGPADDINGPADDINGPADDING")
+                        inst.Operand = Encoding.UTF8.GetString(dat);
                     else if (inst.Operand is int && (int)inst.Operand == 12345678)
                         inst.Operand = sc.key0;
                     else if (inst.Operand is int && (int)inst.Operand == 87654321)
                         inst.Operand = sc.key1;
+                    else if (inst.Operand is int && (int)inst.Operand == 88888888)
+                        inst.Operand = sc.key2;
                 }
                 sc.strer.Body.OptimizeMacros();
                 sc.strer.Body.ComputeOffsets();
@@ -200,7 +183,7 @@ namespace Confuser.Core.Confusions
             ModuleDefinition mod;
             public override void Process(ConfusionParameter parameter)
             {
-                if (Array.IndexOf(parameter.GlobalParameters.AllKeys, "safe") != -1)
+                if (Array.IndexOf(parameter.GlobalParameters.AllKeys, "dynamic") == -1)
                 {
                     ProcessSafe(parameter); return;
                 }
@@ -225,26 +208,89 @@ namespace Confuser.Core.Confusions
                 int interval = 1;
                 if (total > 1000)
                     interval = (int)total / 100;
+
+                int[] ids;
+                bool retry;
+                do
+                {
+                    ids = new int[txts.Count];
+                    retry = false;
+                    sc.dict.Clear();
+                    int seed;
+                    sc.exp = ExpressionGenerator.Generate(5, out seed);
+
+                    for (int i = 0; i < txts.Count; i++)
+                    {
+                        string val = txts[i].str.Operand as string;
+                        if (val == "") continue;
+
+                        if (sc.dict.ContainsKey(val))
+                            ids[i] = (int)((sc.dict[val] + sc.key0) ^ txts[i].mtd.MetadataToken.ToUInt32());
+                        else
+                        {
+                            ids[i] = (int)((sc.idx + sc.key0) ^ txts[i].mtd.MetadataToken.ToUInt32());
+                            int len;
+                            byte[] dat = Encrypt(val, sc.exp, out len);
+                            try
+                            {
+                                if (Decrypt(dat, len, sc.exp) != val)
+                                {
+                                    retry = true;
+                                    break;
+                                }
+                            }
+                            catch
+                            {
+                                retry = true;
+                                break;
+                            }
+                            len = (int)~(len ^ sc.key1);
+
+                            byte[] final = new byte[dat.Length + 4];
+                            Buffer.BlockCopy(dat, 0, final, 4, dat.Length);
+                            Buffer.BlockCopy(BitConverter.GetBytes(len), 0, final, 0, 4);
+                            sc.dats.Add(final);
+                            sc.dict[val] = sc.idx;
+                            sc.idx += final.Length;
+                        }
+                    }
+                } while (retry);
+
+                for (int i = 0; i < sc.strer.Body.Instructions.Count; i++)
+                {
+                    Instruction inst = sc.strer.Body.Instructions[i];
+                    if (inst.Operand is MethodReference && ((MethodReference)inst.Operand).Name == "PolyStart")
+                    {
+                        List<Instruction> insts = new List<Instruction>();
+                        int ptr = i + 1;
+                        while (ptr < sc.strer.Body.Instructions.Count)
+                        {
+                            Instruction z = sc.strer.Body.Instructions[ptr];
+                            sc.strer.Body.Instructions.Remove(z);
+                            if (z.Operand is MethodReference && ((MethodReference)z.Operand).Name == "PlaceHolder")
+                                break;
+                            insts.Add(z);
+                        }
+
+                        Instruction[] expInsts = new CecilVisitor(sc.exp, true, insts.ToArray(), false).GetInstructions();
+                        ILProcessor psr = sc.strer.Body.GetILProcessor();
+                        psr.Replace(inst, expInsts[0]);
+                        for (int ii = 1; ii < expInsts.Length; ii++)
+                        {
+                            psr.InsertAfter(expInsts[ii - 1], expInsts[ii]);
+                        }
+                    }
+                }
+                sc.strer.Body.OptimizeMacros();
+                sc.strer.Body.ComputeOffsets();
+
                 for (int i = 0; i < txts.Count; i++)
                 {
                     int idx = txts[i].mtd.Body.Instructions.IndexOf(txts[i].str);
-                    string val = txts[i].str.Operand as string;
-                    if (val == "") continue;
-
-                    int id = (int)((sc.idx + sc.key0) ^ txts[i].mtd.MetadataToken.ToUInt32());
-                    int len;
-                    byte[] dat = StringConfusion.Encrypt(val, sc.exp, out len);
-                    len = (int)~(len ^ sc.key1);
-
-                    byte[] final = new byte[dat.Length + 4];
-                    Buffer.BlockCopy(dat, 0, final, 4, dat.Length);
-                    Buffer.BlockCopy(BitConverter.GetBytes(len), 0, final, 0, 4);
-                    sc.dats.Add(final);
-                    sc.idx += final.Length;
-
                     Instruction now = txts[i].str;
+                    if (now.Operand as string == "") continue;
                     txts[i].psr.InsertAfter(idx, txts[i].psr.Create(OpCodes.Call, sc.strer));
-                    txts[i].psr.Replace(idx, txts[i].psr.Create(OpCodes.Ldc_I4, id));
+                    txts[i].psr.Replace(idx, txts[i].psr.Create(OpCodes.Ldc_I4, ids[i]));
                     if (i % interval == 0 || i == txts.Count - 1)
                         progresser.SetProgress((i + 1) / total);
                 }
@@ -287,20 +333,27 @@ namespace Confuser.Core.Confusions
                     int idx = txts[i].mtd.Body.Instructions.IndexOf(txts[i].str);
                     string val = txts[i].str.Operand as string;
                     if (val == "") continue;
-                    byte[] dat = EncryptSafe(val, txts[i].mtd.MetadataToken.ToUInt32());
 
-                    int id = (int)((sc.idx + sc.key0) ^ txts[i].mtd.MetadataToken.ToUInt32());
-                    int len = (int)~(dat.Length ^ sc.key1);
+                    int id;
+                    if (sc.dict.ContainsKey(val))
+                        id = (int)((sc.dict[val] + sc.key0) ^ txts[i].mtd.MetadataToken.ToUInt32());
+                    else
+                    {
+                        byte[] dat = EncryptSafe(val, sc.key2);
+                        id = (int)((sc.idx + sc.key0) ^ txts[i].mtd.MetadataToken.ToUInt32());
+                        int len = (int)~(dat.Length ^ sc.key1);
 
-                    byte[] final = new byte[dat.Length + 4];
-                    Buffer.BlockCopy(dat, 0, final, 4, dat.Length);
-                    Buffer.BlockCopy(BitConverter.GetBytes(len), 0, final, 0, 4);
-                    sc.dats.Add(final);
+                        byte[] final = new byte[dat.Length + 4];
+                        Buffer.BlockCopy(dat, 0, final, 4, dat.Length);
+                        Buffer.BlockCopy(BitConverter.GetBytes(len), 0, final, 0, 4);
+                        sc.dats.Add(final);
+                        sc.dict[val] = sc.idx;
+                        sc.idx += final.Length;
+                    }
 
                     Instruction now = txts[i].str;
                     txts[i].psr.InsertAfter(idx, txts[i].psr.Create(OpCodes.Call, sc.strer));
                     txts[i].psr.Replace(idx, txts[i].psr.Create(OpCodes.Ldc_I4, id));
-                    sc.idx += final.Length;
 
                     if (i % interval == 0 || i == txts.Count - 1)
                         progresser.SetProgress((i + 1) / total);
@@ -327,11 +380,13 @@ namespace Confuser.Core.Confusions
 
 
         List<byte[]> dats;
+        Dictionary<string, int> dict;
         int idx = 0;
 
         string resId;
         int key0;
         int key1;
+        int key2;
         MethodDefinition strer;
 
         Expression exp;
@@ -444,30 +499,30 @@ namespace Confuser.Core.Confusions
             return Encoding.Unicode.GetString(ret, 0, len);
         }
 
-        private static byte[] EncryptSafe(string str, uint mdToken)
+        private static byte[] EncryptSafe(string str, int key)
         {
-            Random rand = new Random((int)mdToken);
+            Random rand = new Random(key);
             byte[] bs = Encoding.UTF8.GetBytes(str);
 
-            int key = 0;
+            int k = 0;
             for (int i = 0; i < bs.Length; i++)
             {
-                bs[i] = (byte)(bs[i] ^ (rand.Next() & key));
-                key += bs[i];
+                bs[i] = (byte)(bs[i] ^ (rand.Next() & k));
+                k += bs[i];
             }
 
             return bs;
         }
-        private static string DecryptSafe(byte[] bytes, uint mdToken)
+        private static string DecryptSafe(byte[] bytes, int key)
         {
-            Random rand = new Random((int)mdToken);
+            Random rand = new Random(key);
 
-            int key = 0;
+            int k = 0;
             for (int i = 0; i < bytes.Length; i++)
             {
                 byte o = bytes[i];
-                bytes[i] = (byte)(bytes[i] ^ (rand.Next() & key));
-                key += o;
+                bytes[i] = (byte)(bytes[i] ^ (rand.Next() & k));
+                k += o;
             }
             return Encoding.UTF8.GetString(bytes);
         }

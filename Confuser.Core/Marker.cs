@@ -11,17 +11,6 @@ using System.Xml;
 
 namespace Confuser.Core
 {
-    public struct AssemblyData
-    {
-        public AssemblyDefinition Assembly;
-        public string TargetPath;
-
-        public override int GetHashCode()
-        {
-            return Assembly.FullName.GetHashCode() ^ TargetPath.GetHashCode();
-        }
-    }
-
     public class Marker
     {
         public static readonly List<string> FrameworkAssemblies;
@@ -113,6 +102,7 @@ namespace Confuser.Core
                     cs.Add(i, new NameValueCollection());
         }
 
+        Confuser cr;
         private bool ProcessAttribute(ICustomAttributeProvider provider, Settings setting)
         {
             CustomAttribute att = GetAttribute(provider.CustomAttributes, "ConfusingAttribute");
@@ -147,23 +137,30 @@ namespace Confuser.Core
                 setting.StartLevel();
             else
                 setting.SkipLevel();
-
-            if (!exclude)
+            try
             {
-                CustomAttributeNamedArgument featureArg = att.Properties.FirstOrDefault(arg => arg.Name == "Config");
-                string feature = "all";
-                if (!featureArg.Equals(default(CustomAttributeNamedArgument)))
-                    feature = (string)featureArg.Argument.Value;
+                if (!exclude)
+                {
+                    CustomAttributeNamedArgument featureArg = att.Properties.FirstOrDefault(arg => arg.Name == "Config");
+                    string feature = "all";
+                    if (!featureArg.Equals(default(CustomAttributeNamedArgument)))
+                        feature = (string)featureArg.Argument.Value;
 
-                if (string.Equals(feature, "all", StringComparison.OrdinalIgnoreCase))
-                    FillPreset(Preset.Maximum, setting.CurrentConfusions);
-                else if (string.Equals(feature, "default", StringComparison.OrdinalIgnoreCase))
-                    FillPreset(Preset.Normal, setting.CurrentConfusions);
-                else
-                    ProcessConfig(feature, setting.CurrentConfusions);
+                    if (string.Equals(feature, "all", StringComparison.OrdinalIgnoreCase))
+                        FillPreset(Preset.Maximum, setting.CurrentConfusions);
+                    else if (string.Equals(feature, "default", StringComparison.OrdinalIgnoreCase))
+                        FillPreset(Preset.Normal, setting.CurrentConfusions);
+                    else
+                        ProcessConfig(feature, setting.CurrentConfusions);
+                }
+
+                return exclude && applyToMembers;
             }
-
-            return exclude && applyToMembers;
+            catch
+            {
+                cr.Log("Warning: Cannot process ConfusingAttribute at '" + provider.ToString() + "'. ConfusingAttribute ignored.");
+                return false;
+            }
         }
         private CustomAttribute GetAttribute(Collection<CustomAttribute> attributes, string name)
         {
@@ -190,12 +187,17 @@ namespace Confuser.Core
                         {
                             FillPreset((Preset)Enum.Parse(typeof(Preset), match.Groups[3].Value, true), cs);
                         }
-                        if (id == "new")
+                        else if (id == "new")
                         {
                             cs.Clear();
                         }
                         else
                         {
+                            if (!Confusions.ContainsKey(id))
+                            {
+                                cr.Log("Warning: Cannot find confusion id '" + id + "'.");
+                                break;
+                            }
                             IConfusion now = (from i in cs.Keys where i.ID == id select i).FirstOrDefault() ?? Confusions[id];
                             if (!cs.ContainsKey(now)) cs[now] = new NameValueCollection();
                             NameValueCollection nv = cs[now];
@@ -245,15 +247,21 @@ namespace Confuser.Core
             }
         }
 
-        public virtual void MarkAssembly(AssemblyDefinition asm, Preset preset)
+        public virtual void MarkAssembly(AssemblyDefinition asm, Preset preset, Confuser cr)
         {
+            this.cr = cr;
             Settings setting = new Settings();
-            bool exclude = ProcessAttribute(asm, setting);
-
             FillPreset(preset, setting.CurrentConfusions);
+            bool exclude = ProcessAttribute(asm, setting);
 
             (asm as IAnnotationProvider).Annotations["ConfusionSets"] = setting.CurrentConfusions;
             (asm as IAnnotationProvider).Annotations["GlobalParams"] = setting.CurrentConfusions;
+
+            NameValueCollection param;
+            Packer packer;
+            ProcessPackers(asm, out param, out packer);
+            (asm as IAnnotationProvider).Annotations["Packer"] = packer;
+            (asm as IAnnotationProvider).Annotations["PackerParams"] = param;
 
             if (!exclude)
                 foreach (ModuleDefinition mod in asm.Modules)
@@ -265,7 +273,7 @@ namespace Confuser.Core
         private void MarkModule(ModuleDefinition mod, Settings setting)
         {
             bool exclude = ProcessAttribute(mod, setting);
-            MarkModule(mod, setting.CurrentConfusions);
+            MarkModule(mod, setting.CurrentConfusions, cr);
 
             (mod as IAnnotationProvider).Annotations["ConfusionSets"] = setting.CurrentConfusions;
 
@@ -275,19 +283,12 @@ namespace Confuser.Core
 
             setting.LeaveLevel();
         }
-        protected virtual void MarkModule(ModuleDefinition mod, IDictionary<IConfusion, NameValueCollection> current)
-        {
-            NameValueCollection param;
-            Packer packer;
-            ProcessPackers(mod, out param, out packer);
-            (mod as IAnnotationProvider).Annotations["Packer"] = packer;
-            (mod as IAnnotationProvider).Annotations["PackerParams"] = param;
-        }
+        protected virtual void MarkModule(ModuleDefinition mod, IDictionary<IConfusion, NameValueCollection> current, Confuser cr) { }
 
         private void MarkType(TypeDefinition type, Settings setting)
         {
             bool exclude = ProcessAttribute(type, setting);
-            MarkType(type, setting.CurrentConfusions);
+            MarkType(type, setting.CurrentConfusions, cr);
 
             (type as IAnnotationProvider).Annotations["ConfusionSets"] = setting.CurrentConfusions;
 
@@ -312,7 +313,7 @@ namespace Confuser.Core
 
             setting.LeaveLevel();
         }
-        protected virtual void MarkType(TypeDefinition type, IDictionary<IConfusion, NameValueCollection> current) { }
+        protected virtual void MarkType(TypeDefinition type, IDictionary<IConfusion, NameValueCollection> current, Confuser cr) { }
 
         private void MarkMember(IMemberDefinition mem, Settings setting, Target target)
         {
@@ -322,7 +323,7 @@ namespace Confuser.Core
             }
 
             bool exclude = ProcessAttribute(mem, setting);
-            MarkMember(mem, setting.CurrentConfusions);
+            MarkMember(mem, setting.CurrentConfusions, cr);
 
             (mem as IAnnotationProvider).Annotations["ConfusionSets"] = setting.CurrentConfusions;
 
@@ -372,53 +373,51 @@ namespace Confuser.Core
 
             setting.LeaveLevel();
         }
-        protected virtual void MarkMember(IMemberDefinition mem, IDictionary<IConfusion, NameValueCollection> current) { }
+        protected virtual void MarkMember(IMemberDefinition mem, IDictionary<IConfusion, NameValueCollection> current, Confuser cr) { }
 
 
-        public virtual AssemblyData[] ExtractDatas(string src, string dstPath)
+        public virtual AssemblyDefinition[] ExtractDatas(string src)
         {
-            Dictionary<string, AssemblyData> ret = new Dictionary<string, AssemblyData>();
-            AssemblyData asmDat = new AssemblyData();
-            asmDat.TargetPath = Path.Combine(dstPath, Path.GetFileName(src));
-            asmDat.Assembly = GlobalAssemblyResolver.Instance.Resolve(AssemblyNameReference.Parse(System.Reflection.AssemblyName.GetAssemblyName(src).FullName));
-            ret.Add(asmDat.Assembly.FullName, asmDat);
+            Dictionary<string, AssemblyDefinition> ret = new Dictionary<string, AssemblyDefinition>();
+            AssemblyDefinition asmDef = AssemblyDefinition.ReadAssembly(src);
+            GlobalAssemblyResolver.Instance.AssemblyCache.Add(asmDef.FullName,asmDef);
+            ret.Add(asmDef.FullName, asmDef);
 
-            foreach (ModuleDefinition mod in asmDat.Assembly.Modules)
+            foreach (ModuleDefinition mod in asmDef.Modules)
             {
                 mod.FullLoad();
                 foreach (AssemblyNameReference refer in mod.AssemblyReferences)
                 {
-                    AssemblyData dat = new AssemblyData();
-                    string path = GlobalAssemblyResolver.Instance.ResolvePath(refer);
-                    dat.TargetPath = Path.Combine(dstPath, Path.GetFileName(path));
-                    dat.Assembly = GlobalAssemblyResolver.Instance.Resolve(refer);
-                    if (!FrameworkAssemblies.Contains(refer.FullName) && !ret.ContainsKey(dat.Assembly.FullName))
+                    AssemblyDefinition asm = GlobalAssemblyResolver.Instance.Resolve(refer);
+                    if (!FrameworkAssemblies.Contains(refer.FullName) && !ret.ContainsKey(asm.FullName))
                     {
-                        ret.Add(dat.Assembly.FullName, dat);
-                        ExtractData(dat.Assembly, dstPath, ret);
+                        ret.Add(asm.FullName, asm);
+                        ExtractData(asm, ret);
                     }
                 }
             }
             return ret.Values.ToArray();
         }
-        void ExtractData(AssemblyDefinition asm, string dstPath, Dictionary<string, AssemblyData> ret)
+        void ExtractData(AssemblyDefinition asm, Dictionary<string, AssemblyDefinition> ret)
         {
             foreach (ModuleDefinition mod in asm.Modules)
             {
                 mod.FullLoad();
                 foreach (AssemblyNameReference refer in mod.AssemblyReferences)
                 {
-                    AssemblyData dat = new AssemblyData();
-                    string path = GlobalAssemblyResolver.Instance.ResolvePath(refer);
-                    dat.TargetPath = Path.Combine(dstPath, Path.GetFileName(path));
-                    dat.Assembly = GlobalAssemblyResolver.Instance.Resolve(refer);
-                    if (!FrameworkAssemblies.Contains(refer.FullName) && !ret.ContainsKey(dat.Assembly.FullName))
+                    AssemblyDefinition asmDef = GlobalAssemblyResolver.Instance.Resolve(refer);
+                    if (!FrameworkAssemblies.Contains(refer.FullName) && !ret.ContainsKey(asmDef.FullName))
                     {
-                        ret.Add(dat.Assembly.FullName, dat);
-                        ExtractData(dat.Assembly, dstPath, ret);
+                        ret.Add(asmDef.FullName, asmDef);
+                        ExtractData(asmDef, ret);
                     }
                 }
             }
+        }
+
+        public virtual string GetDestinationPath(ModuleDefinition mod, string dstPath)
+        {
+            return Path.Combine(dstPath, Path.GetFileName(mod.FullyQualifiedName));
         }
     }
 }

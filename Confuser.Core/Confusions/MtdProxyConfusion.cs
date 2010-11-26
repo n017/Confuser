@@ -322,8 +322,9 @@ namespace Confuser.Core.Confusions
             {
                 foreach (Context txt in mc.txts)
                 {
+                    if (txt.fld.Name[0] != '\0') continue;
                     MetadataToken tkn = accessor.LookupToken(txt.mtdRef);
-                    txt.fld.Name = new string(new char[] { txt.fld.Name[0], txt.fld.Name[1] }) + Encoding.Unicode.GetString(BitConverter.GetBytes(tkn.ToUInt32() ^ mc.key));
+                    txt.fld.Name = new string(new char[] { txt.fld.Name[2] }) + Encoding.Unicode.GetString(BitConverter.GetBytes(tkn.ToInt32() ^ mc.key));
                 }
             }
         }
@@ -446,7 +447,7 @@ namespace Confuser.Core.Confusions
         {
             string virt = isVirt ? "\r" : "\n";
             char asmRef = (char)(mod.AssemblyReferences.IndexOf(mtd.DeclaringType.Scope as AssemblyNameReference) + 2);
-            return asmRef + virt + mtd.ToString().GetHashCode();
+            return "\0" + asmRef + virt + mtd.ToString();
         }
     }
 }
