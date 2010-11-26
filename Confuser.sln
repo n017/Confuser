@@ -11,7 +11,33 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Confuser", "Confuser\Confus
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Confuser.Core.Injections", "Confuser.Core.Injections\Confuser.Core.Injections.csproj", "{DB542CC5-561B-4DBD-920B-25A34C8FB1BA}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Confuser.Console", "Confuser.Console\Confuser.Console.csproj", "{6AC1B3FC-96D3-44BA-9629-848E3A8CC179}"
+EndProject
 Global
+	GlobalSection(TeamFoundationVersionControl) = preSolution
+		SccNumberOfProjects = 7
+		SccEnterpriseProvider = {4CA58AB2-18FA-4F8D-95D4-32DDF27D184C}
+		SccTeamFoundationServer = https://tfs.codeplex.com/tfs/TFS09
+		SccProjectUniqueName0 = Confuser.Core\\Confuser.Core.csproj
+		SccProjectName0 = Confuser.Core
+		SccLocalPath0 = Confuser.Core
+		SccProjectUniqueName1 = MonoCecil93\\Mono.Cecil.csproj
+		SccProjectName1 = MonoCecil93
+		SccLocalPath1 = MonoCecil93
+		SccProjectUniqueName2 = MonoCecil93\\rocks\\Mono.Cecil.Rocks.csproj
+		SccProjectName2 = MonoCecil93/rocks
+		SccLocalPath2 = MonoCecil93\\rocks
+		SccProjectUniqueName3 = Confuser\\Confuser.csproj
+		SccProjectName3 = Confuser
+		SccLocalPath3 = Confuser
+		SccProjectUniqueName4 = Confuser.Core.Injections\\Confuser.Core.Injections.csproj
+		SccProjectName4 = Confuser.Core.Injections
+		SccLocalPath4 = Confuser.Core.Injections
+		SccLocalPath5 = .
+		SccProjectUniqueName6 = Confuser.Console\\Confuser.Console.csproj
+		SccProjectName6 = Confuser.Console
+		SccLocalPath6 = Confuser.Console
+	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug - No System.dll|Any CPU = Debug - No System.dll|Any CPU
 		Debug|Any CPU = Debug|Any CPU
@@ -48,6 +74,12 @@ Global
 		{DB542CC5-561B-4DBD-920B-25A34C8FB1BA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DB542CC5-561B-4DBD-920B-25A34C8FB1BA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{DB542CC5-561B-4DBD-920B-25A34C8FB1BA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6AC1B3FC-96D3-44BA-9629-848E3A8CC179}.Debug - No System.dll|Any CPU.ActiveCfg = Debug|Any CPU
+		{6AC1B3FC-96D3-44BA-9629-848E3A8CC179}.Debug - No System.dll|Any CPU.Build.0 = Debug|Any CPU
+		{6AC1B3FC-96D3-44BA-9629-848E3A8CC179}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6AC1B3FC-96D3-44BA-9629-848E3A8CC179}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6AC1B3FC-96D3-44BA-9629-848E3A8CC179}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6AC1B3FC-96D3-44BA-9629-848E3A8CC179}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
