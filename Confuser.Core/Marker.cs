@@ -73,6 +73,7 @@ namespace Confuser.Core
             public void LeaveLevel()
             {
                 inheritStack.Pop();
+                CurrentConfusions = inheritStack.Peek();
             }
             public void SkipLevel()
             {
@@ -340,12 +341,8 @@ namespace Confuser.Core
                         sems.AddRange(prop.OtherMethods);
                     foreach (MethodDefinition mtd in sems)
                     {
-                        setting.StartLevel();
-
                         ProcessAttribute(mtd, setting);
-
                         (mtd as IAnnotationProvider).Annotations["ConfusionSets"] = setting.CurrentConfusions;
-
                         setting.LeaveLevel();
                     }
                 }
@@ -364,9 +361,7 @@ namespace Confuser.Core
                     foreach (MethodDefinition mtd in sems)
                     {
                         ProcessAttribute(mtd, setting);
-
                         (mtd as IAnnotationProvider).Annotations["ConfusionSets"] = setting.CurrentConfusions;
-
                         setting.LeaveLevel();
                     }
                 }
