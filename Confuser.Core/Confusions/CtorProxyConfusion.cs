@@ -300,7 +300,11 @@ namespace Confuser.Core.Confusions
                 {
                     if (txt.fld.Name[0] != '\0') continue;
                     MetadataToken tkn = accessor.LookupToken(txt.mtdRef);
-                    txt.fld.Name = Encoding.Unicode.GetString(BitConverter.GetBytes(tkn.ToInt32() ^ cc.key));
+                    string str = Convert.ToBase64String(BitConverter.GetBytes(tkn.ToInt32() ^ cc.key));
+                    StringBuilder sb = new StringBuilder(str.Length);
+                    for (int i = 0; i < str.Length; i++)
+                        sb.Append((char)((byte)str[i] ^ i));
+                    txt.fld.Name = sb.ToString();
                 }
             }
         }

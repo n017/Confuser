@@ -324,7 +324,14 @@ namespace Confuser.Core.Confusions
                 {
                     if (txt.fld.Name[0] != '\0') continue;
                     MetadataToken tkn = accessor.LookupToken(txt.mtdRef);
-                    txt.fld.Name = new string(new char[] { txt.fld.Name[2] }) + Encoding.Unicode.GetString(BitConverter.GetBytes(tkn.ToInt32() ^ mc.key));
+                    byte[] dat = new byte[5];
+                    dat[0] = (byte)txt.fld.Name[2];
+                    Buffer.BlockCopy(BitConverter.GetBytes(tkn.ToInt32() ^ mc.key), 0, dat, 1, 4);
+                    string str = Convert.ToBase64String(dat);
+                    StringBuilder sb = new StringBuilder(str.Length);
+                    for (int i = 0; i < str.Length; i++)
+                        sb.Append((char)((byte)str[i] ^ i));
+                    txt.fld.Name = sb.ToString();
                 }
             }
         }

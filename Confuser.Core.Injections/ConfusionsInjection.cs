@@ -111,7 +111,10 @@ static class Proxies
     {
         var fld = FieldInfo.GetFieldFromHandle(f);
         var asm = Assembly.GetExecutingAssembly();
-        var mtd = asm.GetModules()[0].ResolveMethod(BitConverter.ToInt32(Encoding.Unicode.GetBytes(fld.Name.ToCharArray(), 0, 2), 0) ^ 0x12345678) as System.Reflection.ConstructorInfo;
+        char[] ch = new char[fld.Name.Length];
+        for (int i = 0; i < ch.Length; i++)
+            ch[i] = (char)((byte)fld.Name[i] ^ i);
+        var mtd = asm.GetModules()[0].ResolveMethod(BitConverter.ToInt32(Convert.FromBase64String(new string(ch)), 0) ^ 0x12345678) as System.Reflection.ConstructorInfo;
 
         var args = mtd.GetParameters();
         Type[] arg = new Type[args.Length];
@@ -132,7 +135,11 @@ static class Proxies
     {
         var fld = System.Reflection.FieldInfo.GetFieldFromHandle(f);
         var asm = System.Reflection.Assembly.GetExecutingAssembly();
-        var mtd = asm.GetModules()[0].ResolveMethod(BitConverter.ToInt32(Encoding.Unicode.GetBytes(fld.Name.ToCharArray(), 1 , 2), 0) ^ 0x12345678) as System.Reflection.MethodInfo;
+        char[] ch = new char[fld.Name.Length];
+        for (int i = 0; i < ch.Length; i++)
+            ch[i] = (char)((byte)fld.Name[i] ^ i);
+        byte[] dat = Convert.FromBase64String(new string(ch));
+        var mtd = asm.GetModules()[0].ResolveMethod(BitConverter.ToInt32(dat, 1) ^ 0x12345678) as System.Reflection.MethodInfo;
 
         if (mtd.IsStatic)
             fld.SetValue(null, Delegate.CreateDelegate(fld.FieldType, mtd));
@@ -152,7 +159,7 @@ static class Proxies
             var gen = dm.GetILGenerator();
             for (int i = 0; i < arg.Length; i++)
                 gen.Emit(System.Reflection.Emit.OpCodes.Ldarg, i);
-            gen.Emit((fld.Name[0] == '\r') ? System.Reflection.Emit.OpCodes.Callvirt : System.Reflection.Emit.OpCodes.Call, mtd);
+            gen.Emit((dat[0] == '\r') ? System.Reflection.Emit.OpCodes.Callvirt : System.Reflection.Emit.OpCodes.Call, mtd);
             gen.Emit(System.Reflection.Emit.OpCodes.Ret);
 
             fld.SetValue(null, dm.CreateDelegate(fld.FieldType));
