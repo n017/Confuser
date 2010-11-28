@@ -100,7 +100,7 @@ namespace Confuser.Core.Confusions
                 foreach(Instruction inst in mtd.Body.Instructions)
                 {
                     if ((inst.OpCode.Name == "ldc.i4" && (int)inst.Operand != -1 && (int)inst.Operand != 0 && (int)inst.Operand != 1) ||
-                        (inst.OpCode.Name == "ldc.i8" && (long)inst.Operand != -1 && (long)inst.Operand != 0 && (long)inst.Operand != 1) ||
+                        //(inst.OpCode.Name == "ldc.i8" && (long)inst.Operand != -1 && (long)inst.Operand != 0 && (long)inst.Operand != 1) ||
                         (inst.OpCode.Name == "ldc.r4" && (float)inst.Operand != -1 && (float)inst.Operand != 0 && (float)inst.Operand != 1) ||
                         (inst.OpCode.Name == "ldc.r8" && (double)inst.Operand != -1 && (double)inst.Operand != 0 && (double)inst.Operand != 1))
                         txts.Add(new Context() { mtd = mtd, psr = mtd.Body.GetILProcessor(), inst = inst, lv = lv });
@@ -141,8 +141,8 @@ namespace Confuser.Core.Confusions
                 {
                     case "ldc.i4":
                         txt.psr.InsertAfter(instIdx +expInsts.Length - 1, Instruction.Create(OpCodes.Conv_I4)); break;
-                    case "ldc.i8":
-                        txt.psr.InsertAfter(instIdx +expInsts.Length - 1, Instruction.Create(OpCodes.Conv_I8)); break;
+                    //case "ldc.i8":
+                    //    txt.psr.InsertAfter(instIdx +expInsts.Length - 1, Instruction.Create(OpCodes.Conv_I8)); break;
                     case "ldc.r4":
                         txt.psr.InsertAfter(instIdx +expInsts.Length - 1, Instruction.Create(OpCodes.Conv_R4)); break;
                     case "ldc.r8":

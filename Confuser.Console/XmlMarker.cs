@@ -195,6 +195,14 @@ namespace Confuser.Console
         void MarkType(XElement xType, TypeDefinition type)
         {
             MarkSettings(xType.Element("settings"), type);
+            foreach (MethodDefinition mtd in type.Methods)
+                MarkSettings(null, mtd);
+            foreach (FieldDefinition fld in type.Fields)
+                MarkSettings(null, fld);
+            foreach (PropertyDefinition prop in type.Properties)
+                MarkSettings(null, prop);
+            foreach (EventDefinition evt in type.Events)
+                MarkSettings(null, evt);
         }
         void MarkSettings(XElement setting, ICustomAttributeProvider target)
         {

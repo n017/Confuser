@@ -43,7 +43,7 @@ namespace Confuser.Core
             int key1 = rand.Next(0, 0xff);
             EmbeddedResource res = new EmbeddedResource(Encoding.UTF8.GetString(Guid.NewGuid().ToByteArray()), ManifestResourceAttributes.Private, Encrypt(parameter.PEs[0], key0));
             mod.Resources.Add(res);
-            for (int i = 0; i < parameter.Modules.Length; i++)
+            for (int i = 1; i < parameter.Modules.Length; i++)
                 if (parameter.Modules[i].IsMain)
                     mod.Resources.Add(new EmbeddedResource(GetNewName(parameter.Modules[i].Assembly.Name.FullName, key1), ManifestResourceAttributes.Private, Encrypt(parameter.PEs[i], key0)));
                 else
@@ -66,7 +66,7 @@ namespace Confuser.Core
             t.IsNotPublic = true;
             mod.Types.Add(t);
 
-            MethodDefinition cctor =  new MethodDefinition(".cctor", MethodAttributes.Private | MethodAttributes.HideBySig |
+            MethodDefinition cctor = new MethodDefinition(".cctor", MethodAttributes.Private | MethodAttributes.HideBySig |
                                                             MethodAttributes.SpecialName | MethodAttributes.RTSpecialName |
                                                             MethodAttributes.Static, mod.Import(typeof(void)));
             mod.GetType("<Module>").Methods.Add(cctor);
@@ -91,46 +91,32 @@ namespace Confuser.Core
         }
         static byte[] Encrypt(byte[] asm, int key)
         {
+            byte[] buff = new byte[asm.Length];
+            for (int i = 0; i < buff.Length; i++)
+            {
+                buff[i] = (byte)((asm[i] + i) ^ (i % 2 == 0 ? (key & 0xf) - i : ((key >> 4) + i)));
+            }
             MemoryStream str = new MemoryStream();
             using (BinaryWriter wtr = new BinaryWriter(new DeflateStream(str, CompressionMode.Compress)))
             {
-                wtr.Write(asm.Length);
-                wtr.Write(asm);
+                wtr.Write(buff.Length);
+                wtr.Write(buff);
             }
-            byte[] ret = str.ToArray();
-            for (int i = 0; i < ret.Length; i++)
-            {
-                ret[i] = (byte)(ret[i] ^ i ^ key);
-            }
-            return ret;
+            return str.ToArray();
         }
         static byte[] Decrypt(byte[] asm, int key)
         {
-            for (int i = 0; i < asm.Length; i++)
-            {
-                asm[i] = (byte)(asm[i] ^ i ^ key);
-            }
+            byte[] ret;
             DeflateStream str = new DeflateStream(new MemoryStream(asm), CompressionMode.Decompress);
             using (BinaryReader rdr = new BinaryReader(str))
             {
-                byte[] ret = new byte[rdr.ReadInt32()];
-                byte[] over = new byte[0x100];
-                int i;
-                for (i = 0; i + 0x100 < ret.Length; i += 0x100)
-                {
-                    byte[] b = rdr.ReadBytes(0x100);
-                    Buffer.BlockCopy(b, 0, ret, i, 0x100);
-                    Buffer.BlockCopy(over, 0, b, 0, 0x100);
-                }
-                if (i != ret.Length)
-                {
-                    int re = ret.Length - i;
-                    byte[] b = rdr.ReadBytes(re);
-                    Buffer.BlockCopy(b, 0, ret, i, re);
-                    Buffer.BlockCopy(over, 0, b, 0, re);
-                }
-                return ret;
+                ret = rdr.ReadBytes(rdr.ReadInt32());
             }
+            for (int i = 0; i < ret.Length; i++)
+            {
+                ret[i] = (byte)((ret[i] ^ (i % 2 == 0 ? (key & 0xf) - i : ((key >> 4) + i))) - i);
+            }
+            return ret;
         }
     }
 }

@@ -55,7 +55,7 @@ namespace Confuser.Core.Poly
             {
                 int a = rand.NextDouble() > 0.15 ? lv - 1 : 0;
                 int b = rand.NextDouble() > 0.15 ? lv - 1 : 0;
-                switch (rand.Next(0, 4))
+                switch (rand.Next(0, 3))
                 {
                     case 0:
                         ret = new AddExpression();
@@ -68,14 +68,14 @@ namespace Confuser.Core.Poly
                         (ret as SubExpression).OperandB = Generate(ret, b, ref hasVar, rand);
                         break;
                     case 2:
-                        ret = new MulExpression();
-                        (ret as MulExpression).OperandA = Generate(ret, a, ref hasVar, rand);
-                        (ret as MulExpression).OperandB = Generate(ret, b, ref hasVar, rand);
-                        break;
-                    case 3:
                         ret = new NegExpression();
                         (ret as NegExpression).Value = Generate(ret, a, ref hasVar, rand);
                         break;
+                    //case 3:
+                    //    ret = new MulExpression();
+                    //    (ret as MulExpression).OperandA = Generate(ret, a, ref hasVar, rand);
+                    //    (ret as MulExpression).OperandB = Generate(ret, b, ref hasVar, rand);
+                    //    break;
                     //case 4:
                     //    ret = new DivExpression();
                     //    (ret as DivExpression).OperandA = Generate(ret, a, ref hasVar, rand);

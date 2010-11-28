@@ -7,7 +7,7 @@ using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
 
 //TODO : Make a more stable version.
-#if false
+#if true
 namespace Confuser.Core.Confusions
 {
     public class AntiDumpConfusion : StructurePhase, IConfusion

@@ -280,7 +280,11 @@ namespace Confuser.Core
 
             if (!exclude)
                 foreach (TypeDefinition type in mod.Types)
+                {
+                    setting.StartLevel();
                     MarkType(type, setting);
+                    setting.LeaveLevel();
+                }
 
             setting.LeaveLevel();
         }
@@ -297,19 +301,39 @@ namespace Confuser.Core
             if (!exclude)
             {
                 foreach (TypeDefinition nType in type.NestedTypes)
+                {
+                    setting.StartLevel();
                     MarkType(nType, setting);
+                    setting.LeaveLevel();
+                }
 
                 foreach (MethodDefinition mtd in type.Methods)
+                {
+                    setting.StartLevel();
                     MarkMember(mtd, setting, Target.Methods);
+                    setting.LeaveLevel();
+                }
 
                 foreach (FieldDefinition fld in type.Fields)
+                {
+                    setting.StartLevel();
                     MarkMember(fld, setting, Target.Fields);
+                    setting.LeaveLevel();
+                }
 
                 foreach (PropertyDefinition prop in type.Properties)
+                {
+                    setting.StartLevel();
                     MarkMember(prop, setting, Target.Properties);
+                    setting.LeaveLevel();
+                }
 
                 foreach (EventDefinition evt in type.Events)
+                {
+                    setting.StartLevel();
                     MarkMember(evt, setting, Target.Events);
+                    setting.LeaveLevel();
+                }
             }
 
             setting.LeaveLevel();
@@ -341,8 +365,10 @@ namespace Confuser.Core
                         sems.AddRange(prop.OtherMethods);
                     foreach (MethodDefinition mtd in sems)
                     {
+                        setting.StartLevel();
                         ProcessAttribute(mtd, setting);
                         (mtd as IAnnotationProvider).Annotations["ConfusionSets"] = setting.CurrentConfusions;
+                        setting.LeaveLevel();
                         setting.LeaveLevel();
                     }
                 }
@@ -360,8 +386,10 @@ namespace Confuser.Core
                         sems.AddRange(evt.OtherMethods);
                     foreach (MethodDefinition mtd in sems)
                     {
+                        setting.StartLevel();
                         ProcessAttribute(mtd, setting);
                         (mtd as IAnnotationProvider).Annotations["ConfusionSets"] = setting.CurrentConfusions;
+                        setting.LeaveLevel();
                         setting.LeaveLevel();
                     }
                 }

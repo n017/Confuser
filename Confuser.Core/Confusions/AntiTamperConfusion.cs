@@ -12,7 +12,7 @@ using System.Security.Cryptography;
 using Mono.Cecil.Cil;
 
 //TODO: Implement better version by JIT hooking
-#if false
+#if true
 namespace Confuser.Core.Confusions
 {
     public class AntiTamperConfusion : IConfusion

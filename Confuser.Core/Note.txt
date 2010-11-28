@@ -14,4 +14,4 @@ Pe Phases:
     Phase 3: Query Pe Structure/Warpping Pe(Packer,Shell,etc.)
     
 Max Protection Attribute:
-[reduce md]+[string encrypt]+[ctor proxy]+[invalid md]+[anti ildasm]+[mtd proxy]+[stack underflow]+[disintegrate const,level=10]+[res encrypt]+[rename]+[anti debug,win32=true]+[ctrl flow,level=10]+[anti tamper]
+[reduce md]+[string encrypt,dynamic=true]+[ctor proxy]+[invalid md]+[anti ildasm]+[mtd proxy]+[stack underflow]+[disintegrate const,level=10]+[res encrypt]+[rename]+[anti debug,win32=true]+[ctrl flow,level=10]+[anti tamper]

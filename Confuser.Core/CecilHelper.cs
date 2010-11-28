@@ -81,7 +81,11 @@ namespace Confuser.Core
                 bool has = false;
                 foreach (ModuleReference modRef in mod.ModuleReferences)
                     if (modRef.Name == ret.PInvokeInfo.Module.Name)
-                    { has = true; break; }
+                    {
+                        has = true;
+                        ret.PInvokeInfo.Module = modRef;
+                        break;
+                    }
                 if (!has)
                     mod.ModuleReferences.Add(ret.PInvokeInfo.Module);
             }
@@ -147,7 +151,7 @@ namespace Confuser.Core
                             break;
                         case OperandType.InlineTok:
                             if (((MemberReference)inst.Operand).DeclaringType != mtd.DeclaringType &&
-                                ((TypeReference)inst.Operand) != mtd.DeclaringType)
+                                ((MemberReference)inst.Operand) != mtd.DeclaringType)
                             {
                                 if (inst.Operand is TypeReference)
                                     psr.Emit(inst.OpCode, mod.Import(inst.Operand as TypeReference));
