@@ -29,7 +29,7 @@ namespace Confuser.Core
         }
         public override bool StandardCompatible
         {
-            get { return true; ; }
+            get { return true;  }
         }
 
         protected override void PackCore(out AssemblyDefinition asm, PackerParameter parameter)

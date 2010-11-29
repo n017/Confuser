@@ -111,6 +111,8 @@ namespace Confuser.Console
             if (type.Elements().Count() != 1 ||
                 type.Element("settings") == null)
                 errs.Add(string.Format("Line {0:D3}: exactly one 'settings' element required.", ((IXmlLineInfo)type).LineNumber));
+            if (type.Attribute("name") == null)
+                errs.Add(string.Format("Line {0:D3}: name of type not specified.", ((IXmlLineInfo)type).LineNumber));
             ValidateSettings(type.Element("settings"), errs);
         }
         void ValidateSettings(XElement settings, List<string> errs)

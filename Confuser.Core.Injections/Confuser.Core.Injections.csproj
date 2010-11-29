@@ -40,7 +40,6 @@
     <Compile Include="Iid.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Packers.cs" />
-    <Compile Include="SDK.cs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="System" />

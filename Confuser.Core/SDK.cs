@@ -7,7 +7,7 @@ class ConfusingAttribute : Attribute
     {
         ApplyToMembers = true;
         Exclude = false;
-        Config = "all";
+        Config = "default";
         StripAfterObfuscation = true;
     }
     public bool ApplyToMembers { get; set; }

@@ -103,6 +103,9 @@ namespace Confuser.Console
         {
             WriteLine("Usage:");
             WriteLine("Confuser.Console.exe [-assembly <source assembly>|-config <configuration file>] <target path> [-sn <strong key pair path>]");
+            WriteLine("    -assembly : specify the assembly to obfuscate.");
+            WriteLine("    -config   : specify the obfuscation configuration.");
+            WriteLine("    -sn       : specify the strong name key to sign the output.");
         }
 
         static void WriteLineWithColor(ConsoleColor color, string txt)

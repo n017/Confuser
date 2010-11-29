@@ -107,7 +107,7 @@ namespace Confuser
         [UnmanagedFunctionPointer(CallingConvention.Winapi, CharSet = CharSet.Auto)]
         private delegate bool EnumResNameProc(IntPtr hModule, int lpszType, IntPtr lpszName, IntPtr lParam);
 
-        public static BitmapImage GetIcon(string path)
+        public static BitmapSource GetIcon(string path)
         {
             IntPtr hMod = LoadLibraryEx(path, IntPtr.Zero, 0x00000002);
             MemoryStream mem = null;
@@ -154,10 +154,18 @@ namespace Confuser
             }), IntPtr.Zero);
             FreeLibrary(hMod);
             if (mem == null) return null;
-            BitmapImage ret = new BitmapImage();
-            ret.BeginInit();
-            ret.StreamSource = mem;
-            ret.EndInit();
+            IconBitmapDecoder decoder = new IconBitmapDecoder(mem, 0, 0);
+            BitmapSource ret = decoder.Frames[0];
+            double curr = 0;
+            foreach (BitmapSource src in decoder.Frames)
+            {
+                if (src.Width > curr && src.Width <= 64)
+                {
+                    ret = src;
+                    curr = src.Width;
+                    if (curr == 64) break;
+                }
+            }
             return ret;
         }
 

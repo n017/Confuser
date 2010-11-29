@@ -169,12 +169,6 @@ namespace Confuser.Core
         }
         private void ProcessConfig(string cfg, Dictionary<IConfusion, NameValueCollection> cs)
         {
-            if (string.Equals(cfg, "exclude", StringComparison.OrdinalIgnoreCase))
-            {
-                cs.Clear();
-                return;
-            }
-            if (cfg.StartsWith("packer:")) return;
             MatchCollection matches = Regex.Matches(cfg, @"(\+|\-|)\[([^,\]]*)(?:,([^\]]*))?\]");
             foreach (Match match in matches)
             {

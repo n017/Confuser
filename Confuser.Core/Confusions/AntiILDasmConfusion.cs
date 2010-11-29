@@ -15,7 +15,7 @@ namespace Confuser.Core.Confusions
         }
         public string Description
         {
-            get { return "This confusion marked the assembly with a attribute and ILDasm would not disassemble the assemblies with this attribute."; }
+            get { return "This confusion marked the assembly with a attribute that prevent ILDasm disassemble the assembly."; }
         }
         public string ID
         {

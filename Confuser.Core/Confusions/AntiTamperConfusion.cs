@@ -12,7 +12,6 @@ using System.Security.Cryptography;
 using Mono.Cecil.Cil;
 
 //TODO: Implement better version by JIT hooking
-#if true
 namespace Confuser.Core.Confusions
 {
     public class AntiTamperConfusion : IConfusion
@@ -373,7 +372,7 @@ namespace Confuser.Core.Confusions
         }
         public string Description
         {
-            get { return "This confusion provides a better protection than strong name for maintain integration.\r\n***Currently unstable, not recommand to use.***"; }
+            get { return "This confusion provides a better protection than strong name for maintain integration."; }
         }
         public string ID
         {
@@ -407,5 +406,3 @@ namespace Confuser.Core.Confusions
         }
     }
 }
-
-#endif

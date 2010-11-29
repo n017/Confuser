@@ -6,8 +6,6 @@ using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
 
-//TODO : Make a more stable version.
-#if true
 namespace Confuser.Core.Confusions
 {
     public class AntiDumpConfusion : StructurePhase, IConfusion
@@ -34,7 +32,7 @@ namespace Confuser.Core.Confusions
         }
         public Preset Preset
         {
-            get { return Preset.Normal; }
+            get { return Preset.Aggressive; }
         }
         public Phase[] Phases
         {
@@ -96,4 +94,3 @@ namespace Confuser.Core.Confusions
         }
     }
 }
-#endif

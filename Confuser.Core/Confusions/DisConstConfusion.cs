@@ -20,7 +20,7 @@ namespace Confuser.Core.Confusions
         {
             get
             {
-                return @"This confusion disintegrate the constants in the code into expression.
+                return @"This confusion disintegrate the constants in the code into expressions.
 ***This confusion could affect the performance if your application uses constant frequently***";
             }
         }

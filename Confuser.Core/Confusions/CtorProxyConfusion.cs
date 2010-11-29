@@ -320,10 +320,7 @@ namespace Confuser.Core.Confusions
         }
         public string Description
         {
-            get
-            {
-                return @"This confusion create proxies between references of constructors and methods code.";
-            }
+            get { return "This confusion create proxies between references of constructors and methods code."; }
         }
         public Target Target
         {

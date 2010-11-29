@@ -137,12 +137,14 @@ namespace Confuser
                                     assembly.DataContext = asm;
                                     asmPath.Text = "Location : " + path;
 
-                                    BitmapImage ico = Helper.GetIcon(path);
+                                    var ico = Helper.GetIcon(path);
 									if(ico != null)
 									{
 										if (ico.Height > 64 && ico.Width > 64) icon.Stretch = Stretch.Uniform; else icon.Stretch = Stretch.None;
 										this.icon.Source = ico;
-									}
+                                    }
+                                    else
+                                        this.icon.Source = null;
                                 }
                                 IgotASSEMBLY();
                             }
