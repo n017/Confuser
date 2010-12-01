@@ -327,10 +327,12 @@ static class AntiTamper
         }
 
         byte[] file;
-        uint checkSumOffset;
+        int checkSumOffset;
         ulong checkSum;
         byte[] iv;
         byte[] dats;
+        int sn;
+        int snLen;
         using (BinaryReader rdr = new BinaryReader(stream))
         {
             stream.Seek(0x3c, SeekOrigin.Begin);
@@ -341,7 +343,7 @@ static class AntiTamper
             stream.Seek(offset = offset + 0x18, SeekOrigin.Begin);  //Optional hdr
             bool pe32 = (rdr.ReadUInt16() == 0x010b);
             stream.Seek(0x3e, SeekOrigin.Current);
-            checkSumOffset = (uint)stream.Position;
+            checkSumOffset = (int)stream.Position;
             int len = rdr.ReadInt32() ^ 0x11111111;
             if (len == 0x11111111)
                 Environment.FailFast("Broken file");
@@ -349,14 +351,18 @@ static class AntiTamper
             stream.Seek(0, SeekOrigin.Begin);
             file = rdr.ReadBytes(len);
             checkSum = rdr.ReadUInt64() ^ 0x2222222222222222;
+            sn = rdr.ReadInt32();
+            snLen = rdr.ReadInt32();
             iv = rdr.ReadBytes(rdr.ReadInt32() ^ 0x33333333);
             dats = rdr.ReadBytes(rdr.ReadInt32() ^ 0x44444444);
         }
 
-        file[checkSumOffset] = 0;
-        file[checkSumOffset + 1] = 0;
-        file[checkSumOffset + 2] = 0;
-        file[checkSumOffset + 3] = 0;
+        Buffer.BlockCopy(new byte[4], 0, file, checkSumOffset, 4);
+        if (sn != 0)
+        {
+            Buffer.BlockCopy(new byte[snLen], 0, file, sn, snLen);
+        }
+
         byte[] md5 = MD5.Create().ComputeHash(file);
         ulong tCs = BitConverter.ToUInt64(md5, 0) ^ BitConverter.ToUInt64(md5, 8);
         if (tCs != checkSum)

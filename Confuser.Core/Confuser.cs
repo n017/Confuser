@@ -322,7 +322,7 @@ namespace Confuser.Core
                             for (int i = 0; i < pePhases.Length; i++)
                             {
                                 if (GetTargets(mod, pePhases[i].Confusion).Count == 0) continue;
-                                log.Log("Executing " + pePhases[i].Confusion.Name + " Phase 3...");
+                                log.Log("Executing " + pePhases[i].Confusion.Name + " Phase " + pePhases[i].PhaseID + "...");
                                 pePhases[i].Process(globalParams[pePhases[i].Confusion], stream);
                                 log.Progress((double)i / pePhases.Length);
                             }

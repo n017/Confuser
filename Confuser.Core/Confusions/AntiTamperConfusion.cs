@@ -193,7 +193,7 @@ namespace Confuser.Core.Confusions
                 get { return 3; }
             }
 
-            void ExtractCodes(Stream stream, out uint csOffset)
+            void ExtractCodes(Stream stream, out uint csOffset, out uint sn, out uint snLen)
             {
                 Random rand = new Random();
                 int rvaOffset = -1;
@@ -208,15 +208,18 @@ namespace Confuser.Core.Confusions
                 csOffset = offset + 0x40;
                 stream.Seek(offset = offset + (pe32 ? 0xE0U : 0xF0U), SeekOrigin.Begin);   //sections
                 uint sampleRva = 0xffffffff;
-                foreach(uint i in cion.rvas)
+                foreach (uint i in cion.rvas)
                     if (i != 0) { sampleRva = i; break; }
+                uint[] vAdrs = new uint[sections];
+                uint[] vSizes = new uint[sections];
+                uint[] dAdrs = new uint[sections];
                 for (int i = 0; i < sections; i++)
                 {
                     string name = Encoding.ASCII.GetString(rdr.ReadBytes(8)).Trim('\0');
-                    uint vSize = rdr.ReadUInt32();
-                    uint vAdr = rdr.ReadUInt32();
+                    uint vSize = vSizes[i] = rdr.ReadUInt32();
+                    uint vAdr = vAdrs[i] = rdr.ReadUInt32();
                     uint dSize = rdr.ReadUInt32();
-                    uint dAdr = rdr.ReadUInt32();
+                    uint dAdr = dAdrs[i] = rdr.ReadUInt32();
                     stream.Seek(0x10, SeekOrigin.Current);
                     if (sampleRva > vAdr && sampleRva < (vAdr + vSize))
                     {
@@ -273,6 +276,24 @@ namespace Confuser.Core.Confusions
                     rand.NextBytes(bs);
                     stream.Write(bs, 0, (int)len);
                 }
+
+                stream.Seek(offset - 16, SeekOrigin.Begin);
+                uint mdDir = rdr.ReadUInt32();
+                for (int i = 0; i < sections; i++)
+                    if (mdDir > vAdrs[i] && mdDir < vAdrs[i] + vSizes[i])
+                    {
+                        mdDir = mdDir - vAdrs[i] + dAdrs[i];
+                        break;
+                    }
+                stream.Seek(mdDir + 0x20, SeekOrigin.Begin);
+                sn = rdr.ReadUInt32();
+                for (int i = 0; i < sections; i++)
+                    if (sn > vAdrs[i] && sn < vAdrs[i] + vSizes[i])
+                    {
+                        sn = sn - vAdrs[i] + dAdrs[i];
+                        break;
+                    }
+                snLen = rdr.ReadUInt32();
             }
             static byte[] Encrypt(byte[] file, byte[] dat, out byte[] iv, byte key)
             {
@@ -319,7 +340,9 @@ namespace Confuser.Core.Confusions
             {
                 stream.Seek(0, SeekOrigin.Begin);
                 uint csOffset;
-                ExtractCodes(stream, out csOffset);
+                uint sn;
+                uint snLen;
+                ExtractCodes(stream, out csOffset, out sn, out snLen);
 
                 MemoryStream ms = new MemoryStream();
                 ms.WriteByte(0xd6);
@@ -347,6 +370,8 @@ namespace Confuser.Core.Confusions
                 wtr.Write(file.Length ^ cion.key0);
                 stream.Seek(0, SeekOrigin.End);
                 wtr.Write(checkSum ^ cion.key1);
+                wtr.Write(sn);
+                wtr.Write(snLen);
                 wtr.Write(iv.Length ^ cion.key2);
                 wtr.Write(iv);
                 wtr.Write(dat.Length ^ cion.key3);

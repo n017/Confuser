@@ -397,7 +397,7 @@ namespace Confuser.Core
         {
             Dictionary<string, AssemblyDefinition> ret = new Dictionary<string, AssemblyDefinition>();
             AssemblyDefinition asmDef = AssemblyDefinition.ReadAssembly(src);
-            GlobalAssemblyResolver.Instance.AssemblyCache.Add(asmDef.FullName,asmDef);
+            GlobalAssemblyResolver.Instance.AssemblyCache[asmDef.FullName] = asmDef;
             ret.Add(asmDef.FullName, asmDef);
 
             foreach (ModuleDefinition mod in asmDef.Modules)

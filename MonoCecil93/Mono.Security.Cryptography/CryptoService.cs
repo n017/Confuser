@@ -99,13 +99,25 @@ namespace Mono.Cecil {
 			using (var crypto_stream = new CryptoStream (Stream.Null, sha1, CryptoStreamMode.Write)) {
 
 				stream.Seek (0, SeekOrigin.Begin);
-				CopyStreamChunk (stream, crypto_stream, buffer, header_size);
+				CopyStreamChunk (stream, crypto_stream, buffer, 0xd8);
+
+                crypto_stream.Write (new byte[4], 0, 4);
+				stream.Seek (4, SeekOrigin.Current);
+				CopyStreamChunk (stream, crypto_stream, buffer, header_size - 0xd8 - 4);
 
 				stream.Seek (text_section_pointer, SeekOrigin.Begin);
 				CopyStreamChunk (stream, crypto_stream, buffer, (int) strong_name_pointer - text_section_pointer);
 
 				stream.Seek (strong_name_length, SeekOrigin.Current);
-				CopyStreamChunk (stream, crypto_stream, buffer, (int) (stream.Length - (strong_name_pointer + strong_name_length)));
+                CopyStreamChunk (stream, crypto_stream, buffer, (int)(text.SizeOfRawData - (strong_name_pointer + strong_name_length - text.PointerToRawData)));
+
+                if (writer.rsrc != null) {
+				    stream.Seek (writer.rsrc.PointerToRawData, SeekOrigin.Begin);
+				    CopyStreamChunk (stream, crypto_stream, buffer, (int) writer.rsrc.SizeOfRawData);
+                }
+                
+			    stream.Seek (writer.reloc.PointerToRawData, SeekOrigin.Begin);
+			    CopyStreamChunk (stream, crypto_stream, buffer, (int) writer.reloc.SizeOfRawData);
 			}
 
 			return sha1.Hash;
@@ -116,6 +128,8 @@ namespace Mono.Cecil {
 			while (length > 0) {
 				int read = stream.Read (buffer, 0, System.Math.Min (buffer.Length, length));
 				dest_stream.Write (buffer, 0, read);
+                //stream.Seek (-read, SeekOrigin.Current);
+                //stream.Write (new byte[read], 0, read);
 				length -= read;
 			}
 		}

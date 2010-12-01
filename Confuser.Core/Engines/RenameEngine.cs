@@ -123,7 +123,9 @@ System.Resources.ResourceManager
             Resource res;
             public void UpdateReference(Identifier old, Identifier @new)
             {
-                res.Name = res.Name.Replace(old.scope, @new.scope);
+                string oldN = string.IsNullOrEmpty(old.scope) ? old.name : old.scope + "." + old.name;
+                string newN = string.IsNullOrEmpty(@new.scope) ? @new.name : @new.scope + "." + @new.name;
+                res.Name = res.Name.Replace(oldN, newN);
             }
         }
         class ResourceNameReference : IReference
