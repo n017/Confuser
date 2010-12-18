@@ -66,7 +66,7 @@ namespace Confuser.Core.Confusions
 
             public override void Process(NameValueCollection parameters, MetadataProcessor.MetadataAccessor accessor)
             {
-                if (Array.IndexOf(parameters.AllKeys, "hasReflection") == -1)
+                if (Array.IndexOf(parameters.AllKeys, "hasreflection") == -1)
                 {
                     uint mtdLen = (uint)accessor.TableHeap.GetTable<MethodTable>(Table.Method).Length + 1;
                     uint fldLen = (uint)accessor.TableHeap.GetTable<FieldTable>(Table.Field).Length + 1;

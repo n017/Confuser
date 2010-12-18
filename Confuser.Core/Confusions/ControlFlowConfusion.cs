@@ -182,6 +182,7 @@ namespace Confuser.Core.Confusions
         }
 
         Random rad;
+        bool genJunk;
         public override void Process(ConfusionParameter parameter)
         {
             MethodDefinition mtd = parameter.Target as MethodDefinition;
@@ -194,6 +195,15 @@ namespace Confuser.Core.Confusions
                 {
                     Log("Invaild level, 5 will be used.");
                     slv = 5;
+                }
+            }
+            genJunk = true;
+            if (Array.IndexOf(parameter.Parameters.AllKeys, "genjunk") != -1)
+            {
+                if (!bool.TryParse(parameter.Parameters["genjunk"], out genJunk))
+                {
+                    Log("Invaild junk parameter, junk code would be generated.");
+                    genJunk = true;
                 }
             }
             double trueLv = slv / 10.0;
@@ -222,7 +232,13 @@ namespace Confuser.Core.Confusions
                 else
                 {
                     iblks = SwitcizeSplit(mtd, blk, trueLv);
-                    SwitcizeFlow(bdy, ref iblks);
+                    if (iblks.Length == 1)
+                    {
+                        iblks = BrizeSplit(blk, trueLv);
+                        BrizeFlow(bdy, ref iblks);
+                    }
+                    else
+                        SwitcizeFlow(bdy, ref iblks);
                 }
                 Reorder(ref iblks);
 
@@ -661,20 +677,38 @@ namespace Confuser.Core.Confusions
         private void AddJump(ILProcessor wkr, List<Instruction> insts, Instruction target)
         {
             insts.Add(Instruction.Create(OpCodes.Br, target));
-            switch (rad.Next(0, 4))
+            if (genJunk)
             {
-                case 0:
-                    insts.Add(Instruction.Create(OpCodes.Pop));
-                    break;
-                case 1:
-                    insts.Add(Instruction.Create(OpCodes.Ldc_I4, rad.Next()));
-                    break;
-                case 2:
-                    insts.Add(Instruction.Create(OpCodes.Dup));
-                    break;
-                case 3:
-                    insts.Add(Instruction.CreateJunkCode(junkCode[rad.Next(0, junkCode.Length)]));
-                    break;
+                switch (rad.Next(0, 4))
+                {
+                    case 0:
+                        insts.Add(Instruction.Create(OpCodes.Pop));
+                        break;
+                    case 1:
+                        insts.Add(Instruction.Create(OpCodes.Ldc_I4, rad.Next()));
+                        break;
+                    case 2:
+                        insts.Add(Instruction.Create(OpCodes.Dup));
+                        break;
+                    case 3:
+                        insts.Add(Instruction.CreateJunkCode(junkCode[rad.Next(0, junkCode.Length)]));
+                        break;
+                }
+            }
+            else
+            {
+                switch (rad.Next(0, 3))
+                {
+                    case 0:
+                        insts.Add(Instruction.Create(OpCodes.Pop));
+                        break;
+                    case 1:
+                        insts.Add(Instruction.Create(OpCodes.Ldc_I4, rad.Next()));
+                        break;
+                    case 2:
+                        insts.Add(Instruction.Create(OpCodes.Dup));
+                        break;
+                }
             }
         }
 
