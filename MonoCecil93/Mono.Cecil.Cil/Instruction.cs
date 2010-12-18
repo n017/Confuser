@@ -317,5 +317,10 @@ namespace Mono.Cecil.Cil {
 
 			return new Instruction (opcode, parameter);
 		}
+
+        public static Instruction CreateJunkCode(ushort val)
+        {
+			return new Instruction (new OpCode (0x5000000 | val, 0x13000505), null);
+        }
 	}
 }

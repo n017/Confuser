@@ -30,8 +30,8 @@ namespace Mono.Cecil.Cil {
 
 	public static class OpCodes {
 
-		internal static readonly OpCode [] OneByteOpCode = new OpCode [0xe0 + 1];
-		internal static readonly OpCode [] TwoBytesOpCode = new OpCode [0x1e + 1];
+		internal static readonly OpCode [] OneByteOpCode = new OpCode [0x100];
+		internal static readonly OpCode [] TwoBytesOpCode = new OpCode [0x100];
 
 		public static readonly OpCode Nop = new OpCode (
 			0xff << 0 | 0x00 << 8 | (byte) Code.Nop << 16 | (byte) FlowControl.Next << 24,
