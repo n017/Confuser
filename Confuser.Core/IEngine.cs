@@ -8,6 +8,6 @@ namespace Confuser.Core
 {
     public interface IEngine
     {
-        void Analysis(Logger logger, AssemblyDefinition[] asms);
+        void Analysis(Logger logger, IEnumerable<AssemblyDefinition> asms);
     }
 }

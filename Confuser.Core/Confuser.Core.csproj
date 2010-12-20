@@ -136,17 +136,17 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Confuser.Core.Injections\Confuser.Core.Injections.csproj">
-      <Project>{DB542CC5-561B-4DBD-920B-25A34C8FB1BA}</Project>
-      <Name>Confuser.Core.Injections</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\MonoCecil93\Mono.Cecil.csproj">
+    <ProjectReference Include="..\cecil\Mono.Cecil.csproj">
       <Project>{D68133BD-1E63-496E-9EDE-4FBDBF77B486}</Project>
       <Name>Mono.Cecil</Name>
     </ProjectReference>
-    <ProjectReference Include="..\MonoCecil93\rocks\Mono.Cecil.Rocks.csproj">
+    <ProjectReference Include="..\cecil\rocks\Mono.Cecil.Rocks.csproj">
       <Project>{FBC6DD59-D09D-499C-B03C-99C1C78FF2AC}</Project>
       <Name>Mono.Cecil.Rocks</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Confuser.Core.Injections\Confuser.Core.Injections.csproj">
+      <Project>{DB542CC5-561B-4DBD-920B-25A34C8FB1BA}</Project>
+      <Name>Confuser.Core.Injections</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

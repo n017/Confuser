@@ -488,7 +488,8 @@
 		<Menu x:Name="menu" Margin="0" Grid.ColumnSpan="2" Height="25" FontWeight="Thin" FontSize="13.333" Effect="{DynamicResource menuEffect}">
 			<MenuItem Header="File" Style="{DynamicResource ShadeMenuItem}" FontWeight="Thin">
 				<MenuItem Header="Advanced Mode..." Style="{DynamicResource ShadeMenuItem}" Click="adv_Click"/>
-				<MenuItem Header="Exit" Style="{DynamicResource ShadeMenuItem}" Click="exit_Click"/>
+                <MenuItem Header="Load Plugins..." Style="{DynamicResource ShadeMenuItem}" Click="loadPlug_Click"/>
+                <MenuItem Header="Exit" Style="{DynamicResource ShadeMenuItem}" Click="exit_Click"/>
 			</MenuItem>
 		</Menu>
 		<StackPanel x:Name="seltor" Margin="0,0,0,0" Grid.Row="1">

@@ -264,7 +264,7 @@ System.Resources.ResourceManager
         }
         Dictionary<AssemblyDefinition, List<string>> ivtMap;
         Dictionary<MetadataToken, MemberReference> ivtRefs = new Dictionary<MetadataToken, MemberReference>();
-        public void Analysis(Logger logger, AssemblyDefinition[] asms)
+        public void Analysis(Logger logger, IEnumerable<AssemblyDefinition> asms)
         {
             foreach (AssemblyDefinition asm in asms)
                 foreach (ModuleDefinition mod in asm.Modules)
@@ -321,7 +321,7 @@ System.Resources.ResourceManager
             }
         }
 
-        void AnalysisIvtMap(Logger logger, AssemblyDefinition[] asms)
+        void AnalysisIvtMap(Logger logger, IEnumerable<AssemblyDefinition> asms)
         {
             ivtMap = new Dictionary<AssemblyDefinition, List<string>>();
             foreach (AssemblyDefinition asm in asms)

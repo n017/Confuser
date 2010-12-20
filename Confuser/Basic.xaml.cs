@@ -161,6 +161,7 @@ namespace Confuser
         }
         private void browseClick(object sender, RoutedEventArgs e)
         {
+            string o = Environment.CurrentDirectory;
         	string id = (sender as Button).Name.Substring(6).ToLower();
 			if(id == "sn")
 			{
@@ -175,6 +176,7 @@ namespace Confuser
                 if (brow.ShowDialog(this) == System.Windows.Forms.DialogResult.OK)
                     output.Text = brow.SelectedPath;
             }
+            Environment.CurrentDirectory = o;
         }
         private void exit_Click(object sender, RoutedEventArgs e)
         {   
@@ -187,6 +189,27 @@ namespace Confuser
             adv.Left = this.Left; adv.Top = this.Top;
             adv.Visibility = Visibility.Visible;
             this.Close();
+        }
+        private void loadPlug_Click(object sender, RoutedEventArgs e)
+        {
+            string o = Environment.CurrentDirectory;
+            Microsoft.Win32.OpenFileDialog ofd = new Microsoft.Win32.OpenFileDialog();
+            ofd.Filter = "Plugin (*.dll)|*.dll|All Files|*.*";
+            if (ofd.ShowDialog().GetValueOrDefault())
+            {
+                try
+                {
+                    LoadAssembly(Assembly.LoadFile(ofd.FileName));
+                    confusionList.ItemsSource = new List<Core.IConfusion>(ldConfusions.Values);
+                    packersList.ItemsSource = new List<Core.Packer>(ldPackers.Values);
+                    MessageBox.Show("Plugin loaded!", "Confuser", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                catch
+                {
+                    MessageBox.Show("Could not load the plugin!", "Confuser", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+            Environment.CurrentDirectory = o;
         }
 
 
@@ -204,8 +227,8 @@ namespace Confuser
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
             LoadAssembly(typeof(Core.IConfusion).Assembly);
-			confusionList.ItemsSource = ldConfusions.Values;
-			packersList.ItemsSource = ldPackers.Values;
+            confusionList.ItemsSource = new List<Core.IConfusion>(ldConfusions.Values);
+            packersList.ItemsSource = new List<Core.Packer>(ldPackers.Values);
         }
 
         Thread confuser;

@@ -120,13 +120,13 @@
     <None Include="icon.design" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\cecil\Mono.Cecil.csproj">
+      <Project>{D68133BD-1E63-496E-9EDE-4FBDBF77B486}</Project>
+      <Name>Mono.Cecil</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Confuser.Core\Confuser.Core.csproj">
       <Project>{FAD246BD-65C2-4379-8B1F-59C1BA71B8E9}</Project>
       <Name>Confuser.Core</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\MonoCecil93\Mono.Cecil.csproj">
-      <Project>{D68133BD-1E63-496E-9EDE-4FBDBF77B486}</Project>
-      <Name>Mono.Cecil</Name>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>

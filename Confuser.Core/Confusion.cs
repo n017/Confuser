@@ -87,6 +87,17 @@ namespace Confuser.Core
         Confuser cr;
         internal Confuser Confuser { get { return cr; } set { cr = value; } }
         protected void Log(string message) { cr.Log(message); }
+        protected void AddHelperAssembly(AssemblyDefinition asm)
+        {
+            CopyMarker mkr = new CopyMarker(cr.assemblies[0], Confusion);
+            mkr.Initalize(cr.param.Confusions, cr.param.Packers);
+            mkr.MarkAssembly(asm, Preset.None, cr);
+            foreach (IEngine eng in cr.engines)
+                eng.Analysis(cr.param.Logger, new AssemblyDefinition[] { asm });
+            cr.assemblies.Add(asm);
+        }
+
+        protected ConfuserParameter Parameter { get { return cr.param; } }
         protected void AddHelper(IMemberDefinition helper, HelperAttribute attr) { cr.helpers.Add(helper, attr); }
         protected IEnumerable<IMemberDefinition> GetHelpers() { return cr.helpers.Keys; }
 

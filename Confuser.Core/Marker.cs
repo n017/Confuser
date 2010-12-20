@@ -248,6 +248,7 @@ namespace Confuser.Core
             Settings setting = new Settings();
             FillPreset(preset, setting.CurrentConfusions);
             bool exclude = ProcessAttribute(asm, setting);
+            MarkAssembly(asm, setting.CurrentConfusions, cr);
 
             (asm as IAnnotationProvider).Annotations["ConfusionSets"] = setting.CurrentConfusions;
             (asm as IAnnotationProvider).Annotations["GlobalParams"] = setting.CurrentConfusions;
@@ -264,6 +265,7 @@ namespace Confuser.Core
 
             setting.LeaveLevel();
         }
+        protected virtual void MarkAssembly(AssemblyDefinition asm, IDictionary<IConfusion, NameValueCollection> current, Confuser cr) { }
 
         private void MarkModule(ModuleDefinition mod, Settings setting)
         {
@@ -434,7 +436,20 @@ namespace Confuser.Core
 
         public virtual string GetDestinationPath(ModuleDefinition mod, string dstPath)
         {
-            return Path.Combine(dstPath, Path.GetFileName(mod.FullyQualifiedName));
+            return Path.Combine(dstPath, mod.Name);
+        }
+    }
+    class CopyMarker : Marker
+    {
+        AssemblyDefinition origin;
+        IConfusion exclude;
+        public CopyMarker(AssemblyDefinition asm, IConfusion exclude) { origin = asm; this.exclude = exclude; }
+        protected override void MarkAssembly(AssemblyDefinition asm, IDictionary<IConfusion, NameValueCollection> current, Confuser cr)
+        {
+            current.Clear();
+            foreach (var i in (IDictionary<IConfusion, NameValueCollection>)((IAnnotationProvider)origin).Annotations["ConfusionSets"])
+                if (i.Key != exclude)
+                    current.Add(i);
         }
     }
 }

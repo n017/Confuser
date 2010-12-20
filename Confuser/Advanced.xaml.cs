@@ -179,6 +179,7 @@ namespace Confuser
         }
         private void browseClick(object sender, RoutedEventArgs e)
         {
+            string o = Environment.CurrentDirectory;
             string id = (sender as Button).Name.Substring(6).ToLower();
             if (id == "sn")
             {
@@ -193,6 +194,7 @@ namespace Confuser
                 if (brow.ShowDialog(this) == System.Windows.Forms.DialogResult.OK)
                     output.Text = brow.SelectedPath;
             }
+            Environment.CurrentDirectory = o;
         }
         private void exit_Click(object sender, RoutedEventArgs e)
         {
@@ -205,6 +207,26 @@ namespace Confuser
             bas.Left = this.Left; bas.Top = this.Top;
             bas.Visibility = Visibility.Visible;
             this.Close();
+        }
+        private void loadPlug_Click(object sender, RoutedEventArgs e)
+        {
+            string o = Environment.CurrentDirectory;
+            Microsoft.Win32.OpenFileDialog ofd = new Microsoft.Win32.OpenFileDialog();
+            ofd.Filter = "Plugin (*.dll)|*.dll|All Files|*.*";
+            if (ofd.ShowDialog().GetValueOrDefault())
+            {
+                try
+                {
+                    LoadAssembly(Assembly.LoadFile(ofd.FileName));
+                    setConfusions.ItemsSource = new List<Core.IConfusion>(ldConfusions.Values);
+                    MessageBox.Show("Plugin loaded!", "Confuser", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                catch
+                {
+                    MessageBox.Show("Could not load the plugin!", "Confuser", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+            Environment.CurrentDirectory = o;
         }
 
 
@@ -223,7 +245,7 @@ namespace Confuser
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
             LoadAssembly(typeof(Core.IConfusion).Assembly);
-            setConfusions.ItemsSource = ldConfusions.Values;
+            setConfusions.ItemsSource = new List<Core.IConfusion>(ldConfusions.Values);
         }
 
         Thread confuser;

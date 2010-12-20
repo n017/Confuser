@@ -3,9 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 10.00
 # Visual Studio 2008
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Confuser.Core", "Confuser.Core\Confuser.Core.csproj", "{FAD246BD-65C2-4379-8B1F-59C1BA71B8E9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mono.Cecil", "MonoCecil93\Mono.Cecil.csproj", "{D68133BD-1E63-496E-9EDE-4FBDBF77B486}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mono.Cecil", "cecil\Mono.Cecil.csproj", "{D68133BD-1E63-496E-9EDE-4FBDBF77B486}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mono.Cecil.Rocks", "MonoCecil93\rocks\Mono.Cecil.Rocks.csproj", "{FBC6DD59-D09D-499C-B03C-99C1C78FF2AC}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mono.Cecil.Rocks", "cecil\rocks\Mono.Cecil.Rocks.csproj", "{FBC6DD59-D09D-499C-B03C-99C1C78FF2AC}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Confuser", "Confuser\Confuser.csproj", "{063E983E-5BE7-4675-97E4-3D8D9CEB3660}"
 EndProject
@@ -22,21 +22,21 @@ Global
 		SccProjectUniqueName1 = Confuser.Core\\Confuser.Core.csproj
 		SccProjectName1 = Confuser.Core
 		SccLocalPath1 = Confuser.Core
-		SccProjectUniqueName2 = MonoCecil93\\Mono.Cecil.csproj
-		SccProjectName2 = MonoCecil93
-		SccLocalPath2 = MonoCecil93
-		SccProjectUniqueName3 = MonoCecil93\\rocks\\Mono.Cecil.Rocks.csproj
-		SccProjectName3 = MonoCecil93/rocks
-		SccLocalPath3 = MonoCecil93\\rocks
-		SccProjectUniqueName4 = Confuser\\Confuser.csproj
-		SccProjectName4 = Confuser
-		SccLocalPath4 = Confuser
-		SccProjectUniqueName5 = Confuser.Core.Injections\\Confuser.Core.Injections.csproj
-		SccProjectName5 = Confuser.Core.Injections
-		SccLocalPath5 = Confuser.Core.Injections
-		SccProjectUniqueName6 = Confuser.Console\\Confuser.Console.csproj
-		SccProjectName6 = Confuser.Console
-		SccLocalPath6 = Confuser.Console
+		SccProjectUniqueName2 = Confuser\\Confuser.csproj
+		SccProjectName2 = Confuser
+		SccLocalPath2 = Confuser
+		SccProjectUniqueName3 = Confuser.Core.Injections\\Confuser.Core.Injections.csproj
+		SccProjectName3 = Confuser.Core.Injections
+		SccLocalPath3 = Confuser.Core.Injections
+		SccProjectUniqueName4 = Confuser.Console\\Confuser.Console.csproj
+		SccProjectName4 = Confuser.Console
+		SccLocalPath4 = Confuser.Console
+		SccProjectUniqueName5 = cecil\\Mono.Cecil.csproj
+		SccProjectName5 = cecil
+		SccLocalPath5 = cecil
+		SccProjectUniqueName6 = cecil\\rocks\\Mono.Cecil.Rocks.csproj
+		SccProjectName6 = cecil/rocks
+		SccLocalPath6 = cecil\\rocks
 	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug - No System.dll|Any CPU = Debug - No System.dll|Any CPU
