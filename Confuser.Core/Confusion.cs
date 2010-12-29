@@ -91,7 +91,7 @@ namespace Confuser.Core
         {
             CopyMarker mkr = new CopyMarker(cr.assemblies[0], Confusion);
             mkr.Initalize(cr.param.Confusions, cr.param.Packers);
-            mkr.MarkAssembly(asm, Preset.None, cr);
+            mkr.MarkHelperAssembly(asm);
             foreach (IEngine eng in cr.engines)
                 eng.Analysis(cr.param.Logger, new AssemblyDefinition[] { asm });
             cr.assemblies.Add(asm);

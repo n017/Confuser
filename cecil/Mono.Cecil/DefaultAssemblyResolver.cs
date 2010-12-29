@@ -55,7 +55,8 @@ namespace Mono.Cecil {
 				return assembly;
 
 			assembly = base.Resolve (name);
-            AssemblyCache[name.FullName] = assembly;
+            if (assembly != null)
+                AssemblyCache[name.FullName] = assembly;
 
 			return assembly;
 		}
@@ -66,6 +67,7 @@ namespace Mono.Cecil {
 				throw new ArgumentNullException ("name");
 
             string assembly = base.ResolvePath (name);
+            if (assembly == null) return null;
             if (!AssemblyCache.ContainsKey(name.FullName))
                 AssemblyCache[name.FullName] = base.GetAssembly(assembly);
 

@@ -359,24 +359,28 @@ System.Resources.ResourceManager
             foreach (ModuleDefinition mod in asm.Modules)
             {
                 foreach (TypeReference typeRef in mod.GetTypeReferences())
-                    if (ivts.Contains(typeRef.Resolve().Module.Assembly.FullName))
+                {
+                    TypeDefinition typeDef = typeRef.Resolve();
+                    if (typeDef != null && ivts.Contains(typeDef.Module.Assembly.FullName))
                     {
                         ivtRefs.Add(typeRef.MetadataToken, typeRef);
-                        ((typeRef.Resolve() as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new IvtMemberReference(typeRef));
+                        ((typeDef as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new IvtMemberReference(typeRef));
                     }
+                }
                 foreach (MemberReference memRef in mod.GetMemberReferences())
                 {
-                    if (memRef is MethodReference && ivts.Contains(((MethodReference)memRef).Resolve().Module.Assembly.FullName))
+                    IMemberDefinition memDef;
+                    if (memRef is MethodReference && (memDef = ((MethodReference)memRef).Resolve()) != null && ivts.Contains(((MethodDefinition)memDef).Module.Assembly.FullName))
                     {
                         ivtRefs.Add(memRef.MetadataToken, memRef);
                         if (mod.LookupToken(memRef.MetadataToken) != memRef)
-                            (((memRef as MethodReference).Resolve() as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new IvtMemberReference(memRef));
+                            ((memDef as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new IvtMemberReference(memRef));
                     }
-                    else if (memRef is FieldReference && ivts.Contains(((FieldReference)memRef).Resolve().Module.Assembly.FullName))
+                    if (memRef is FieldReference && (memDef = ((FieldReference)memRef).Resolve()) != null && ivts.Contains(((FieldDefinition)memDef).Module.Assembly.FullName))
                     {
                         ivtRefs.Add(memRef.MetadataToken, memRef);
                         if (mod.LookupToken(memRef.MetadataToken) != memRef)
-                            (((memRef as FieldReference).Resolve() as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new IvtMemberReference(memRef));
+                            ((memDef as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new IvtMemberReference(memRef));
                     }
                 }
             }
@@ -414,7 +418,7 @@ System.Resources.ResourceManager
             if (mtd.DeclaringType.IsInterface || mtd.IsConstructor || (IsTypePublic(mtd.DeclaringType) &&
                 (mtd.IsFamily || mtd.IsAssembly || mtd.IsFamilyAndAssembly || mtd.IsFamilyOrAssembly || mtd.IsPublic)))
                 (mtd as IAnnotationProvider).Annotations["RenOk"] = false;
-            else if (mtd.DeclaringType.BaseType != null)
+            else if (mtd.DeclaringType.BaseType != null && mtd.DeclaringType.BaseType.Resolve() != null)
             {
                 TypeDefinition bType = mtd.DeclaringType.BaseType.Resolve();
                 if (bType.FullName == "System.Delegate" ||
@@ -461,13 +465,14 @@ System.Resources.ResourceManager
 
 
                 Queue<TypeDefinition> q = new Queue<TypeDefinition>();
-                q.Enqueue(bType.Resolve());
+                q.Enqueue(bType);
                 if (mtd.DeclaringType.HasInterfaces)
                     foreach (TypeReference i in mtd.DeclaringType.Interfaces)
                         q.Enqueue(i.Resolve());
                 do
                 {
                     TypeDefinition now = q.Dequeue();
+                    if (now == null) continue;
                     if (now.HasGenericParameters && now.IsInterface)
                     {
                         (mtd as IAnnotationProvider).Annotations["RenOk"] = false;
@@ -636,10 +641,11 @@ System.Resources.ResourceManager
                 {
                     if ((inst.Operand as MemberReference).DeclaringType is TypeSpecification && ((inst.Operand as MemberReference).DeclaringType as TypeSpecification).GetElementType() is TypeDefinition)
                     {
-                        if (inst.Operand is MethodReference)
-                            (((inst.Operand as MethodReference).GetElementMethod().Resolve() as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new SpecificationReference(inst.Operand as MemberReference));
-                        else if (inst.Operand is FieldReference)
-                            (((inst.Operand as FieldReference).Resolve() as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new SpecificationReference(inst.Operand as MemberReference));
+                        IMemberDefinition memDef;
+                        if (inst.Operand is MethodReference && (memDef = (inst.Operand as MethodReference).GetElementMethod().Resolve()) != null)
+                            ((memDef as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new SpecificationReference(inst.Operand as MemberReference));
+                        else if (inst.Operand is FieldReference && (memDef = (inst.Operand as FieldReference).Resolve()) != null)
+                            ((memDef as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new SpecificationReference(inst.Operand as MemberReference));
                     }
                     else if (inst.Operand is MethodReference)
                     {
@@ -656,12 +662,13 @@ System.Resources.ResourceManager
                     }
                     if (ivtRefs.ContainsKey((inst.Operand as MemberReference).MetadataToken))
                     {
-                        if (inst.Operand is TypeReference)
-                            (((inst.Operand as TypeReference).Resolve() as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new IvtMemberReference(inst.Operand as MemberReference));
-                        else if (inst.Operand is MethodReference)
-                            (((inst.Operand as MethodReference).Resolve() as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new IvtMemberReference(inst.Operand as MemberReference));
-                        else if (inst.Operand is FieldReference)
-                            (((inst.Operand as FieldReference).Resolve() as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new IvtMemberReference(inst.Operand as MemberReference));
+                        IMemberDefinition memDef;
+                        if (inst.Operand is TypeReference && (memDef = (inst.Operand as TypeReference).Resolve()) != null)
+                            ((memDef as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new IvtMemberReference(inst.Operand as MemberReference));
+                        else if (inst.Operand is MethodReference && (memDef = (inst.Operand as MethodReference).Resolve()) != null)
+                            ((memDef as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new IvtMemberReference(inst.Operand as MemberReference));
+                        else if (inst.Operand is FieldReference && (memDef = (inst.Operand as FieldReference).Resolve()) != null)
+                            ((memDef as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new IvtMemberReference(inst.Operand as MemberReference));
                     }
                 }
             }

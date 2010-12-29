@@ -241,12 +241,80 @@ namespace Confuser.Core
                 param.Add(args[0], args[1]);
             }
         }
+        private bool IsExcludedDependency(ICustomAttributeProvider provider, AssemblyNameReference refer)
+        {
+            foreach (CustomAttribute attr in provider.CustomAttributes)
+            {
+                if (attr.AttributeType.FullName == "ExcludeDependencyAttribute" &&
+                    attr.ConstructorArguments[0].Value.ToString() == refer.ToString())
+                    return true;
+            }
+            return false;
+        }
 
-        public virtual void MarkAssembly(AssemblyDefinition asm, Preset preset, Confuser cr)
+        public virtual AssemblyDefinition[] GetAssemblies(string src, Preset preset, Confuser cr, EventHandler<LogEventArgs> err)
         {
             this.cr = cr;
             Settings setting = new Settings();
             FillPreset(preset, setting.CurrentConfusions);
+            Dictionary<string, AssemblyDefinition> ret = new Dictionary<string, AssemblyDefinition>();
+
+            AssemblyDefinition main = AssemblyDefinition.ReadAssembly(src);
+            MarkAssembly(main, setting);
+            foreach (ModuleDefinition mod in main.Modules)
+            {
+                mod.FullLoad();
+                foreach (AssemblyNameReference refer in mod.AssemblyReferences)
+                {
+                    if (!FrameworkAssemblies.Contains(refer.FullName) && !ret.ContainsKey(refer.FullName) && !IsExcludedDependency(main, refer))
+                    {
+                        AssemblyDefinition asm = GlobalAssemblyResolver.Instance.Resolve(refer);
+                        if (asm == null)
+                        {
+                            err(this, new LogEventArgs(string.Format("WARNING : Cannot load dependency '" + refer.FullName + ".")));
+                        }
+                        else
+                        {
+                            MarkAssembly(asm, setting);
+                            ret.Add(refer.FullName, asm);
+                            GetAssemblies(asm, setting, ret, err);
+                        }
+                    }
+                }
+            }
+            return ret.Values.ToArray();
+        }
+        void GetAssemblies(AssemblyDefinition asm, Settings setting, Dictionary<string, AssemblyDefinition> ret, EventHandler<LogEventArgs> err)
+        {
+            foreach (ModuleDefinition mod in asm.Modules)
+            {
+                mod.FullLoad();
+                foreach (AssemblyNameReference refer in mod.AssemblyReferences)
+                {
+                    if (!FrameworkAssemblies.Contains(refer.FullName) && !ret.ContainsKey(refer.FullName) && !IsExcludedDependency(asm, refer))
+                    {
+                        AssemblyDefinition asmRef = GlobalAssemblyResolver.Instance.Resolve(refer);
+                        if (asm == null)
+                        {
+                            err(this, new LogEventArgs(string.Format("WARNING : Cannot load dependency '" + refer.FullName + ".")));
+                        }
+                        else
+                        {
+                            MarkAssembly(asmRef, setting);
+                            ret.Add(refer.FullName, asmRef);
+                            GetAssemblies(asmRef, setting, ret, err);
+                        }
+                    }
+                }
+            }
+        }
+
+        internal void MarkHelperAssembly(AssemblyDefinition asm)
+        {
+            MarkAssembly(asm, new Settings());
+        }
+        private void MarkAssembly(AssemblyDefinition asm, Settings setting)
+        {
             bool exclude = ProcessAttribute(asm, setting);
             MarkAssembly(asm, setting.CurrentConfusions, cr);
 
@@ -393,46 +461,6 @@ namespace Confuser.Core
             setting.LeaveLevel();
         }
         protected virtual void MarkMember(IMemberDefinition mem, IDictionary<IConfusion, NameValueCollection> current, Confuser cr) { }
-
-
-        public virtual AssemblyDefinition[] ExtractDatas(string src)
-        {
-            Dictionary<string, AssemblyDefinition> ret = new Dictionary<string, AssemblyDefinition>();
-            AssemblyDefinition asmDef = AssemblyDefinition.ReadAssembly(src);
-            GlobalAssemblyResolver.Instance.AssemblyCache[asmDef.FullName] = asmDef;
-            ret.Add(asmDef.FullName, asmDef);
-
-            foreach (ModuleDefinition mod in asmDef.Modules)
-            {
-                mod.FullLoad();
-                foreach (AssemblyNameReference refer in mod.AssemblyReferences)
-                {
-                    AssemblyDefinition asm = GlobalAssemblyResolver.Instance.Resolve(refer);
-                    if (!FrameworkAssemblies.Contains(refer.FullName) && !ret.ContainsKey(asm.FullName))
-                    {
-                        ret.Add(asm.FullName, asm);
-                        ExtractData(asm, ret);
-                    }
-                }
-            }
-            return ret.Values.ToArray();
-        }
-        void ExtractData(AssemblyDefinition asm, Dictionary<string, AssemblyDefinition> ret)
-        {
-            foreach (ModuleDefinition mod in asm.Modules)
-            {
-                mod.FullLoad();
-                foreach (AssemblyNameReference refer in mod.AssemblyReferences)
-                {
-                    AssemblyDefinition asmDef = GlobalAssemblyResolver.Instance.Resolve(refer);
-                    if (!FrameworkAssemblies.Contains(refer.FullName) && !ret.ContainsKey(asmDef.FullName))
-                    {
-                        ret.Add(asmDef.FullName, asmDef);
-                        ExtractData(asmDef, ret);
-                    }
-                }
-            }
-        }
 
         public virtual string GetDestinationPath(ModuleDefinition mod, string dstPath)
         {

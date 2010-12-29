@@ -28,10 +28,8 @@ namespace Confuser.Core
             ModuleDefinition origin;
             public PackerMarker(ModuleDefinition mod) { origin = mod; }
 
-            public override void MarkAssembly(AssemblyDefinition asm, Preset preset, Confuser cr)
+            protected override void MarkAssembly(AssemblyDefinition asm, IDictionary<IConfusion, NameValueCollection> current, Confuser cr)
             {
-                base.MarkAssembly(asm, preset, cr);
-
                 IAnnotationProvider m = asm;
                 m.Annotations.Clear();
                 IAnnotationProvider src = (IAnnotationProvider)origin.Assembly;

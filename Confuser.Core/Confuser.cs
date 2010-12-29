@@ -224,14 +224,10 @@ namespace Confuser.Core
             GlobalAssemblyResolver.Instance.AssemblyCache.Clear();
             GlobalAssemblyResolver.Instance.ClearSearchDirectory();
             GlobalAssemblyResolver.Instance.AddSearchDirectory(param.ReferencesPath);
-            assemblies = new List<AssemblyDefinition>(mkr.ExtractDatas(param.SourceAssembly));
 
-            mkr.Initalize(param.Confusions, param.Packers);
             param.Logger.Log(string.Format("Analysing assemblies..."));
-            for (int z = 0; z < assemblies.Count; z++)
-            {
-                mkr.MarkAssembly(assemblies[z], param.DefaultPreset, this);
-            }
+            mkr.Initalize(param.Confusions, param.Packers);
+            assemblies = new List<AssemblyDefinition>(mkr.GetAssemblies(param.SourceAssembly, param.DefaultPreset, this, (sender, e) => param.Logger.Log(e.Message)));
 
             helpers = new Dictionary<IMemberDefinition, HelperAttribute>();
 

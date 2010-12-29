@@ -85,7 +85,8 @@ namespace Confuser.Core.Confusions
                         if ((inst.OpCode.Code == Code.Call || inst.OpCode.Code == Code.Callvirt) &&
                             (inst.Operand as MethodReference).Name != ".ctor" && (inst.Operand as MethodReference).Name != ".cctor" &&
                             !((inst.Operand as MethodReference).DeclaringType is GenericInstanceType) &&
-                            !(inst.Operand as MethodReference).DeclaringType.Resolve().IsInterface &&
+                            ((inst.Operand as MethodReference).DeclaringType.Resolve() == null ||
+                            !(inst.Operand as MethodReference).DeclaringType.Resolve().IsInterface) &&
                             (inst.Previous == null || inst.Previous.OpCode.OpCodeType != OpCodeType.Prefix))
                         {
                             CreateDelegate(mtd.Body, inst, inst.Operand as MethodReference, mod);
@@ -425,7 +426,7 @@ namespace Confuser.Core.Confusions
         {
             StringBuilder sig = new StringBuilder();
             sig.Append(mbr.ReturnType.FullName);
-            if (mbr.Resolve().IsVirtual)
+            if (mbr.Resolve() != null && mbr.Resolve().IsVirtual)
                 sig.Append(" virtual");
             if (mbr.HasThis)
                 sig.Append(" " + mbr.DeclaringType.ToString());

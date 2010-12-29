@@ -107,7 +107,7 @@ namespace Confuser.Core.Confusions
             {
                 //Limitation
                 TypeDefinition tmp = MtdRef.DeclaringType.Resolve();
-                if (tmp.BaseType != null &&
+                if (tmp != null && tmp.BaseType != null &&
                     (tmp.BaseType.FullName == "System.MulticastDelegate" ||
                     tmp.BaseType.FullName == "System.Delegate"))
                     return;
@@ -381,7 +381,7 @@ namespace Confuser.Core.Confusions
         {
             StringBuilder sig = new StringBuilder();
             sig.Append(mbr.ReturnType.FullName);
-            if (mbr.Resolve().IsVirtual)
+            if (mbr.Resolve() != null && mbr.Resolve().IsVirtual)
                 sig.Append(" virtual");
             if (mbr.HasThis)
                 sig.Append(" " + mbr.DeclaringType.ToString());

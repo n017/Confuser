@@ -85,7 +85,9 @@ namespace Mono.Cecil {
 
         public virtual AssemblyDefinition Resolve (AssemblyNameReference name)
         {
-            return GetAssembly(ResolvePath(name));
+            string path = ResolvePath(name);
+            if (path == null) return null;
+            else return GetAssembly(path);
         }
 
 		public event AssemblyResolveEventHandler ResolveFailure;
@@ -143,7 +145,7 @@ namespace Mono.Cecil {
                     return assembly;
             }
 
-            throw new FileNotFoundException("Could not resolve: " + name);
+            return null;
         }
 
 		string SearchDirectory (AssemblyNameReference name, IEnumerable<string> directories)

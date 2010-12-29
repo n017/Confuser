@@ -153,9 +153,8 @@ namespace Confuser.Console
         }
 
 
-        public override AssemblyDefinition[] ExtractDatas(string src)
+        public override AssemblyDefinition[] GetAssemblies(string src, Preset preset, Confuser.Core.Confuser cr, EventHandler<LogEventArgs> err)
         {
-            List<AssemblyDefinition> ret = new List<AssemblyDefinition>();
             foreach (XElement element in xmlDoc.XPathSelectElements("configuration/assembly"))
             {
                 string path = element.Attribute("path").Value;
@@ -163,12 +162,12 @@ namespace Confuser.Console
                     path = new Uri(Path.Combine(Path.GetDirectoryName(xmlDoc.BaseUri), path)).LocalPath;
                 AssemblyDefinition asmDef = AssemblyDefinition.ReadAssembly(path, new ReaderParameters(ReadingMode.Immediate));
                 ((IAnnotationProvider)asmDef).Annotations.Add("Xml_Mark", element);
-                ret.Add(asmDef);
                 GlobalAssemblyResolver.Instance.AssemblyCache.Add(asmDef.FullName, asmDef);
+                MarkAssembly(asmDef, preset, cr);
             }
-            return ret.ToArray();
+            return base.GetAssemblies(src, preset, cr, err);
         }
-        public override void MarkAssembly(AssemblyDefinition asm, Preset preset, Core.Confuser cr)
+        void MarkAssembly(AssemblyDefinition asm, Preset preset, Core.Confuser cr)
         {
             XElement xAsm = (XElement)((IAnnotationProvider)asm).Annotations["Xml_Mark"];
             MarkSettings(xAsm.Element("settings"), asm);
@@ -179,8 +178,6 @@ namespace Confuser.Console
                 if (xMod != null)
                     MarkModule(xMod, mod);
             }
-
-            base.MarkAssembly(asm, preset, cr);
         }
         void MarkModule(XElement xMod, ModuleDefinition mod)
         {

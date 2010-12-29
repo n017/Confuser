@@ -158,7 +158,7 @@ namespace Confuser
                                     GlobalAssemblyResolver.Instance.ClearSearchDirectory();
                                     GlobalAssemblyResolver.Instance.AddSearchDirectory(System.IO.Path.GetDirectoryName(path));
                                     elements.ClearAssemblies();
-                                    foreach (AssemblyDefinition dat in marker.ExtractDatas(path))
+                                    foreach (AssemblyDefinition dat in marker.GetAssemblies(path, Confuser.Core.Preset.None, null, (s, ee) => MessageBox.Show(ee.Message, "Confuser", MessageBoxButton.OK, MessageBoxImage.Warning)))
                                     {
                                         asms.Add(dat.FullName, dat);
                                         elements.LoadAssembly(dat);
@@ -636,7 +636,7 @@ namespace Confuser
     class MarkingCopyer : Core.Marker
     {
         Dictionary<string, AssemblyDefinition> srcs;
-        public MarkingCopyer(Dictionary<string,AssemblyDefinition> asms)
+        public MarkingCopyer(Dictionary<string, AssemblyDefinition> asms)
         {
             srcs = asms;
         }
@@ -652,12 +652,23 @@ namespace Confuser
             dst.Annotations["GlobalParams"] = now;
         }
 
-        public override void MarkAssembly(AssemblyDefinition asm, Core.Preset preset, Core.Confuser cr)
+        public override AssemblyDefinition[] GetAssemblies(string src, Core.Preset preset, Core.Confuser cr, EventHandler<Confuser.Core.LogEventArgs> err)
         {
-            Copy(srcs[asm.FullName], asm);
-            for (int i = 0; i < asm.Modules.Count; i++)
+            List<AssemblyDefinition> ret = new List<AssemblyDefinition>();
+            foreach (AssemblyDefinition asm in srcs.Values)
             {
-                MarkModule(srcs[asm.FullName].Modules[i], asm.Modules[i]);
+                AssemblyDefinition n = AssemblyDefinition.ReadAssembly(asm.MainModule.FullyQualifiedName);
+                MarkAssembly(srcs[n.FullName], n);
+                ret.Add(n);
+            }
+            return ret.ToArray();
+        }
+        void MarkAssembly(AssemblyDefinition src, AssemblyDefinition dst)
+        {
+            Copy(src, dst);
+            for (int i = 0; i < dst.Modules.Count; i++)
+            {
+                MarkModule(src.Modules[i], dst.Modules[i]);
             }
         }
         void MarkModule(ModuleDefinition src, ModuleDefinition dst)

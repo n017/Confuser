@@ -28,7 +28,7 @@
 
 namespace Mono.Cecil {
 
-	public interface IMemberDefinition : ICustomAttributeProvider {
+	public interface IMemberDefinition : ICustomAttributeProvider, IAnnotationProvider {
 
 		string Name { get; set; }
 		string FullName { get; }

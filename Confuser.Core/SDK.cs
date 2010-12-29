@@ -27,3 +27,13 @@ class PackerAttribute : Attribute
     public string Config { get; set; }
     public bool StripAfterObfuscation { get; set; }
 }
+
+[AttributeUsage(AttributeTargets.Assembly)]
+class ExcludeDependencyAttribute : Attribute
+{
+    public ExcludeDependencyAttribute(string name)
+    {
+        Name = name;
+    }
+    public bool Name { get; set; }
+}
