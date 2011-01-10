@@ -13,7 +13,7 @@
     <TargetFrameworkVersion>v2.0</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <SignAssembly>true</SignAssembly>
-    <AssemblyOriginatorKeyFile>mono.snk</AssemblyOriginatorKeyFile>
+    <AssemblyOriginatorKeyFile>..\confuser.snk</AssemblyOriginatorKeyFile>
     <SccProjectName>SAK</SccProjectName>
     <SccLocalPath>SAK</SccLocalPath>
     <SccAuxPath>SAK</SccAuxPath>
@@ -170,9 +170,6 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="NOTES.txt" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="mono.snk" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="System" />

@@ -158,7 +158,7 @@ namespace Confuser
                                     GlobalAssemblyResolver.Instance.ClearSearchDirectory();
                                     GlobalAssemblyResolver.Instance.AddSearchDirectory(System.IO.Path.GetDirectoryName(path));
                                     elements.ClearAssemblies();
-                                    foreach (AssemblyDefinition dat in marker.GetAssemblies(path, Confuser.Core.Preset.None, null, (s, ee) => MessageBox.Show(ee.Message, "Confuser", MessageBoxButton.OK, MessageBoxImage.Warning)))
+                                    foreach (AssemblyDefinition dat in marker.GetAssemblies(path, (s, ee) => MessageBox.Show(ee.Message, "Confuser", MessageBoxButton.OK, MessageBoxImage.Warning)))
                                     {
                                         asms.Add(dat.FullName, dat);
                                         elements.LoadAssembly(dat);
@@ -652,12 +652,63 @@ namespace Confuser
             dst.Annotations["GlobalParams"] = now;
         }
 
+        public AssemblyDefinition[] GetAssemblies(string src, EventHandler<Confuser.Core.LogEventArgs> err)
+        {
+            Dictionary<string, AssemblyDefinition> ret = new Dictionary<string, AssemblyDefinition>();
+            AssemblyDefinition main = AssemblyDefinition.ReadAssembly(src);
+            ret.Add(main.FullName, main);
+            foreach (ModuleDefinition mod in main.Modules)
+            {
+                mod.FullLoad();
+                foreach (AssemblyNameReference refer in mod.AssemblyReferences)
+                {
+                    if (!FrameworkAssemblies.Contains(refer.FullName) && !ret.ContainsKey(refer.FullName))
+                    {
+                        AssemblyDefinition asm = GlobalAssemblyResolver.Instance.Resolve(refer);
+                        if (asm == null)
+                        {
+                            err(this, new Core.LogEventArgs(string.Format("WARNING : Cannot load dependency '" + refer.FullName + ".")));
+                        }
+                        else
+                        {
+                            ret.Add(refer.FullName, asm);
+                            GetAssemblies(asm, ret, err);
+                        }
+                    }
+                }
+            }
+            return ret.Values.ToArray();
+        }
+        void GetAssemblies(AssemblyDefinition asm, Dictionary<string, AssemblyDefinition> ret, EventHandler<Confuser.Core.LogEventArgs> err)
+        {
+            foreach (ModuleDefinition mod in asm.Modules)
+            {
+                mod.FullLoad();
+                foreach (AssemblyNameReference refer in mod.AssemblyReferences)
+                {
+                    if (!FrameworkAssemblies.Contains(refer.FullName) && !ret.ContainsKey(refer.FullName))
+                    {
+                        AssemblyDefinition asmRef = GlobalAssemblyResolver.Instance.Resolve(refer);
+                        if (asmRef == null)
+                        {
+                            err(this, new Core.LogEventArgs(string.Format("WARNING : Cannot load dependency '" + refer.FullName + ".")));
+                        }
+                        else
+                        {
+                            ret.Add(refer.FullName, asmRef);
+                            GetAssemblies(asmRef, ret, err);
+                        }
+                    }
+                }
+            }
+        }
+
         public override AssemblyDefinition[] GetAssemblies(string src, Core.Preset preset, Core.Confuser cr, EventHandler<Confuser.Core.LogEventArgs> err)
         {
             List<AssemblyDefinition> ret = new List<AssemblyDefinition>();
             foreach (AssemblyDefinition asm in srcs.Values)
             {
-                AssemblyDefinition n = AssemblyDefinition.ReadAssembly(asm.MainModule.FullyQualifiedName);
+                AssemblyDefinition n = AssemblyDefinition.ReadAssembly(asm.MainModule.FullyQualifiedName, new ReaderParameters(ReadingMode.Immediate));
                 MarkAssembly(srcs[n.FullName], n);
                 ret.Add(n);
             }

@@ -33,6 +33,9 @@ namespace Confuser.Core
                 IAnnotationProvider m = asm;
                 m.Annotations.Clear();
                 IAnnotationProvider src = (IAnnotationProvider)origin.Assembly;
+                current.Clear();
+                foreach (var i in (IDictionary<IConfusion, NameValueCollection>)src.Annotations["ConfusionSets"])
+                    current.Add(i.Key, i.Value);
                 foreach (object key in src.Annotations.Keys)
                 {
                     if (key.ToString() == "Packer" || key.ToString() == "PackerParams") continue;
@@ -62,7 +65,7 @@ namespace Confuser.Core
         internal Confuser Confuser { get { return cr; } set { cr = value; } }
         protected void Log(string message) { cr.Log(message); }
 
-        public byte[] Pack(ConfuserParameter crParam, PackerParameter param)
+        public string[] Pack(ConfuserParameter crParam, PackerParameter param)
         {
             AssemblyDefinition asm;
             PackCore(out asm, param);
@@ -83,7 +86,7 @@ namespace Confuser.Core
             par.Marker = new PackerMarker(param.Modules[0]);
             cr.Confuse(par);
 
-            return File.ReadAllBytes(tmp + asm.MainModule.Name);
+            return Directory.GetFiles(tmp);
         }
         protected abstract void PackCore(out AssemblyDefinition asm, PackerParameter parameter);
     }

@@ -201,7 +201,10 @@ namespace Confuser.Core
                                 foreach (string param in match.Groups[3].Value.Split(','))
                                 {
                                     string[] p = param.Split('=');
-                                    nv[p[0].ToLower()] = p[1];
+                                    if (p.Length == 1)
+                                        nv[p[0].ToLower()] = "true";
+                                    else
+                                        nv[p[0].ToLower()] = p[1];
                                 }
                             }
                         }
@@ -261,6 +264,7 @@ namespace Confuser.Core
 
             AssemblyDefinition main = AssemblyDefinition.ReadAssembly(src);
             MarkAssembly(main, setting);
+            ret.Add(main.FullName, main);
             foreach (ModuleDefinition mod in main.Modules)
             {
                 mod.FullLoad();

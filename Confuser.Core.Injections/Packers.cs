@@ -6,6 +6,7 @@ using System.Security;
 using System.Text;
 using System.Reflection;
 using System.Collections;
+using System.Security.Cryptography;
 
 static class CompressShell
 {
@@ -35,18 +36,41 @@ static class CompressShell
 
     static byte[] Decrypt(byte[] asm)
     {
-        byte[] ret;
+        byte[] dat;
         DeflateStream str = new DeflateStream(new MemoryStream(asm), CompressionMode.Decompress);
+        byte[] iv;
+        byte[] key;
         using (BinaryReader rdr = new BinaryReader(str))
         {
-            ret = rdr.ReadBytes(rdr.ReadInt32());
+            dat = rdr.ReadBytes(rdr.ReadInt32());
+            iv = rdr.ReadBytes(rdr.ReadInt32());
+            key = rdr.ReadBytes(rdr.ReadInt32());
         }
-        int key = 0x12345678;
-        for (int i = 0; i < ret.Length; i++)
+        int key0 = 0x12345678;
+        for (int j = 0; j < key.Length; j += 4)
         {
-            ret[i] = (byte)((ret[i] ^ (i % 2 == 0 ? (key & 0xf) - i : (((int)key >> 4) + i))) - i);
+            key[j + 0] ^= (byte)((key0 & 0x000000ff) >> 0);
+            key[j + 1] ^= (byte)((key0 & 0x0000ff00) >> 8);
+            key[j + 2] ^= (byte)((key0 & 0x00ff0000) >> 16);
+            key[j + 3] ^= (byte)((key0 & 0xff000000) >> 24);
         }
-        return ret;
+        RijndaelManaged rijn = new RijndaelManaged();
+        using (CryptoStream s = new CryptoStream(new MemoryStream(dat), rijn.CreateDecryptor(key, iv), CryptoStreamMode.Read))
+        {
+            byte[] l = new byte[4];
+            s.Read(l, 0, 4);
+            byte[] ret = new byte[BitConverter.ToUInt32(l, 0)];
+            byte[] buff = new byte[0x1000];
+            int len = buff.Length;
+            int idx = 0;
+            while (len == buff.Length)
+            {
+                len = s.Read(buff, 0, buff.Length);
+                Buffer.BlockCopy(buff, 0, ret, idx, len);
+                idx += len;
+            }
+            return ret;
+        }
     }
 
     static string Res = "fcc78551-8e82-4fd6-98dd-7ce4fcb0a59f";

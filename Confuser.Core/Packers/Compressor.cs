@@ -10,6 +10,7 @@ using System.Security;
 using System.Security.Permissions;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
+using System.Security.Cryptography;
 
 namespace Confuser.Core
 {
@@ -35,7 +36,7 @@ namespace Confuser.Core
         protected override void PackCore(out AssemblyDefinition asm, PackerParameter parameter)
         {
             ModuleDefinition originMain = parameter.Modules[0];
-            asm = AssemblyDefinition.CreateAssembly(originMain.Assembly.Name, "Pack" + originMain.Name, new ModuleParameters() { Architecture = originMain.Architecture, Kind = originMain.Kind, Runtime = originMain.Runtime });
+            asm = AssemblyDefinition.CreateAssembly(originMain.Assembly.Name, originMain.Name, new ModuleParameters() { Architecture = originMain.Architecture, Kind = originMain.Kind, Runtime = originMain.Runtime });
             ModuleDefinition mod = asm.MainModule;
 
             Random rand = new Random();
@@ -89,18 +90,35 @@ namespace Confuser.Core
                 b[i] = (byte)(b[i] ^ key ^ i);
             return Encoding.UTF8.GetString(b);
         }
-        static byte[] Encrypt(byte[] asm, int key)
+        static byte[] Encrypt(byte[] asm, int key0)
         {
-            byte[] buff = new byte[asm.Length];
-            for (int i = 0; i < buff.Length; i++)
+            RijndaelManaged rijn = new RijndaelManaged();
+            rijn.GenerateIV(); rijn.GenerateKey();
+            MemoryStream dat = new MemoryStream();
+            using (CryptoStream s = new CryptoStream(dat, rijn.CreateEncryptor(), CryptoStreamMode.Write))
             {
-                buff[i] = (byte)((asm[i] + i) ^ (i % 2 == 0 ? (key & 0xf) - i : ((key >> 4) + i)));
+                s.Write(BitConverter.GetBytes(asm.Length), 0, 4);
+                s.Write(asm, 0, asm.Length);
+                s.FlushFinalBlock();
+            }
+            byte[] key = rijn.Key;
+            for (int j = 0; j < key.Length; j += 4)
+            {
+                key[j + 0] ^= (byte)((key0 & 0x000000ff) >> 0);
+                key[j + 1] ^= (byte)((key0 & 0x0000ff00) >> 8);
+                key[j + 2] ^= (byte)((key0 & 0x00ff0000) >> 16);
+                key[j + 3] ^= (byte)((key0 & 0xff000000) >> 24);
             }
             MemoryStream str = new MemoryStream();
             using (BinaryWriter wtr = new BinaryWriter(new DeflateStream(str, CompressionMode.Compress)))
             {
-                wtr.Write(buff.Length);
-                wtr.Write(buff);
+                byte[] b = dat.ToArray();
+                wtr.Write(b.Length);
+                wtr.Write(b);
+                wtr.Write(rijn.IV.Length);
+                wtr.Write(rijn.IV);
+                wtr.Write(key.Length);
+                wtr.Write(key);
             }
             return str.ToArray();
         }

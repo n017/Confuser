@@ -24,9 +24,10 @@ static class AntiDebugger
     public static void Initialize()
     {
         System.Diagnostics.Process.EnterDebugMode();
-        AntiDebug();
+        Thread thread = new Thread(AntiDebug);
+        thread.IsBackground = true;
+        thread.Start();
     }
-
     static void AntiDebug()
     {
         //Managed
@@ -89,6 +90,12 @@ static class AntiDebugger
         thread.Start();
     }
 
+    public static void InitializeSafe()
+    {
+        Thread thread = new Thread(AntiDebugSafe);
+        thread.IsBackground = true;
+        thread.Start();
+    }
     private static void AntiDebugSafe()
     {
         if (Debugger.IsAttached || Debugger.IsLogging())
@@ -297,6 +304,195 @@ static class Encryptions
 
                 hashTbl[pos] = (ret = Encoding.Unicode.GetString(f, 0, len));
                 ///////////////////
+            }
+        }
+        return ret;
+    }
+
+    static object Constants(uint id)
+    {
+        Dictionary<uint, object> hashTbl;
+        if ((hashTbl = AppDomain.CurrentDomain.GetData("PADDINGPADDINGPADDING") as Dictionary<uint, object>) == null)
+        {
+            AppDomain.CurrentDomain.SetData("PADDINGPADDINGPADDING", hashTbl = new Dictionary<uint, object>());
+            MemoryStream stream = new MemoryStream();
+            Assembly asm = Assembly.GetCallingAssembly();
+            using (DeflateStream str = new DeflateStream(asm.GetManifestResourceStream("PADDINGPADDINGPADDING"), CompressionMode.Decompress))
+            {
+                byte[] dat = new byte[0x1000];
+                int read = str.Read(dat, 0, 0x1000);
+                do
+                {
+                    stream.Write(dat, 0, read);
+                    read = str.Read(dat, 0, 0x1000);
+                }
+                while (read != 0);
+            }
+            AppDomain.CurrentDomain.SetData("PADDINGPADDINGPADDINGPADDING", stream.ToArray());
+        }
+        object ret;
+        uint x = (uint)new StackFrame(1).GetMethod().MetadataToken;
+        uint h = 0x67452301 ^ x;
+        uint h1 = 0x3bd523a0;
+        uint h2 = 0x5f6f36c0;
+        for (uint i = 1; i <= 64; i++)
+        {
+            h = (h & 0x00ffffff) << 8 | ((h & 0xff000000) >> 24);
+            uint n = (h & 0xff) % 64;
+            if (n >= 0 && n < 16)
+            {
+                h1 |= (((h & 0x0000ff00) >> 8) & ((h & 0x00ff0000) >> 16)) ^ (~h & 0x000000ff);
+                h2 ^= (h * i + 1) % 16;
+                h += (h1 | h2) ^ 12345678;
+            }
+            else if (n >= 16 && n < 32)
+            {
+                h1 ^= ((h & 0x00ff00ff) << 8) ^ (((h & 0x00ffff00) >> 8) | (~h & 0x0000ffff));
+                h2 += (h * i) % 32;
+                h |= (h1 + ~h2) & 12345678;
+            }
+            else if (n >= 32 && n < 48)
+            {
+                h1 += ((h & 0x000000ff) | ((h & 0x00ff0000) >> 16)) + (~h & 0x000000ff);
+                h2 -= ~(h + n) % 48;
+                h ^= (h1 % h2) | 12345678;
+            }
+            else if (n >= 48 && n < 64)
+            {
+                h1 ^= (((h & 0x00ff0000) >> 16) | ~(h & 0x0000ff)) * (~h & 0x00ff0000);
+                h2 += (h ^ i - 1) % n;
+                h -= ~(h1 ^ h2) + 12345678;
+            }
+        }
+        uint pos = h ^ id;
+        if (!hashTbl.TryGetValue(pos, out ret))
+        {
+            using (BinaryReader rdr = new BinaryReader(new MemoryStream((byte[])AppDomain.CurrentDomain.GetData("PADDINGPADDINGPADDINGPADDING"))))
+            {
+                rdr.BaseStream.Seek(pos, SeekOrigin.Begin);
+                byte type = rdr.ReadByte();
+                byte[] bs = rdr.ReadBytes(rdr.ReadInt32());
+
+                byte[] f;
+                int len;
+                Console.WriteLine();
+                using (BinaryReader r = new BinaryReader(new MemoryStream(bs)))
+                {
+                    len = r.ReadInt32();
+                    f = new byte[(len + 7) & ~7];
+                    for (int i = 0; i < f.Length; i++)
+                    {
+                        Poly.PolyStart();
+                        int count = 0;
+                        int shift = 0;
+                        byte b;
+                        do
+                        {
+                            b = r.ReadByte();
+                            count |= (b & 0x7F) << shift;
+                            shift += 7;
+                        } while ((b & 0x80) != 0);
+
+                        f[i] = (byte)Poly.PlaceHolder((long)count);
+                    }
+                }
+                if (type == 11)
+                    ret = BitConverter.ToDouble(f, 0);
+                else if (type == 22)
+                    ret = BitConverter.ToSingle(f, 0);
+                else if (type == 33)
+                    ret = BitConverter.ToInt32(f, 0);
+                else if (type == 44)
+                    ret = BitConverter.ToInt64(f, 0);
+                else if (type == 55)
+                    ret = Encoding.UTF8.GetString(f);
+                hashTbl[pos] = ret;
+            }
+        }
+        return ret;
+    }
+    static object SafeConstants(uint id)
+    {
+        Dictionary<uint, object> hashTbl;
+        if ((hashTbl = AppDomain.CurrentDomain.GetData("PADDINGPADDINGPADDING") as Dictionary<uint, object>) == null)
+        {
+            AppDomain.CurrentDomain.SetData("PADDINGPADDINGPADDING", hashTbl = new Dictionary<uint, object>());
+            MemoryStream stream = new MemoryStream();
+            Assembly asm = Assembly.GetCallingAssembly();
+            using (DeflateStream str = new DeflateStream(asm.GetManifestResourceStream("PADDINGPADDINGPADDING"), CompressionMode.Decompress))
+            {
+                byte[] dat = new byte[0x1000];
+                int read = str.Read(dat, 0, 0x1000);
+                do
+                {
+                    stream.Write(dat, 0, read);
+                    read = str.Read(dat, 0, 0x1000);
+                }
+                while (read != 0);
+            }
+            AppDomain.CurrentDomain.SetData("PADDINGPADDINGPADDINGPADDING", stream.ToArray());
+        }
+        object ret;
+        uint x = (uint)new StackFrame(1).GetMethod().MetadataToken;
+        uint h = 0x67452301 ^ x;
+        uint h1 = 0x3bd523a0;
+        uint h2 = 0x5f6f36c0;
+        for (uint i = 1; i <= 64; i++)
+        {
+            h = (h & 0x00ffffff) << 8 | ((h & 0xff000000) >> 24);
+            uint n = (h & 0xff) % 64;
+            if (n >= 0 && n < 16)
+            {
+                h1 |= (((h & 0x0000ff00) >> 8) & ((h & 0x00ff0000) >> 16)) ^ (~h & 0x000000ff);
+                h2 ^= (h * i + 1) % 16;
+                h += (h1 | h2) ^ 12345678;
+            }
+            else if (n >= 16 && n < 32)
+            {
+                h1 ^= ((h & 0x00ff00ff) << 8) ^ (((h & 0x00ffff00) >> 8) | (~h & 0x0000ffff));
+                h2 += (h * i) % 32;
+                h |= (h1 + ~h2) & 12345678;
+            }
+            else if (n >= 32 && n < 48)
+            {
+                h1 += ((h & 0x000000ff) | ((h & 0x00ff0000) >> 16)) + (~h & 0x000000ff);
+                h2 -= ~(h + n) % 48;
+                h ^= (h1 % h2) | 12345678;
+            }
+            else if (n >= 48 && n < 64)
+            {
+                h1 ^= (((h & 0x00ff0000) >> 16) | ~(h & 0x0000ff)) * (~h & 0x00ff0000);
+                h2 += (h ^ i - 1) % n;
+                h -= ~(h1 ^ h2) + 12345678;
+            }
+        }
+        uint pos = h ^ id;
+        if (!hashTbl.TryGetValue(pos, out ret))
+        {
+            using (BinaryReader rdr = new BinaryReader(new MemoryStream((byte[])AppDomain.CurrentDomain.GetData("PADDINGPADDINGPADDINGPADDING"))))
+            {
+                rdr.BaseStream.Seek(pos, SeekOrigin.Begin);
+                byte type = rdr.ReadByte();
+                byte[] f = rdr.ReadBytes(rdr.ReadInt32());
+
+                Random rand = new Random(12345678 ^ (int)pos);
+                byte[] k = new byte[f.Length];
+                rand.NextBytes(k);
+                System.Collections.BitArray arr = new System.Collections.BitArray(f);
+                arr.Xor(new System.Collections.BitArray(k));
+                arr.CopyTo(f, 0);
+
+                if (type == 11)
+                    ret = BitConverter.ToDouble(f, 0);
+                else if (type == 22)
+                    ret = BitConverter.ToSingle(f, 0);
+                else if (type == 33)
+                    ret = BitConverter.ToInt32(f, 0);
+                else if (type == 44)
+                    ret = BitConverter.ToInt64(f, 0);
+                else if (type == 55)
+                    ret = Encoding.UTF8.GetString(f);
+                hashTbl[pos] = ret;
             }
         }
         return ret;

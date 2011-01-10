@@ -36,6 +36,8 @@
     <SccLocalPath>SAK</SccLocalPath>
     <SccAuxPath>SAK</SccAuxPath>
     <SccProvider>SAK</SccProvider>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\confuser.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -73,6 +75,7 @@
   <ItemGroup>
     <Compile Include="CecilHelper.cs" />
     <Compile Include="Confusions\AntiDumpConfusion.cs" />
+    <Compile Include="Confusions\ConstantConfusion.cs" />
     <Compile Include="Packers\Compressor.cs" />
     <Compile Include="Confuser.cs" />
     <Compile Include="Confusions\AntiDebugConfusion.cs" />
@@ -81,13 +84,13 @@
     <Compile Include="Confusions\MdReduceConfusion.cs" />
     <Compile Include="Confusions\ControlFlowConfusion.cs" />
     <Compile Include="Confusions\CtorProxyConfusion.cs" />
-    <Compile Include="Confusions\DisConstConfusion.cs" />
+    <None Include="Confusions\DisConstConfusion.cs" />
     <Compile Include="Confusions\ResEncryptConfusion.cs" />
     <Compile Include="Confusions\StackUnfConfusion.cs" />
     <Compile Include="Confusions\NameConfusion.cs" />
     <Compile Include="Confusions\MtdProxyConfusion.cs" />
     <Compile Include="Confusions\AntiILDasmConfusion.cs" />
-    <Compile Include="Confusions\StringConfusion.cs" />
+    <None Include="Confusions\StringConfusion.cs" />
     <Compile Include="Confusion.cs" />
     <Compile Include="Engines\Baml\BamlDocument.cs" />
     <Compile Include="Engines\Baml\BamlReader.cs" />

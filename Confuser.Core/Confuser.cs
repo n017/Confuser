@@ -377,25 +377,17 @@ namespace Confuser.Core
             }
             if (packer != null)
             {
-                string dest = param.Marker.GetDestinationPath(assemblies[0].MainModule, param.DestinationPath);
-                if (!Directory.Exists(System.IO.Path.GetDirectoryName(dest)))
-                    Directory.CreateDirectory(System.IO.Path.GetDirectoryName(dest));
-                Stream dstStream = new FileStream(dest, FileMode.Create, FileAccess.Write);
+                if (!Directory.Exists(param.DestinationPath))
+                    Directory.CreateDirectory(param.DestinationPath);
 
-                try
-                {
-                    param.Logger.Log("Packing output assemblies...");
-                    packer.Confuser = this;
-                    PackerParameter pParam = new PackerParameter();
-                    pParam.Modules = mods; pParam.PEs = pes;
-                    pParam.Parameters = (NameValueCollection)(assemblies[0] as IAnnotationProvider).Annotations["PackerParams"];
-                    byte[] final = packer.Pack(param, pParam);
-                    dstStream.Write(final, 0, final.Length);
-                }
-                finally
-                {
-                    dstStream.Dispose();
-                }
+                param.Logger.Log("Packing output assemblies...");
+                packer.Confuser = this;
+                PackerParameter pParam = new PackerParameter();
+                pParam.Modules = mods; pParam.PEs = pes;
+                pParam.Parameters = (NameValueCollection)(assemblies[0] as IAnnotationProvider).Annotations["PackerParams"];
+                string[] final = packer.Pack(param, pParam);
+                for (int i = 0; i < final.Length; i++)
+                    File.Move(final[i], Path.Combine(param.DestinationPath, Path.GetFileName(final[i])));
             }
             else
             {
@@ -403,8 +395,8 @@ namespace Confuser.Core
                 for (int i = 0; i < pes.Length; i++)
                 {
                     string dest = param.Marker.GetDestinationPath(mods[i], param.DestinationPath);
-                    if (!Directory.Exists(System.IO.Path.GetDirectoryName(dest)))
-                        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(dest));
+                    if (!Directory.Exists(Path.GetDirectoryName(dest)))
+                        Directory.CreateDirectory(Path.GetDirectoryName(dest));
                     Stream dstStream = new FileStream(dest, FileMode.Create, FileAccess.Write);
                     try
                     {

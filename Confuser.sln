@@ -13,6 +13,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Confuser.Core.Injections", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Confuser.Console", "Confuser.Console\Confuser.Console.csproj", "{6AC1B3FC-96D3-44BA-9629-848E3A8CC179}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{763882E7-24BE-4D7B-84EA-48C1FB3564FA}"
+	ProjectSection(SolutionItems) = preProject
+		confuser.snk = confuser.snk
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(TeamFoundationVersionControl) = preSolution
 		SccNumberOfProjects = 7

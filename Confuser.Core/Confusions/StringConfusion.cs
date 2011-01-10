@@ -494,7 +494,6 @@ namespace Confuser.Core.Confusions
                     ret[i] = (byte)LongExpressionEvaluator.Evaluate(exp, r);
                 }
             }
-            Debug.WriteLine("");
 
             return Encoding.Unicode.GetString(ret, 0, len);
         }
