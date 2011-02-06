@@ -84,6 +84,7 @@ namespace Confuser.Core.Confusions
             {
                 TypeDefinition type = CecilHelper.Inject(mod, self.MainModule.GetType("AntiDebugger"));
                 type.Methods.Remove(type.Methods.FirstOrDefault(mtd => mtd.Name == "AntiDebugSafe"));
+                type.Methods.Remove(type.Methods.FirstOrDefault(mtd => mtd.Name == "InitializeSafe"));
                 mod.Types.Add(type);
                 TypeDefinition modType = mod.GetType("<Module>");
                 ILProcessor psr = modType.GetStaticConstructor().Body.GetILProcessor();
@@ -100,15 +101,22 @@ namespace Confuser.Core.Confusions
             }
             else
             {
-                MethodDefinition i = CecilHelper.Inject(mod, self.MainModule.GetType("AntiDebugger").Methods.FirstOrDefault(mtd => mtd.Name == "AntiDebugSafe"));
+                TypeDefinition type = CecilHelper.Inject(mod, self.MainModule.GetType("AntiDebugger"));
+                type.Methods.Remove(type.Methods.FirstOrDefault(mtd => mtd.Name == "AntiDebug"));
+                type.Methods.Remove(type.Methods.FirstOrDefault(mtd => mtd.Name == "Initialize"));
+                mod.Types.Add(type);
                 TypeDefinition modType = mod.GetType("<Module>");
-                modType.Methods.Add(i);
                 ILProcessor psr = modType.GetStaticConstructor().Body.GetILProcessor();
-                psr.InsertBefore(psr.Body.Instructions.Count - 1, Instruction.Create(OpCodes.Call, i));
+                psr.InsertBefore(psr.Body.Instructions.Count - 1, Instruction.Create(OpCodes.Call, type.Methods.FirstOrDefault(mtd => mtd.Name == "InitializeSafe")));
 
-                i.Name = ObfuscationHelper.GetNewName(i.Name + Guid.NewGuid().ToString());
-                i.IsAssembly = true;
-                AddHelper(i, HelperAttribute.NoInjection);
+                type.Name = ObfuscationHelper.GetNewName("AntiDebugModule" + Guid.NewGuid().ToString());
+                type.Namespace = "";
+                AddHelper(type, HelperAttribute.NoInjection);
+                foreach (MethodDefinition mtdDef in type.Methods)
+                {
+                    mtdDef.Name = ObfuscationHelper.GetNewName(mtdDef.Name + Guid.NewGuid().ToString());
+                    AddHelper(mtdDef, HelperAttribute.NoInjection);
+                }
             }
         }
     }

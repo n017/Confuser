@@ -23,92 +23,109 @@ static class AntiDebugger
 
     public static void Initialize()
     {
-        System.Diagnostics.Process.EnterDebugMode();
-        Thread thread = new Thread(AntiDebug);
-        thread.IsBackground = true;
-        thread.Start();
-    }
-    static void AntiDebug()
-    {
-        //Managed
-        if (Debugger.IsAttached || Debugger.IsLogging())
-            Environment.FailFast("Debugger detected (Managed)");
-
         if (Environment.GetEnvironmentVariable("COR_ENABLE_PROFILING") != null ||
-           Environment.GetEnvironmentVariable("COR_PROFILER") != null)
+            Environment.GetEnvironmentVariable("COR_PROFILER") != null)
             Environment.FailFast("Profiler detected");
 
-        //Open process
-        IntPtr ps = Process.GetCurrentProcess().Handle;
-        if (ps == IntPtr.Zero)
-            Environment.FailFast("Cannot open process");
-
-        //PEB.BeingDebugged
-        byte[] info = new byte[0x18];
-        int len;
-        NtQueryInformationProcess(ps, 0x0, info, 0x18, out len);
-        if (len == 0)
-            Environment.FailFast("Cannot query information (PEB)");
-
-        IntPtr pebAdr;
-        if (IntPtr.Size == 4)
-            pebAdr = (IntPtr)BitConverter.ToInt32(info, 4);
-        else
-            pebAdr = (IntPtr)BitConverter.ToInt64(info, 8);
-
-        byte[] peb = new byte[0x1d8];
-        Marshal.Copy(pebAdr, peb, 0, 0x1d8);
-        if (peb[2] != 0)
-            Environment.FailFast("Debugger detected (PEB)");
-
-        //DebugPort
-        info = new byte[8];
-        NtQueryInformationProcess(ps, 0x7, info, (uint)IntPtr.Size, out len);
-        if (len != IntPtr.Size)
-            Environment.FailFast("Cannot query information (Port)");
-
-        if (BitConverter.ToInt64(info, 0) != 0)
-        {
-            info.Initialize();
-            NtSetInformationProcess(ps, 0x7, info, (uint)IntPtr.Size);
-            Environment.FailFast("Debugger detected (Port)");
-        }
-
-        //Close
-        try
-        {
-            CloseHandle(IntPtr.Zero);
-        }
-        catch
-        {
-            Environment.FailFast("Debugger detected (Closing)");
-        }
-
+        Thread thread1 = new Thread(AntiDebug);
+        Thread thread2 = new Thread(AntiDebug);
+        thread1.IsBackground = true;
+        thread2.IsBackground = true;
+        thread1.Start(thread2);
+        Thread.Sleep(500);
+        thread2.Start(thread1);
+    }
+    static void AntiDebug(object thread)
+    {
         Thread.Sleep(1000);
-        Thread thread = new Thread(AntiDebug);
-        thread.IsBackground = true;
-        thread.Start();
+        Thread th = (Thread)thread;
+        while (true)
+        {
+            //Managed
+            if (Debugger.IsAttached || Debugger.IsLogging())
+                Environment.FailFast("Debugger detected (Managed)");
+
+            //Open process
+            IntPtr ps = Process.GetCurrentProcess().Handle;
+            if (ps == IntPtr.Zero)
+                Environment.FailFast("Cannot open process");
+
+            //PEB.BeingDebugged
+            byte[] info = new byte[0x18];
+            int len;
+            NtQueryInformationProcess(ps, 0x0, info, 0x18, out len);
+            if (len == 0)
+                Environment.FailFast("Cannot query information (PEB)");
+
+            IntPtr pebAdr;
+            if (IntPtr.Size == 4)
+                pebAdr = (IntPtr)BitConverter.ToInt32(info, 4);
+            else
+                pebAdr = (IntPtr)BitConverter.ToInt64(info, 8);
+
+            byte[] peb = new byte[0x1d8];
+            Marshal.Copy(pebAdr, peb, 0, 0x1d8);
+            if (peb[2] != 0)
+                Environment.FailFast("Debugger detected (PEB)");
+
+            //DebugPort
+            info = new byte[8];
+            NtQueryInformationProcess(ps, 0x7, info, (uint)IntPtr.Size, out len);
+            if (len != IntPtr.Size)
+                Environment.FailFast("Cannot query information (Port)");
+
+            if (BitConverter.ToInt64(info, 0) != 0)
+            {
+                info.Initialize();
+                NtSetInformationProcess(ps, 0x7, info, (uint)IntPtr.Size);
+                Environment.FailFast("Debugger detected (Port)");
+            }
+
+            //Close
+            try
+            {
+                CloseHandle(IntPtr.Zero);
+            }
+            catch
+            {
+                Environment.FailFast("Debugger detected (Closing)");
+            }
+
+            if (!th.IsAlive)
+                Environment.FailFast("Loop broken");
+
+            Thread.Sleep(1000);
+        }
     }
 
     public static void InitializeSafe()
     {
-        Thread thread = new Thread(AntiDebugSafe);
-        thread.IsBackground = true;
-        thread.Start();
-    }
-    private static void AntiDebugSafe()
-    {
-        if (Debugger.IsAttached || Debugger.IsLogging())
-            Environment.FailFast("Debugger detected (Managed)");
-
         if (Environment.GetEnvironmentVariable("COR_ENABLE_PROFILING") != null ||
-           Environment.GetEnvironmentVariable("COR_PROFILER") != null)
+            Environment.GetEnvironmentVariable("COR_PROFILER") != null)
             Environment.FailFast("Profiler detected");
 
+        Thread thread1 = new Thread(AntiDebugSafe);
+        Thread thread2 = new Thread(AntiDebugSafe);
+        thread1.IsBackground = true;
+        thread2.IsBackground = true;
+        thread1.Start(thread2);
+        Thread.Sleep(500);
+        thread2.Start(thread1);
+    }
+    private static void AntiDebugSafe(object thread)
+    {
         Thread.Sleep(1000);
-        Thread thread = new Thread(AntiDebugSafe);
-        thread.IsBackground = true;
-        thread.Start();
+        Thread th = (Thread)thread;
+        while (true)
+        {
+            if (Debugger.IsAttached || Debugger.IsLogging())
+                Environment.FailFast("Debugger detected (Managed)");
+
+            if (!th.IsAlive)
+                Environment.FailFast("Loop broken");
+
+            Thread.Sleep(1000);
+        }
     }
 }
 
