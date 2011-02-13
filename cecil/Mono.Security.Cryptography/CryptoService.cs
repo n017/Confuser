@@ -82,7 +82,7 @@ namespace Mono.Cecil {
 		{
 			const int buffer_size = 8192;
 
-			var text = writer.text;
+			var text = writer.GetSection(".text");
 			var header_size = (int) writer.GetHeaderSize ();
 			var text_section_pointer = (int) text.PointerToRawData;
 			var strong_name_directory = writer.GetStrongNameSignatureDirectory ();
@@ -111,13 +111,12 @@ namespace Mono.Cecil {
 				stream.Seek (strong_name_length, SeekOrigin.Current);
                 CopyStreamChunk (stream, crypto_stream, buffer, (int)(text.SizeOfRawData - (strong_name_pointer + strong_name_length - text.PointerToRawData)));
 
-                if (writer.rsrc != null) {
-				    stream.Seek (writer.rsrc.PointerToRawData, SeekOrigin.Begin);
-				    CopyStreamChunk (stream, crypto_stream, buffer, (int) writer.rsrc.SizeOfRawData);
+                foreach(Section sect in writer.sections)
+                {
+                    if (sect.Name == ".text") continue;
+				    stream.Seek (sect.PointerToRawData, SeekOrigin.Begin);
+				    CopyStreamChunk (stream, crypto_stream, buffer, (int) sect.SizeOfRawData);
                 }
-                
-			    stream.Seek (writer.reloc.PointerToRawData, SeekOrigin.Begin);
-			    CopyStreamChunk (stream, crypto_stream, buffer, (int) writer.reloc.SizeOfRawData);
 			}
 
 			return sha1.Hash;

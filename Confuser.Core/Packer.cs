@@ -7,6 +7,7 @@ using System.IO;
 using Mono.Cecil;
 using Mono.Cecil.Rocks;
 using Mono.Cecil.Cil;
+using Mono.Cecil.PE;
 
 namespace Confuser.Core
 {
@@ -72,7 +73,43 @@ namespace Confuser.Core
 
             string tmp = Path.GetTempPath() + "\\" + Path.GetRandomFileName() + "\\";
             Directory.CreateDirectory(tmp);
-            asm.Write(tmp + asm.MainModule.Name);
+            MetadataProcessor psr = new MetadataProcessor();
+            Section oldRsrc = null;
+            foreach (Section s in param.Modules[0].GetSections())
+                if (s.Name == ".rsrc") { oldRsrc = s; break; }
+            if (oldRsrc != null)
+            {
+                psr.ProcessImage += accessor =>
+                {
+                    Section sect = null;
+                    foreach (Section s in accessor.Sections)
+                        if (s.Name == ".rsrc") { sect = s; break; }
+                    if (sect == null)
+                    {
+                        sect = new Section()
+                        {
+                            Name = ".rsrc",
+                            Characteristics = 0x40000040
+                        };
+                        foreach (Section s in accessor.Sections)
+                            if (s.Name == ".text") { accessor.Sections.Insert(accessor.Sections.IndexOf(s) + 1, sect); break; }
+                    }
+                    sect.VirtualSize = oldRsrc.VirtualSize;
+                    sect.SizeOfRawData = oldRsrc.PointerToRawData;
+                    int idx = accessor.Sections.IndexOf(sect);
+                    sect.VirtualAddress = accessor.Sections[idx - 1].VirtualAddress + ((accessor.Sections[idx - 1].VirtualSize + 0x2000U - 1) & ~(0x2000U - 1));
+                    sect.PointerToRawData = accessor.Sections[idx - 1].PointerToRawData + accessor.Sections[idx - 1].SizeOfRawData;
+                    for (int i = idx + 1; i < accessor.Sections.Count; i++)
+                    {
+                        accessor.Sections[i].VirtualAddress = accessor.Sections[i - 1].VirtualAddress + ((accessor.Sections[i - 1].VirtualSize + 0x2000U - 1) & ~(0x2000U - 1));
+                        accessor.Sections[i].PointerToRawData = accessor.Sections[i - 1].PointerToRawData + accessor.Sections[i - 1].SizeOfRawData;
+                    }
+                    ByteBuffer buff = new ByteBuffer(oldRsrc.Data);
+                    PatchResourceDirectoryTable(buff, oldRsrc, sect);
+                    sect.Data = buff.GetBuffer();
+                };
+            }
+            psr.Process(asm.MainModule, tmp + asm.MainModule.Name);
 
             Confuser cr = new Confuser();
             ConfuserParameter par = new ConfuserParameter();
@@ -89,5 +126,37 @@ namespace Confuser.Core
             return Directory.GetFiles(tmp);
         }
         protected abstract void PackCore(out AssemblyDefinition asm, PackerParameter parameter);
+
+        static void PatchResourceDirectoryTable(ByteBuffer resources, Section old, Section @new)
+        {
+            resources.Advance(12);
+            int num = resources.ReadUInt16() + resources.ReadUInt16();
+            for (int i = 0; i < num; i++)
+            {
+                PatchResourceDirectoryEntry(resources, old, @new);
+            }
+        }
+        static void PatchResourceDirectoryEntry(ByteBuffer resources, Section old, Section @new)
+        {
+            resources.Advance(4);
+            uint num = resources.ReadUInt32();
+            int position = resources.Position;
+            resources.Position = ((int)num) & 0x7fffffff;
+            if ((num & 0x80000000) != 0)
+            {
+                PatchResourceDirectoryTable(resources, old, @new);
+            }
+            else
+            {
+                PatchResourceDataEntry(resources, old, @new);
+            }
+            resources.Position = position;
+        }
+        static void PatchResourceDataEntry(ByteBuffer resources, Section old, Section @new)
+        {
+            uint num = resources.ReadUInt32();
+            resources.Position -= 4;
+            resources.WriteUInt32(num - old.VirtualAddress + @new.VirtualAddress);
+        }
     }
 }

@@ -53,6 +53,11 @@ namespace Mono.Cecil.PE {
 		}
 
         public int Length { get { return length; } }
+        public int Position { get { return position; } set { position = value; } }
+        public byte[] GetBuffer()
+        {
+            return this.buffer;
+        }
 
 		public void Reset (byte [] buffer)
 		{

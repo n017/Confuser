@@ -1455,6 +1455,7 @@ namespace Mono.Cecil {
     {
         public delegate void MetadataProcess(MetadataAccessor accessor);
         public delegate void PeProcess(Stream pe);
+        public delegate void ImageProcess(ImageAccesssor accessor);
 
         public void Process(ModuleDefinition mod, string fileName)
         {
@@ -1519,9 +1520,8 @@ namespace Mono.Cecil {
 				module.SymbolReader.Dispose ();
 
 			var writer = ImageWriter.CreateWriter (module, metadata, stream);
-
+            OnProcessImage(new ImageAccesssor(writer));
 			writer.WriteImage ();
-
             OnProcessPe(stream);
 
 #if !SILVERLIGHT && !CF
@@ -1546,6 +1546,11 @@ namespace Mono.Cecil {
         private void OnAfterWriteTables(MetadataAccessor accessor)
         {
             if (AfterWriteTables != null) AfterWriteTables(accessor);
+        }
+        public event ImageProcess ProcessImage;
+        private void OnProcessImage(ImageAccesssor accessor)
+        {
+            if (ProcessImage != null) ProcessImage(accessor);
         }
         public event PeProcess ProcessPe;
         private void OnProcessPe(Stream pe)
@@ -1585,6 +1590,13 @@ namespace Mono.Cecil {
             {
                 return psr.LookupToken(provider);
             }
+        }
+        public class ImageAccesssor
+        {
+            ImageWriter writer;
+            internal ImageAccesssor(ImageWriter writer) { this.writer = writer; }
+
+            public Collection<Section> Sections { get { return writer.sections; } }
         }
     }
     ////////////

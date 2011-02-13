@@ -33,6 +33,7 @@ using System.IO;
 
 using Mono.Cecil.Cil;
 using Mono.Cecil.Metadata;
+using Mono.Collections.Generic;
 
 using RVA = System.UInt32;
 
@@ -60,11 +61,7 @@ namespace Mono.Cecil.PE {
 		readonly bool pe64;
 		readonly uint time_stamp;
 
-		internal Section text;
-		internal Section rsrc;
-		internal Section reloc;
-
-		ushort sections;
+		internal Collection<Section> sections;
 
 		ImageWriter (ModuleDefinition module, MetadataBuilder metadata, Stream stream)
 			: base (stream)
@@ -74,7 +71,7 @@ namespace Mono.Cecil.PE {
 			this.GetDebugHeader ();
 			this.GetWin32Resources ();
 			this.text_map = BuildTextMap ();
-			this.sections = 2; // text + reloc
+			this.sections = new Collection<Section>(2); // text + reloc
 			this.pe64 = module.Architecture != TargetArchitecture.I386;
 			this.time_stamp = (uint) DateTime.UtcNow.Subtract (new DateTime (1970, 1, 1)).TotalSeconds;
 		}
@@ -110,6 +107,14 @@ namespace Mono.Cecil.PE {
 			return module.Image.GetSection (rsrc_section);
 		}
 
+        public Section GetSection(string name)
+        {
+            foreach (Section sect in sections)
+                if (sect.Name == name)
+                    return sect;
+            return null;
+        }
+
 		public static ImageWriter CreateWriter (ModuleDefinition module, MetadataBuilder metadata, Stream stream)
 		{
 			var writer = new ImageWriter (module, metadata, stream);
@@ -120,23 +125,24 @@ namespace Mono.Cecil.PE {
 		void BuildSections ()
 		{
 			var has_win32_resources = win32_resources != null;
-			if (has_win32_resources)
-				sections++;
 
-			text = CreateSection (".text", text_map.GetLength (), null);
+			Section text = CreateSection (".text", text_map.GetLength (),0x60000020, null);
+            sections.Add(text);
 			var previous = text;
 
 			if (has_win32_resources) {
-				rsrc = CreateSection (".rsrc", (uint) win32_resources.length, previous);
+                Section rsrc = CreateSection (".rsrc", (uint)win32_resources.length, 0x40000040, previous);
+                sections.Add(rsrc);
 
 				PatchWin32Resources (win32_resources);
 				previous = rsrc;
 			}
 
-			reloc = CreateSection (".reloc", 12u, previous);
+            Section reloc = CreateSection (".reloc", 12u, 0x42000040, previous);
+            sections.Add(reloc);
 		}
 
-		Section CreateSection (string name, uint size, Section previous)
+		Section CreateSection (string name, uint size, uint characteristics, Section previous)
 		{
 			return new Section {
 				Name = name,
@@ -147,7 +153,9 @@ namespace Mono.Cecil.PE {
 				PointerToRawData = previous != null
 					? previous.PointerToRawData + previous.SizeOfRawData
 					: Align (GetHeaderSize (), file_alignment),
-				SizeOfRawData = Align (size, file_alignment)
+				SizeOfRawData = Align (size, file_alignment),
+                Data = new byte[size],
+                Characteristics = characteristics
 			};
 		}
 
@@ -190,7 +198,7 @@ namespace Mono.Cecil.PE {
 		{
 			WriteUInt32 (0x00004550);		// Magic
 			WriteUInt16 (GetMachine ());	// Machine
-			WriteUInt16 (sections);			// NumberOfSections
+			WriteUInt16 ((ushort)sections.Count);			// NumberOfSections
 			WriteUInt32 (time_stamp);
 			WriteUInt32 (0);	// PointerToSymbolTable
 			WriteUInt32 (0);	// NumberOfSymbols
@@ -218,13 +226,16 @@ namespace Mono.Cecil.PE {
 		}
 
 		void WriteOptionalHeaders ()
-		{
+        {
+            Section text = GetSection(".text");
 			WriteUInt16 ((ushort) (!pe64 ? 0x10b : 0x20b));	// Magic
 			WriteByte (8);	// LMajor
 			WriteByte (0);	// LMinor
 			WriteUInt32 (text.SizeOfRawData);	// CodeSize
-			WriteUInt32 (reloc.SizeOfRawData
-				+ (rsrc != null ? rsrc.SizeOfRawData : 0));	// InitializedDataSize
+            uint dataSize = 0;
+            foreach (Section sect in sections)
+                if (sect.Name != ".text") dataSize += sect.SizeOfRawData;
+            WriteUInt32(dataSize);	// InitializedDataSize
 			WriteUInt32 (0);	// UninitializedDataSize
 
 			var entry_point_rva = text_map.GetRVA (TextSegment.StartupStub);
@@ -251,6 +262,7 @@ namespace Mono.Cecil.PE {
 			WriteUInt16 (0);	// SubSysMinor
 			WriteUInt32 (0);	// Reserved
 
+            Section reloc = GetSection(".reloc");
 			WriteUInt32 (reloc.VirtualAddress + Align (reloc.VirtualSize, section_alignment));	// ImageSize
 			WriteUInt32 (text.PointerToRawData);	// HeaderSize
 
@@ -280,7 +292,8 @@ namespace Mono.Cecil.PE {
 
 			WriteZeroDataDirectory ();	// ExportTable
 			WriteDataDirectory (text_map.GetDataDirectory (TextSegment.ImportDirectory));	// ImportTable
-			if (rsrc != null) {							// ResourceTable
+            Section rsrc = GetSection(".rsrc");
+            if (rsrc != null) {							// ResourceTable
 				WriteUInt32 (rsrc.VirtualAddress);
 				WriteUInt32 (rsrc.VirtualSize);
 			} else
@@ -330,15 +343,11 @@ namespace Mono.Cecil.PE {
 
 		void WriteSectionHeaders ()
 		{
-			WriteSection (text, 0x60000020);
-
-			if (rsrc != null)
-				WriteSection (rsrc, 0x40000040);
-
-			WriteSection (reloc, 0x42000040);
+            foreach (Section sect in sections)
+                WriteSection(sect);
 		}
 
-		void WriteSection (Section section, uint characteristics)
+		void WriteSection (Section section)
 		{
 			var name = new byte [8];
 			var sect_name = section.Name;
@@ -354,7 +363,7 @@ namespace Mono.Cecil.PE {
 			WriteUInt32 (0);	// PointerToLineNumbers
 			WriteUInt16 (0);	// NumberOfRelocations
 			WriteUInt16 (0);	// NumberOfLineNumbers
-			WriteUInt32 (characteristics);
+			WriteUInt32 (section.Characteristics);
 		}
 
 		void MoveTo (uint pointer)
@@ -369,7 +378,7 @@ namespace Mono.Cecil.PE {
 
 		void MoveToRVA (TextSegment segment)
 		{
-			MoveToRVA (text, text_map.GetRVA (segment));
+			MoveToRVA (GetSection(".text"), text_map.GetRVA (segment));
 		}
 
 		void WriteRVA (RVA rva)
@@ -382,7 +391,7 @@ namespace Mono.Cecil.PE {
 
 		void WriteText ()
 		{
-			MoveTo (text.PointerToRawData);
+			MoveTo (GetSection(".text").PointerToRawData);
 
 			// ImportAddressTable
 
@@ -623,13 +632,14 @@ namespace Mono.Cecil.PE {
 
 		void WriteRsrc ()
 		{
-			MoveTo (rsrc.PointerToRawData);
+            if (win32_resources == null) return;
+			MoveTo (GetSection(".rsrc").PointerToRawData);
 			WriteBuffer (win32_resources);
 		}
 
 		void WriteReloc ()
 		{
-			MoveTo (reloc.PointerToRawData);
+			MoveTo (GetSection(".reloc").PointerToRawData);
 
 			var reloc_rva = text_map.GetRVA (TextSegment.StartupStub);
 			reloc_rva += module.Architecture == TargetArchitecture.IA64 ? 0x20u : 2;
@@ -651,7 +661,7 @@ namespace Mono.Cecil.PE {
 				break;
 			}
 
-			WriteBytes (new byte [file_alignment - reloc.VirtualSize]);
+			WriteBytes (new byte [file_alignment - GetSection(".reloc").VirtualSize]);
 		}
 
 		public void WriteImage ()
@@ -660,8 +670,13 @@ namespace Mono.Cecil.PE {
 			WritePEFileHeader ();
 			WriteOptionalHeaders ();
 			WriteSectionHeaders ();
+            foreach (Section sect in sections)
+            {
+                MoveTo(sect.PointerToRawData);
+                WriteBytes(sect.Data);
+            }
 			WriteText ();
-			if (rsrc != null)
+			if (GetSection(".rsrc") != null)
 				WriteRsrc ();
 			WriteReloc ();
 		}
@@ -773,7 +788,7 @@ namespace Mono.Cecil.PE {
 
 		public uint GetHeaderSize ()
 		{
-			return pe_header_size + (sections * section_header_size);
+			return pe_header_size + ((uint)sections.Count * section_header_size);
 		}
 
 		void PatchWin32Resources (ByteBuffer resources)
@@ -812,7 +827,7 @@ namespace Mono.Cecil.PE {
 			var old_rsrc = GetImageResourceSection ();
 			var rva = resources.ReadUInt32 ();
 			resources.position -= 4;
-			resources.WriteUInt32 (rva - old_rsrc.VirtualAddress + rsrc.VirtualAddress);
+			resources.WriteUInt32 (rva - old_rsrc.VirtualAddress + GetSection(".rsrc").VirtualAddress);
 		}
 	}
 }

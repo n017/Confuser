@@ -257,8 +257,8 @@ namespace Mono.Cecil.PE {
 				// Name
 				section.Name = ReadZeroTerminatedString (8);
 
-				// VirtualSize		4
-				Advance (4);
+                // VirtualSize		4
+                section.VirtualSize = ReadUInt32();
 
 				// VirtualAddress	4
 				section.VirtualAddress = ReadUInt32 ();
@@ -271,8 +271,9 @@ namespace Mono.Cecil.PE {
 				// PointerToLineNumbers		4
 				// NumberOfRelocations		2
 				// NumberOfLineNumbers		2
+				Advance (12);
 				// Characteristics			4
-				Advance (16);
+                section.Characteristics = ReadUInt32();
 
 				sections [i] = section;
 

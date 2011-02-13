@@ -474,6 +474,12 @@ namespace Mono.Cecil {
 			return ((TypeDefinitionCollection) this.Types).GetType (@namespace ?? string.Empty, name);
 		}
 
+        public Section[] GetSections()
+        {
+            if (!HasImage) return null;
+            else return Image.Sections;
+        }
+
 		static void CheckFullName (string fullName)
 		{
 			if (fullName == null)
