@@ -1579,8 +1579,10 @@ namespace Confuser.Core.Engines
                     break;
 
                 default:
-                    property.PropertyDeclaration = this.GetPropertyDeclaration(attributeIdentifier);
-                    break;
+                    {
+                        string name = document.StringTable[attributeIdentifier];
+                        property.PropertyDeclaration = new PropertyDeclaration(name);
+                    } break;
             }
 
             property.Value = value;

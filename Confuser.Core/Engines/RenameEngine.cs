@@ -273,7 +273,11 @@ System.Resources.ResourceManager
             AnalysisIvtMap(logger, asms);
             foreach (AssemblyDefinition asm in asms)
             {
-                AnalysisIvt(asm);
+                try
+                {
+                    AnalysisIvt(asm);
+                }
+                catch { }
                 foreach (ModuleDefinition mod in asm.Modules)
                     Analysis(mod);
             }
