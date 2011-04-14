@@ -68,17 +68,20 @@ namespace Confuser.Core.Confusions
             {
                 if (Array.IndexOf(parameters.AllKeys, "hasreflection") == -1)
                 {
-                    uint mtdLen = (uint)accessor.TableHeap.GetTable<MethodTable>(Table.Method).Length + 1;
-                    uint fldLen = (uint)accessor.TableHeap.GetTable<FieldTable>(Table.Field).Length + 1;
-                    List<uint> nss = new List<uint>();
-                    foreach (Row<TypeAttributes, uint, uint, uint, uint, uint> i in accessor.TableHeap.GetTable<TypeDefTable>(Table.TypeDef))
-                        if (i == null) break; else if (!nss.Contains(i.Col3)) nss.Add(i.Col3);
-                    uint nested = (uint)accessor.TableHeap.GetTable<TypeDefTable>(Table.TypeDef).AddRow(new Row<TypeAttributes, uint, uint, uint, uint, uint>(0, 0x7fffffff, 0, 0x3FFFD, fldLen, mtdLen));
-                    accessor.TableHeap.GetTable<NestedClassTable>(Table.NestedClass).AddRow(new Row<uint, uint>(nested, nested));
-                    foreach (uint i in nss)
+                    if (accessor.Module.Runtime != TargetRuntime.Net_4_0)
                     {
-                        uint type = (uint)accessor.TableHeap.GetTable<TypeDefTable>(Table.TypeDef).AddRow(new Row<TypeAttributes, uint, uint, uint, uint, uint>(0, 0x7fffffff, i, 0x3FFFD, fldLen, mtdLen));
-                        accessor.TableHeap.GetTable<NestedClassTable>(Table.NestedClass).AddRow(new Row<uint, uint>(nested, type));
+                        uint mtdLen = (uint)accessor.TableHeap.GetTable<MethodTable>(Table.Method).Length + 1;
+                        uint fldLen = (uint)accessor.TableHeap.GetTable<FieldTable>(Table.Field).Length + 1;
+                        List<uint> nss = new List<uint>();
+                        foreach (Row<TypeAttributes, uint, uint, uint, uint, uint> i in accessor.TableHeap.GetTable<TypeDefTable>(Table.TypeDef))
+                            if (i == null) break; else if (!nss.Contains(i.Col3)) nss.Add(i.Col3);
+                        uint nested = (uint)accessor.TableHeap.GetTable<TypeDefTable>(Table.TypeDef).AddRow(new Row<TypeAttributes, uint, uint, uint, uint, uint>(0, 0x7fffffff, 0, 0x3FFFD, fldLen, mtdLen));
+                        accessor.TableHeap.GetTable<NestedClassTable>(Table.NestedClass).AddRow(new Row<uint, uint>(nested, nested));
+                        foreach (uint i in nss)
+                        {
+                            uint type = (uint)accessor.TableHeap.GetTable<TypeDefTable>(Table.TypeDef).AddRow(new Row<TypeAttributes, uint, uint, uint, uint, uint>(0, 0x7fffffff, i, 0x3FFFD, fldLen, mtdLen));
+                            accessor.TableHeap.GetTable<NestedClassTable>(Table.NestedClass).AddRow(new Row<uint, uint>(nested, type));
+                        }
                     }
                     foreach (Row<ParameterAttributes, ushort, uint> r in accessor.TableHeap.GetTable<ParamTable>(Table.Param))
                         if (r != null)

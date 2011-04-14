@@ -323,7 +323,12 @@ namespace Confuser.Core
                     if (GetTargets(mod, i.Confusion).Count == 0) continue;
                     param.Logger.Log("Executing " + i.Confusion.Name + " Phase 1...");
                     i.Confuser = this;
-                    i.Process(globalParams[i.Confusion], accessor);
+                    NameValueCollection globalParam;
+                    if (globalParams.ContainsKey(i.Confusion))
+                        globalParam = globalParams[i.Confusion];
+                    else
+                        globalParam = new NameValueCollection();
+                    i.Process(globalParam, accessor);
                     param.Logger.Progress(now1 / total1); now1++;
                 }
             });
@@ -334,7 +339,12 @@ namespace Confuser.Core
                     if (GetTargets(mod, i.Confusion).Count == 0) continue;
                     param.Logger.Log("Executing " + i.Confusion.Name + " Phase 2...");
                     i.Confuser = this;
-                    i.Process(globalParams[i.Confusion], accessor);
+                    NameValueCollection globalParam;
+                    if (globalParams.ContainsKey(i.Confusion))
+                        globalParam = globalParams[i.Confusion];
+                    else
+                        globalParam = new NameValueCollection();
+                    i.Process(globalParam, accessor);
                     param.Logger.Progress(now1 / total1); now1++;
                 }
             });
@@ -345,7 +355,12 @@ namespace Confuser.Core
                     if (GetTargets(mod, i.Confusion).Count == 0) continue;
                     param.Logger.Log("Executing " + i.Confusion.Name + " Phase 3...");
                     i.Confuser = this;
-                    i.Process(globalParams[i.Confusion], accessor);
+                    NameValueCollection globalParam;
+                    if (globalParams.ContainsKey(i.Confusion))
+                        globalParam = globalParams[i.Confusion];
+                    else
+                        globalParam = new NameValueCollection();
+                    i.Process(globalParam, accessor);
                     param.Logger.Progress(now1 / total1); now1++;
                 }
             });
@@ -359,7 +374,12 @@ namespace Confuser.Core
                     if (GetTargets(mod, pePhases[i].Confusion).Count == 0) continue;
                     param.Logger.Log("Executing " + pePhases[i].Confusion.Name + " Phase " + pePhases[i].PhaseID + "...");
                     pePhases[i].Confuser = this;
-                    pePhases[i].Process(globalParams[pePhases[i].Confusion], str);
+                    NameValueCollection globalParam;
+                    if (globalParams.ContainsKey(pePhases[i].Confusion))
+                        globalParam = globalParams[pePhases[i].Confusion];
+                    else
+                        globalParam = new NameValueCollection();
+                    pePhases[i].Process(globalParam, str);
                     param.Logger.Progress((double)i / pePhases.Length);
                 }
             });
