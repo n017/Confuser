@@ -166,43 +166,41 @@ System.Resources.ResourceManager
                     ldstr.Operand = @new.name;
                 else if (op == old.scope)
                     ldstr.Operand = @new.scope;
+                else if (op == old.scope + "." + old.name)
+                    ldstr.Operand = string.IsNullOrEmpty(@new.scope) ? @new.name : @new.scope + "." + @new.name;
             }
         }
         class BamlTypeReference : IReference
         {
-            public BamlTypeReference(BamlDocument doc, TypeDeclaration type) { this.doc = doc; this.type = type; }
+            public BamlTypeReference(Baml_New.TypeInfoRecord typeRec) { this.typeRec = typeRec; }
 
-            BamlDocument doc;
-            TypeDeclaration type;
+            Baml_New.TypeInfoRecord typeRec;
 
             public void UpdateReference(Identifier old, Identifier @new)
             {
-                type.Name = @new.name;
-                type.Namespace = @new.scope;
+                typeRec.TypeFullName = string.IsNullOrEmpty(@new.scope) ? @new.name : @new.scope + "." + @new.name;
             }
         }
-        class BamlMemberDeclReference : IReference
+        class BamlAttributeReference : IReference
         {
-            public BamlMemberDeclReference(BamlDocument doc, PropertyDeclaration prop) { this.doc = doc; this.prop = prop; }
+            public BamlAttributeReference(Baml_New.AttributeInfoRecord attrRec) { this.attrRec = attrRec; }
 
-            BamlDocument doc;
-            PropertyDeclaration prop;
+            Baml_New.AttributeInfoRecord attrRec;
 
             public void UpdateReference(Identifier old, Identifier @new)
             {
-                prop.Name = @new.name;
+                attrRec.Name = @new.name;
             }
         }
-        class BamlMemberReference : IReference
+        class BamlPropertyReference : IReference
         {
-            public BamlMemberReference(BamlDocument doc, Property prop) { this.doc = doc; this.prop = prop; }
+            public BamlPropertyReference(Baml_New.PropertyRecord propRec) { this.propRec = propRec; }
 
-            BamlDocument doc;
-            Property prop;
+            Baml_New.PropertyRecord propRec;
 
             public void UpdateReference(Identifier old, Identifier @new)
             {
-                prop.Value = @new.name;
+                propRec.Value = @new.name;
             }
         }
         class SaveBamlsReference : IReference
@@ -215,12 +213,10 @@ System.Resources.ResourceManager
             public void UpdateReference(Identifier old, Identifier @new)
             {
                 EmbeddedResource res = mod.Resources[resId] as EmbeddedResource;
-                foreach (KeyValuePair<string, BamlDocument> pair in (res as IAnnotationProvider).Annotations["Gbamls"] as Dictionary<string, BamlDocument>)
+                foreach (KeyValuePair<string, Baml_New.BamlDocument> pair in (res as IAnnotationProvider).Annotations["Gbamls"] as Dictionary<string, Baml_New.BamlDocument>)
                 {
-                    Stream src = ((res as IAnnotationProvider).Annotations["Gresources"] as Dictionary<string, object>)[pair.Key] as Stream;
-                    src.Position = 0;
                     Stream dst = new MemoryStream();
-                    new BamlCopyer(src, dst, pair.Value);
+                    Baml_New.BamlWriter.WriteDocument(pair.Value, dst);
                     ((res as IAnnotationProvider).Annotations["Gresources"] as Dictionary<string, object>)[pair.Key] = dst;
                 }
                 MemoryStream newRes = new MemoryStream();
@@ -542,7 +538,7 @@ System.Resources.ResourceManager
         }
         void Analysis(FieldDefinition fld)
         {
-            if (fld.IsRuntimeSpecialName || (IsTypePublic(fld.DeclaringType) &&
+            if (fld.IsRuntimeSpecialName || fld.DeclaringType.IsEnum || (IsTypePublic(fld.DeclaringType) &&
                 (fld.IsFamily || fld.IsFamilyAndAssembly || fld.IsFamilyOrAssembly || fld.IsPublic)))
                 (fld as IAnnotationProvider).Annotations["RenOk"] = false;
         }
@@ -561,9 +557,9 @@ System.Resources.ResourceManager
             EmbeddedResource res = mod.Resources[resId] as EmbeddedResource;
             ResourceReader resRdr = new ResourceReader(res.GetResourceStream());
             Dictionary<string, object> ress;
-            Dictionary<string, BamlDocument> bamls;
+            Dictionary<string, Baml_New.BamlDocument> bamls;
             (res as IAnnotationProvider).Annotations["Gresources"] = ress = new Dictionary<string, object>();
-            (res as IAnnotationProvider).Annotations["Gbamls"] = bamls = new Dictionary<string, BamlDocument>();
+            (res as IAnnotationProvider).Annotations["Gbamls"] = bamls = new Dictionary<string, Baml_New.BamlDocument>();
             int cc = 0;
             foreach (DictionaryEntry entry in resRdr)
             {
@@ -579,36 +575,43 @@ System.Resources.ResourceManager
                     ress.Add(entry.Key as string, entry.Value);
                 if (stream != null && (entry.Key as string).EndsWith(".baml"))
                 {
-                    BamlDocument doc = new BamlReader(stream).Document;
+                    Baml_New.BamlDocument doc = Baml_New.BamlReader.ReadDocument(stream);
                     int c = 0;
 
-                    Dictionary<TypeDeclaration, TypeDefinition> ts = new Dictionary<TypeDeclaration, TypeDefinition>();
-                    foreach (TypeDeclaration decl in doc.TypeTable.Values)
-                        if (decl.Assembly == mod.Assembly.Name.FullName)
+                    int asmId = -1;
+                    foreach (var rec in doc.OfType<Baml_New.AssemblyInfoRecord>())
+                        if (rec.AssemblyFullName == mod.Assembly.Name.FullName)
                         {
-                            TypeDefinition type = mod.GetType(decl.Namespace, decl.Name);
+                            asmId = rec.AssemblyId;
+                        }
+                    Dictionary<ushort, TypeDefinition> types = new Dictionary<ushort, TypeDefinition>();
+                    foreach (var rec in doc.OfType<Baml_New.TypeInfoRecord>())
+                        if ((rec.AssemblyId & 0xfff) == asmId)
+                        {
+                            TypeDefinition type = mod.GetType(rec.TypeFullName);
                             if (type != null)
                             {
-                                ts.Add(decl, type);
-                                ((type as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new BamlTypeReference(doc, decl));
+                                types.Add(rec.TypeId, type);
+                                ((type as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new BamlTypeReference(rec));
                                 c++; cc++;
                             }
                         }
 
-                    Dictionary<PropertyDeclaration, PropertyDefinition> ps = new Dictionary<PropertyDeclaration, PropertyDefinition>();
-                    foreach (PropertyDeclaration decl in doc.PropertyTable.Values)
-                        if (ts.ContainsKey(decl.DeclaringType))
+                    Dictionary<ushort, PropertyDefinition> ps = new Dictionary<ushort, PropertyDefinition>();
+                    foreach (var rec in doc.OfType<Baml_New.AttributeInfoRecord>())
+                        if (types.ContainsKey(rec.OwnerTypeId))
                         {
-                            PropertyDefinition prop = ts[decl.DeclaringType].Properties.FirstOrDefault(p => p.Name == decl.Name);
-                            if (prop != null)
+                            PropertyDefinition prop = types[rec.OwnerTypeId].Properties.FirstOrDefault(p => p.Name == rec.Name);
+                            if (prop != null && types[rec.OwnerTypeId].Fields.FirstOrDefault(fld => fld.Name == prop.Name + "Property") == null)
                             {
-                                ((prop as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new BamlMemberDeclReference(doc, decl));
+                                ((prop as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new BamlAttributeReference(rec));
                                 c++; cc++;
                             }
                         }
-                    if (ts.ContainsKey(doc.RootElement.TypeDeclaration))
+                    var rootRec = doc.OfType<Baml_New.ElementStartRecord>().FirstOrDefault();
+                    if (rootRec != null && types.ContainsKey(rootRec.TypeId))
                     {
-                        TypeDefinition root = mod.GetType(doc.RootElement.TypeDeclaration.Namespace, doc.RootElement.TypeDeclaration.Name);
+                        TypeDefinition root = types[rootRec.TypeId];
                         Dictionary<string, IMemberDefinition> mems = new Dictionary<string, IMemberDefinition>();
                         foreach (PropertyDefinition prop in root.Properties)
                             mems.Add(prop.Name, prop);
@@ -617,12 +620,12 @@ System.Resources.ResourceManager
                         foreach (MethodDefinition mtd in root.Methods)
                             mems.Add(mtd.Name, mtd);
 
-                        foreach (Property prop in doc.Properties)
+                        foreach (var rec in doc.OfType<Baml_New.PropertyRecord>())
                         {
-                            if (!(prop.Value is string)) continue;
-                            if (mems.ContainsKey((string)prop.Value))
+                            if (!(rec.Value is string)) continue;
+                            if (mems.ContainsKey((string)rec.Value))
                             {
-                                ((mems[(string)prop.Value] as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new BamlMemberReference(doc, prop));
+                                ((mems[(string)rec.Value] as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new BamlPropertyReference(rec));
                                 c++; cc++;
                             }
                         }
@@ -808,6 +811,7 @@ System.Resources.ResourceManager
 
             string mem = null;
             TypeDefinition type = null;
+            int typeIdx;
             Resource res = null;
             for (int i = 0; i < mtd.paramLoc.Length; i++)
             {
@@ -822,11 +826,15 @@ System.Resources.ResourceManager
                     case "Type":
                     case "This":
                         if (param as TypeDefinition != null)
+                        {
                             type = param as TypeDefinition;
+                            typeIdx = mtd.paramLoc[i];
+                        }
                         break;
                     case "TargetType":
                         if (!(param is string)) return null;
                         type = scope.GetType(param as string);
+                        typeIdx = mtd.paramLoc[i];
                         break;
                     case "TargetResource":
                         if (!(param is string)) return null;
@@ -835,7 +843,7 @@ System.Resources.ResourceManager
                         break;
                 }
             }
-            if ((mem == null || type == null) && res == null) return null;
+            if (mem == null && type == null && res == null) return null;
 
             if (res != null)
             {
@@ -843,18 +851,26 @@ System.Resources.ResourceManager
                 return null;
             }
 
-            foreach (FieldDefinition fld in type.Fields)
-                if (fld.Name == mem)
-                    return fld;
-            foreach (MethodDefinition mtd1 in type.Methods)
-                if (mtd1.Name == mem)
-                    return mtd1;
-            foreach (PropertyDefinition prop in type.Properties)
-                if (prop.Name == mem)
-                    return prop;
-            foreach (EventDefinition evt in type.Events)
-                if (evt.Name == mem)
-                    return evt;
+            if (mem != null && type != null)
+            {
+                foreach (FieldDefinition fld in type.Fields)
+                    if (fld.Name == mem)
+                        return fld;
+                foreach (MethodDefinition mtd1 in type.Methods)
+                    if (mtd1.Name == mem)
+                        return mtd1;
+                foreach (PropertyDefinition prop in type.Properties)
+                    if (prop.Name == mem)
+                        return prop;
+                foreach (EventDefinition evt in type.Events)
+                    if (evt.Name == mem)
+                        return evt;
+            }
+            else if (type != null)
+            {
+                memInst = StackTrace3(idx, c, insts, mtd.paramLoc[Array.IndexOf(mtd.paramType,"TargetType")]);
+                return type;
+            }
             return null;
         }
         Instruction StackTrace3(int idx, int count, Collection<Instruction> insts, int c)
