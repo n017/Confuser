@@ -9,6 +9,7 @@ using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
 using Mono.Collections.Generic;
+using Confuser.Core.Engines.Baml;
 
 namespace Confuser.Core.Engines
 {
@@ -172,9 +173,9 @@ System.Resources.ResourceManager
         }
         class BamlTypeReference : IReference
         {
-            public BamlTypeReference(Baml_New.TypeInfoRecord typeRec) { this.typeRec = typeRec; }
+            public BamlTypeReference(TypeInfoRecord typeRec) { this.typeRec = typeRec; }
 
-            Baml_New.TypeInfoRecord typeRec;
+            TypeInfoRecord typeRec;
 
             public void UpdateReference(Identifier old, Identifier @new)
             {
@@ -183,9 +184,9 @@ System.Resources.ResourceManager
         }
         class BamlAttributeReference : IReference
         {
-            public BamlAttributeReference(Baml_New.AttributeInfoRecord attrRec) { this.attrRec = attrRec; }
+            public BamlAttributeReference(AttributeInfoRecord attrRec) { this.attrRec = attrRec; }
 
-            Baml_New.AttributeInfoRecord attrRec;
+            AttributeInfoRecord attrRec;
 
             public void UpdateReference(Identifier old, Identifier @new)
             {
@@ -194,9 +195,9 @@ System.Resources.ResourceManager
         }
         class BamlPropertyReference : IReference
         {
-            public BamlPropertyReference(Baml_New.PropertyRecord propRec) { this.propRec = propRec; }
+            public BamlPropertyReference(PropertyRecord propRec) { this.propRec = propRec; }
 
-            Baml_New.PropertyRecord propRec;
+            PropertyRecord propRec;
 
             public void UpdateReference(Identifier old, Identifier @new)
             {
@@ -213,10 +214,10 @@ System.Resources.ResourceManager
             public void UpdateReference(Identifier old, Identifier @new)
             {
                 EmbeddedResource res = mod.Resources[resId] as EmbeddedResource;
-                foreach (KeyValuePair<string, Baml_New.BamlDocument> pair in (res as IAnnotationProvider).Annotations["Gbamls"] as Dictionary<string, Baml_New.BamlDocument>)
+                foreach (KeyValuePair<string, BamlDocument> pair in (res as IAnnotationProvider).Annotations["Gbamls"] as Dictionary<string, BamlDocument>)
                 {
                     Stream dst = new MemoryStream();
-                    Baml_New.BamlWriter.WriteDocument(pair.Value, dst);
+                    BamlWriter.WriteDocument(pair.Value, dst);
                     ((res as IAnnotationProvider).Annotations["Gresources"] as Dictionary<string, object>)[pair.Key] = dst;
                 }
                 MemoryStream newRes = new MemoryStream();
@@ -557,9 +558,9 @@ System.Resources.ResourceManager
             EmbeddedResource res = mod.Resources[resId] as EmbeddedResource;
             ResourceReader resRdr = new ResourceReader(res.GetResourceStream());
             Dictionary<string, object> ress;
-            Dictionary<string, Baml_New.BamlDocument> bamls;
+            Dictionary<string, BamlDocument> bamls;
             (res as IAnnotationProvider).Annotations["Gresources"] = ress = new Dictionary<string, object>();
-            (res as IAnnotationProvider).Annotations["Gbamls"] = bamls = new Dictionary<string, Baml_New.BamlDocument>();
+            (res as IAnnotationProvider).Annotations["Gbamls"] = bamls = new Dictionary<string, BamlDocument>();
             int cc = 0;
             foreach (DictionaryEntry entry in resRdr)
             {
@@ -575,17 +576,17 @@ System.Resources.ResourceManager
                     ress.Add(entry.Key as string, entry.Value);
                 if (stream != null && (entry.Key as string).EndsWith(".baml"))
                 {
-                    Baml_New.BamlDocument doc = Baml_New.BamlReader.ReadDocument(stream);
+                    BamlDocument doc = BamlReader.ReadDocument(stream);
                     int c = 0;
 
                     int asmId = -1;
-                    foreach (var rec in doc.OfType<Baml_New.AssemblyInfoRecord>())
+                    foreach (var rec in doc.OfType<AssemblyInfoRecord>())
                         if (rec.AssemblyFullName == mod.Assembly.Name.FullName)
                         {
                             asmId = rec.AssemblyId;
                         }
                     Dictionary<ushort, TypeDefinition> types = new Dictionary<ushort, TypeDefinition>();
-                    foreach (var rec in doc.OfType<Baml_New.TypeInfoRecord>())
+                    foreach (var rec in doc.OfType<TypeInfoRecord>())
                         if ((rec.AssemblyId & 0xfff) == asmId)
                         {
                             TypeDefinition type = mod.GetType(rec.TypeFullName);
@@ -598,7 +599,7 @@ System.Resources.ResourceManager
                         }
 
                     Dictionary<ushort, PropertyDefinition> ps = new Dictionary<ushort, PropertyDefinition>();
-                    foreach (var rec in doc.OfType<Baml_New.AttributeInfoRecord>())
+                    foreach (var rec in doc.OfType<AttributeInfoRecord>())
                         if (types.ContainsKey(rec.OwnerTypeId))
                         {
                             PropertyDefinition prop = types[rec.OwnerTypeId].Properties.FirstOrDefault(p => p.Name == rec.Name);
@@ -608,7 +609,7 @@ System.Resources.ResourceManager
                                 c++; cc++;
                             }
                         }
-                    var rootRec = doc.OfType<Baml_New.ElementStartRecord>().FirstOrDefault();
+                    var rootRec = doc.OfType<ElementStartRecord>().FirstOrDefault();
                     if (rootRec != null && types.ContainsKey(rootRec.TypeId))
                     {
                         TypeDefinition root = types[rootRec.TypeId];
@@ -620,7 +621,7 @@ System.Resources.ResourceManager
                         foreach (MethodDefinition mtd in root.Methods)
                             mems.Add(mtd.Name, mtd);
 
-                        foreach (var rec in doc.OfType<Baml_New.PropertyRecord>())
+                        foreach (var rec in doc.OfType<PropertyRecord>())
                         {
                             if (!(rec.Value is string)) continue;
                             if (mems.ContainsKey((string)rec.Value))

@@ -76,9 +76,9 @@
     <Compile Include="CecilHelper.cs" />
     <Compile Include="Confusions\AntiDumpConfusion.cs" />
     <Compile Include="Confusions\ConstantConfusion.cs" />
-    <Compile Include="Engines\Baml_New\BamlDocument.cs" />
-    <Compile Include="Engines\Baml_New\BamlRW.cs" />
-    <Compile Include="Engines\Baml_New\BamlRecords.cs" />
+    <Compile Include="Engines\Baml\BamlDocument.cs" />
+    <Compile Include="Engines\Baml\BamlRW.cs" />
+    <Compile Include="Engines\Baml\BamlRecords.cs" />
     <Compile Include="Packers\Compressor.cs" />
     <Compile Include="Confuser.cs" />
     <Compile Include="Confusions\AntiDebugConfusion.cs" />
