@@ -104,6 +104,7 @@ namespace Confuser.Core
         }
 
         Confuser cr;
+        protected Confuser Confuser { get { return cr; } set { cr = value; } }
         private bool ProcessAttribute(ICustomAttributeProvider provider, Settings setting)
         {
             CustomAttribute att = GetAttribute(provider.CustomAttributes, "ConfusingAttribute");
@@ -310,6 +311,17 @@ namespace Confuser.Core
                         }
                     }
                 }
+            }
+        }
+        protected void MarkAssemblies(AssemblyDefinition[] assemblies, Preset preset)
+        {
+            Settings setting = new Settings();
+            FillPreset(preset, setting.CurrentConfusions);
+            Dictionary<string, AssemblyDefinition> ret = new Dictionary<string, AssemblyDefinition>();
+
+            foreach (AssemblyDefinition asm in assemblies)
+            {
+                MarkAssembly(asm, setting);
             }
         }
 

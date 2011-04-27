@@ -155,6 +155,7 @@ namespace Confuser.Console
 
         public override AssemblyDefinition[] GetAssemblies(string src, Preset preset, Confuser.Core.Confuser cr, EventHandler<LogEventArgs> err)
         {
+            List<AssemblyDefinition> asms = new List<AssemblyDefinition>();
             foreach (XElement element in xmlDoc.XPathSelectElements("configuration/assembly"))
             {
                 string path = element.Attribute("path").Value;
@@ -164,8 +165,12 @@ namespace Confuser.Console
                 ((IAnnotationProvider)asmDef).Annotations.Add("Xml_Mark", element);
                 GlobalAssemblyResolver.Instance.AssemblyCache.Add(asmDef.FullName, asmDef);
                 MarkAssembly(asmDef, preset, cr);
+                asms.Add(asmDef);
             }
-            return base.GetAssemblies(src, preset, cr, err);
+            base.Confuser=cr;
+            var ret = asms.ToArray();
+            MarkAssemblies(ret, preset);
+            return ret;
         }
         void MarkAssembly(AssemblyDefinition asm, Preset preset, Core.Confuser cr)
         {
