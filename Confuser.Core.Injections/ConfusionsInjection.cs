@@ -182,7 +182,10 @@ static class Proxies
                 dm = new System.Reflection.Emit.DynamicMethod("", mtd.ReturnType, arg, mtd.DeclaringType, true);
             var gen = dm.GetILGenerator();
             for (int i = 0; i < arg.Length; i++)
+            {
                 gen.Emit(System.Reflection.Emit.OpCodes.Ldarg, i);
+                if (i == 0) gen.Emit(System.Reflection.Emit.OpCodes.Castclass, mtd.DeclaringType);
+            }
             gen.Emit((dat[0] == '\r') ? System.Reflection.Emit.OpCodes.Callvirt : System.Reflection.Emit.OpCodes.Call, mtd);
             gen.Emit(System.Reflection.Emit.OpCodes.Ret);
 
