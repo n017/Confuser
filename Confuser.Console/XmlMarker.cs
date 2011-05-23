@@ -152,7 +152,7 @@ namespace Confuser.Console
             }
         }
 
-
+        static ModuleDefinition Empty = ModuleDefinition.CreateModule("Empty", ModuleKind.NetModule);
         public override AssemblyDefinition[] GetAssemblies(string src, Preset preset, Confuser.Core.Confuser cr, EventHandler<LogEventArgs> err)
         {
             List<AssemblyDefinition> asms = new List<AssemblyDefinition>();
@@ -167,7 +167,7 @@ namespace Confuser.Console
                 MarkAssembly(asmDef, preset, cr);
                 asms.Add(asmDef);
             }
-            base.Confuser=cr;
+            base.Confuser = cr;
             var ret = asms.ToArray();
             MarkAssemblies(ret, preset);
             return ret;
@@ -218,14 +218,14 @@ namespace Confuser.Console
                         i--;
                     }
             if (setting == null) return;
-            CustomAttribute attr = new CustomAttribute(new MethodReference(".ctor", new TypeReference("System", "Void", null), new TypeReference("", "ConfusingAttribute", null)));
+            CustomAttribute attr = new CustomAttribute(new MethodReference(".ctor", Empty.Import(typeof(void)), new TypeReference("", "ConfusingAttribute", Empty, null)));
 
             XAttribute xAttr;
-            attr.Properties.Add(new CustomAttributeNamedArgument("StripAfterObfuscation", new CustomAttributeArgument(new TypeReference("System", "Boolean", null), true)));
+            attr.Properties.Add(new CustomAttributeNamedArgument("StripAfterObfuscation", new CustomAttributeArgument(Empty.Import(typeof(bool)), true)));
             if ((xAttr = setting.Attribute("exclude")) != null)
-                attr.Properties.Add(new CustomAttributeNamedArgument("Exclude", new CustomAttributeArgument(new TypeReference("System", "Boolean", null), bool.Parse(xAttr.Value))));
+                attr.Properties.Add(new CustomAttributeNamedArgument("Exclude", new CustomAttributeArgument(Empty.Import(typeof(bool)), bool.Parse(xAttr.Value))));
             if ((xAttr = setting.Attribute("applytomembers")) != null)
-                attr.Properties.Add(new CustomAttributeNamedArgument("ApplyToMembers", new CustomAttributeArgument(new TypeReference("System", "Boolean", null), bool.Parse(xAttr.Value))));
+                attr.Properties.Add(new CustomAttributeNamedArgument("ApplyToMembers", new CustomAttributeArgument(Empty.Import(typeof(bool)), bool.Parse(xAttr.Value))));
 
             if (setting.HasElements)
             {
@@ -252,7 +252,7 @@ namespace Confuser.Console
                         cfg.Append("]");
                     }
                 }
-                attr.Properties.Add(new CustomAttributeNamedArgument("Config", new CustomAttributeArgument(new TypeReference("System", "String", null), cfg.ToString())));
+                attr.Properties.Add(new CustomAttributeNamedArgument("Config", new CustomAttributeArgument(Empty.Import(typeof(string)), cfg.ToString())));
             }
 
             target.CustomAttributes.Add(attr);
@@ -267,8 +267,8 @@ namespace Confuser.Console
                         i--;
                     }
             if (packer == null) return;
-            CustomAttribute attr = new CustomAttribute(new MethodReference(".ctor", new TypeReference("System", "Void", null), new TypeReference("", "PackerAttribute", null)));
-            attr.Properties.Add(new CustomAttributeNamedArgument("StripAfterObfuscation", new CustomAttributeArgument(new TypeReference("System", "Boolean", null), true)));
+            CustomAttribute attr = new CustomAttribute(new MethodReference(".ctor", Empty.Import(typeof(void)), new TypeReference("", "PackerAttribute", Empty, null)));
+            attr.Properties.Add(new CustomAttributeNamedArgument("StripAfterObfuscation", new CustomAttributeArgument(Empty.Import(typeof(bool)), true)));
 
             StringBuilder cfg = new StringBuilder();
             if (!Packers.ContainsKey(packer.Attribute("id").Value))
@@ -286,7 +286,7 @@ namespace Confuser.Console
                         cfg.Append(arg.Attribute("name").Value + "=" + arg.Attribute("value").Value);
                     }
                 }
-                attr.Properties.Add(new CustomAttributeNamedArgument("Config", new CustomAttributeArgument(new TypeReference("System", "String", null), cfg.ToString())));
+                attr.Properties.Add(new CustomAttributeNamedArgument("Config", new CustomAttributeArgument(Empty.Import(typeof(string)), cfg.ToString())));
             }
 
             asm.CustomAttributes.Add(attr);

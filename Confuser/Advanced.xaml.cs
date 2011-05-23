@@ -155,7 +155,7 @@ namespace Confuser
 
                                     marker = new MarkingCopyer(null);
                                     asms.Clear();
-                                    GlobalAssemblyResolver.Instance.ClearSearchDirectory();
+                                    GlobalAssemblyResolver.Instance.ClearSearchDirectories();
                                     GlobalAssemblyResolver.Instance.AddSearchDirectory(System.IO.Path.GetDirectoryName(path));
                                     elements.ClearAssemblies();
                                     foreach (AssemblyDefinition dat in marker.GetAssemblies(path, (s, ee) => MessageBox.Show(ee.Message, "Confuser", MessageBoxButton.OK, MessageBoxImage.Warning)))

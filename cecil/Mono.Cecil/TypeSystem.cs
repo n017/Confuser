@@ -4,7 +4,7 @@
 // Author:
 //   Jb Evain (jbevain@gmail.com)
 //
-// Copyright (c) 2008 - 2010 Jb Evain
+// Copyright (c) 2008 - 2011 Jb Evain
 //
 // Permission is hereby granted, free of charge, to any person obtaining
 // a copy of this software and associated documentation files (the
@@ -47,18 +47,21 @@ namespace Mono.Cecil {
 				if (metadata.Types == null)
 					Initialize (module.Types);
 
-				var types = metadata.Types;
+				return module.Read (new Row<string, string> (@namespace, name), (row, reader) => {
+					var types = reader.metadata.Types;
 
-				for (int i = 0; i < types.Length; i++) {
-					var type = types [i];
-					if (type == null)
-						continue;
+					for (int i = 0; i < types.Length; i++) {
+						if (types [i] == null)
+							types [i] = reader.GetTypeDefinition ((uint) i + 1);
 
-					if (type.Name == name && type.Namespace == @namespace)
-						return type;
-				}
+						var type = types [i];
 
-				return null;
+						if (type.Name == row.Col2 && type.Namespace == row.Col1)
+							return type;
+					}
+
+					return null;
+				});
 			}
 
 			static void Initialize (object obj)
@@ -123,9 +126,7 @@ namespace Mono.Cecil {
 
 			TypeReference CreateTypeReference (string @namespace, string name)
 			{
-				var type = new TypeReference (@namespace, name, GetCorlibReference ());
-				type.module = module;
-				return type;
+				return new TypeReference (@namespace, name, module, GetCorlibReference ());
 			}
 		}
 

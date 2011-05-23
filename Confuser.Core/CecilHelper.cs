@@ -214,7 +214,7 @@ namespace Confuser.Core
                             break;
                         case ExceptionHandlerType.Filter:
                             neh.FilterStart = bdy.Instructions[old.Instructions.IndexOf(eh.FilterStart)];
-                            neh.FilterEnd = bdy.Instructions[old.Instructions.IndexOf(eh.FilterEnd)];
+                            //neh.FilterEnd = bdy.Instructions[old.Instructions.IndexOf(eh.FilterEnd)];
                             break;
                     }
 

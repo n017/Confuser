@@ -222,7 +222,7 @@ namespace Confuser.Core
             Marker mkr = param.Marker;
 
             GlobalAssemblyResolver.Instance.AssemblyCache.Clear();
-            GlobalAssemblyResolver.Instance.ClearSearchDirectory();
+            GlobalAssemblyResolver.Instance.ClearSearchDirectories();
             GlobalAssemblyResolver.Instance.AddSearchDirectory(param.ReferencesPath);
 
             param.Logger.Log(string.Format("Analysing assemblies..."));

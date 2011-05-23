@@ -4,7 +4,7 @@
 // Author:
 //   Jb Evain (jbevain@gmail.com)
 //
-// Copyright (c) 2008 - 2010 Jb Evain
+// Copyright (c) 2008 - 2011 Jb Evain
 //
 // Permission is hereby granted, free of charge, to any person obtaining
 // a copy of this software and associated documentation files (the
@@ -25,6 +25,8 @@
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
+
+#if !SILVERLIGHT && !CF
 
 using System;
 using System.Security;
@@ -57,12 +59,20 @@ namespace Mono.Cecil.Rocks {
 			if (!security_attribute.AttributeType.IsTypeOf ("System.Security.Permissions", "PermissionSetAttribute"))
 				return false;
 
-			var named_argument = security_attribute.Properties [0];
-			if (named_argument.Name != "XML")
-				throw new NotSupportedException ();
-
 			var attribute = new SSP.PermissionSetAttribute ((SSP.SecurityAction) declaration.Action);
-			attribute.XML = (string) named_argument.Argument.Value;
+
+			var named_argument = security_attribute.Properties [0];
+			string value = (string) named_argument.Argument.Value;
+			switch (named_argument.Name) {
+			case "XML":
+				attribute.XML = value;
+				break;
+			case "Name":
+				attribute.Name = value;
+				break;
+			default:
+				throw new NotImplementedException (named_argument.Name);
+			}
 
 			set = attribute.CreatePermissionSet ();
 			return true;
@@ -84,7 +94,7 @@ namespace Mono.Cecil.Rocks {
 		{
 			var attribute_type = Type.GetType (attribute.AttributeType.FullName);
 			if (attribute_type == null)
-				throw new ArgumentException ();
+				throw new ArgumentException ("attribute");
 
 			var security_attribute = CreateSecurityAttribute (attribute_type, declaration);
 			if (security_attribute == null)
@@ -157,3 +167,5 @@ namespace Mono.Cecil.Rocks {
 		}
 	}
 }
+
+#endif

@@ -4,7 +4,7 @@
 // Author:
 //   Jb Evain (jbevain@gmail.com)
 //
-// Copyright (c) 2008 - 2010 Jb Evain
+// Copyright (c) 2008 - 2011 Jb Evain
 //
 // Permission is hereby granted, free of charge, to any person obtaining
 // a copy of this software and associated documentation files (the
@@ -77,7 +77,7 @@ namespace Mono.Cecil {
 			this.token = new MetadataToken (TokenType.TypeSpec);
 		}
 
-		public sealed override TypeReference GetElementType ()
+		public override TypeReference GetElementType ()
 		{
 			return element_type.GetElementType ();
 		}

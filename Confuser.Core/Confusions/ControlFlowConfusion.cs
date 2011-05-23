@@ -41,7 +41,7 @@ namespace Confuser.Core.Confusions
                 {
                     if (eh.TryEnd.Offset > ret) ret = eh.TryEnd.Offset;
                     if (eh.HandlerEnd.Offset > ret) ret = eh.HandlerEnd.Offset;
-                    if (eh.FilterEnd != null && eh.FilterEnd.Offset > ret) ret = eh.FilterEnd.Offset;
+                    if (eh.FilterStart != null && eh.HandlerStart.Offset > ret) ret = eh.HandlerStart.Offset;
                 }
                 return ret;
             }
@@ -273,10 +273,10 @@ namespace Confuser.Core.Confusions
             {
                 eh.TryEnd = eh.TryEnd.Next;
                 eh.HandlerEnd = eh.HandlerEnd.Next;
-                if ((eh.HandlerType & ExceptionHandlerType.Filter) == ExceptionHandlerType.Filter)
-                {
-                    eh.FilterEnd = eh.FilterEnd.Next;
-                }
+                //if ((eh.HandlerType & ExceptionHandlerType.Filter) == ExceptionHandlerType.Filter)
+                //{
+                //    eh.FilterEnd = eh.FilterEnd.Next;
+                //}
             }
 
             bdy.OptimizeMacros();
@@ -317,12 +317,12 @@ namespace Confuser.Core.Confusions
                     else
                         lvs[eh.FilterStart.Offset] += new Level(eh, LevelType.FilterStart);
 
-                    if (!lvs.ContainsKey(eh.FilterEnd.Previous.Offset))
-                        lvs[eh.FilterEnd.Previous.Offset] = new Level(eh, LevelType.FilterEnd);
+                    if (!lvs.ContainsKey(eh.HandlerStart.Previous.Offset))
+                        lvs[eh.HandlerStart.Previous.Offset] = new Level(eh, LevelType.FilterEnd);
                     else
-                        lvs[eh.FilterEnd.Previous.Offset] += new Level(eh, LevelType.FilterEnd);
+                        lvs[eh.HandlerStart.Previous.Offset] += new Level(eh, LevelType.FilterEnd);
 
-                    p = eh.FilterEnd.Previous.Offset;
+                    p = eh.HandlerStart.Previous.Offset;
                 }
             }
             if (!lvs.ContainsKey(0))
@@ -454,11 +454,11 @@ namespace Confuser.Core.Confusions
                         lv.Handler[i].FilterStart = blks[0][0];
                         break;
                     case LevelType.FilterEnd:
-                        lv.Handler[i].FilterEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
+                        //lv.Handler[i].FilterEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
                         break;
                     case LevelType.Filter:
                         lv.Handler[i].FilterStart = blks[0][0];
-                        lv.Handler[i].FilterEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
+                        //lv.Handler[i].FilterEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
                         break;
                     case LevelType.None:
                         break;

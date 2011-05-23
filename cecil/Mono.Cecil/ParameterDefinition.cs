@@ -4,7 +4,7 @@
 // Author:
 //   Jb Evain (jbevain@gmail.com)
 //
-// Copyright (c) 2008 - 2010 Jb Evain
+// Copyright (c) 2008 - 2011 Jb Evain
 //
 // Permission is hereby granted, free of charge, to any person obtaining
 // a copy of this software and associated documentation files (the
@@ -47,6 +47,15 @@ namespace Mono.Cecil {
 
 		public IMethodSignature Method {
 			get { return method; }
+		}
+
+		public int Sequence {
+			get {
+				if (method == null)
+					return -1;
+
+				return method.HasThis ? index + 1 : index;
+			}
 		}
 
 		public bool HasConstant {
@@ -108,6 +117,16 @@ namespace Mono.Cecil {
 		public bool IsOut {
 			get { return attributes.GetAttributes ((ushort) ParameterAttributes.Out); }
 			set { attributes = attributes.SetAttributes ((ushort) ParameterAttributes.Out, value); }
+		}
+
+		public bool IsLcid {
+			get { return attributes.GetAttributes ((ushort) ParameterAttributes.Lcid); }
+			set { attributes = attributes.SetAttributes ((ushort) ParameterAttributes.Lcid, value); }
+		}
+
+		public bool IsReturnValue {
+			get { return attributes.GetAttributes ((ushort) ParameterAttributes.Retval); }
+			set { attributes = attributes.SetAttributes ((ushort) ParameterAttributes.Retval, value); }
 		}
 
 		public bool IsOptional {

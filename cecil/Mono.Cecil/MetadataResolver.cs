@@ -4,7 +4,7 @@
 // Author:
 //   Jb Evain (jbevain@gmail.com)
 //
-// Copyright (c) 2008 - 2010 Jb Evain
+// Copyright (c) 2008 - 2011 Jb Evain
 //
 // Permission is hereby granted, free of charge, to any person obtaining
 // a copy of this software and associated documentation files (the
@@ -35,7 +35,25 @@ namespace Mono.Cecil {
 
 	public interface IAssemblyResolver {
 		AssemblyDefinition Resolve (AssemblyNameReference name);
-		string ResolvePath (AssemblyNameReference fullName);
+		AssemblyDefinition Resolve (AssemblyNameReference name, ReaderParameters parameters);
+
+		AssemblyDefinition Resolve (string fullName);
+		AssemblyDefinition Resolve (string fullName, ReaderParameters parameters);
+	}
+
+	public class ResolutionException : Exception {
+
+		readonly MemberReference member;
+
+		public MemberReference Member {
+			get { return member; }
+		}
+
+		public ResolutionException (MemberReference member)
+			: base ("Failed to resolve " + member.FullName)
+		{
+			this.member = member;
+		}
 	}
 
 	static class MetadataResolver {
@@ -51,21 +69,46 @@ namespace Mono.Cecil {
 				if (assembly == null)
 					return null;
 
-				return GetType (assembly.MainModule, type);
+				return GetType (resolver, assembly.MainModule, type);
 			case MetadataScopeType.ModuleDefinition:
-				return GetType ((ModuleDefinition) scope, type);
+				return GetType (resolver, (ModuleDefinition) scope, type);
 			case MetadataScopeType.ModuleReference:
 				var modules = type.Module.Assembly.Modules;
 				var module_ref = (ModuleReference) scope;
 				for (int i = 0; i < modules.Count; i++) {
 					var netmodule = modules [i];
 					if (netmodule.Name == module_ref.Name)
-						return GetType (netmodule, type);
+						return GetType (resolver, netmodule, type);
 				}
 				break;
 			}
 
 			throw new NotSupportedException ();
+		}
+
+		static TypeDefinition GetType (IAssemblyResolver resolver, ModuleDefinition module, TypeReference reference)
+		{
+			var type = GetType (module, reference);
+			if (type != null)
+				return type;
+
+			if (!module.HasExportedTypes)
+				return null;
+
+			var exported_types = module.ExportedTypes;
+
+			for (int i = 0; i < exported_types.Count; i++) {
+				var exported_type = exported_types [i];
+				if (exported_type.Name != reference.Name)
+					continue;
+
+				if (exported_type.Namespace != reference.Namespace)
+					continue;
+
+				return exported_type.Resolve ();
+			}
+
+			return null;
 		}
 
 		static TypeDefinition GetType (ModuleDefinition module, TypeReference type)
@@ -163,6 +206,12 @@ namespace Mono.Cecil {
 				if (method.Name != reference.Name)
 					continue;
 
+				if (method.HasGenericParameters != reference.HasGenericParameters)
+					continue;
+
+				if (method.HasGenericParameters && method.GenericParameters.Count != reference.GenericParameters.Count)
+					continue;
+
 				if (!AreSame (method.ReturnType, reference.ReturnType))
 					continue;
 
@@ -232,12 +281,6 @@ namespace Mono.Cecil {
 
 		static bool AreSame (GenericInstanceType a, GenericInstanceType b)
 		{
-			if (!a.HasGenericArguments)
-				return !b.HasGenericArguments;
-
-			if (!b.HasGenericArguments)
-				return false;
-
 			if (a.GenericArguments.Count != b.GenericArguments.Count)
 				return false;
 
@@ -255,6 +298,12 @@ namespace Mono.Cecil {
 
 		static bool AreSame (TypeReference a, TypeReference b)
 		{
+			if (ReferenceEquals (a, b))
+				return true;
+
+			if (a == null || b == null)
+				return false;
+
 			if (a.etype != b.etype)
 				return false;
 
@@ -264,7 +313,12 @@ namespace Mono.Cecil {
 			if (a.IsTypeSpecification ())
 				return AreSame ((TypeSpecification) a, (TypeSpecification) b);
 
-			return a.FullName == b.FullName;
+			if (a.Name != b.Name || a.Namespace != b.Namespace)
+				return false;
+
+			//TODO: check scope
+
+			return AreSame (a.DeclaringType, b.DeclaringType);
 		}
 	}
 }

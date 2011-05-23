@@ -4,7 +4,7 @@
 // Author:
 //   Jb Evain (jbevain@gmail.com)
 //
-// Copyright (c) 2008 - 2010 Jb Evain
+// Copyright (c) 2008 - 2011 Jb Evain
 //
 // Permission is hereby granted, free of charge, to any person obtaining
 // a copy of this software and associated documentation files (the
@@ -83,11 +83,11 @@ namespace Mono.Cecil {
 			var reference = new TypeReference (
 				string.Empty,
 				type.Name,
+				module,
 				ImportScope (type.Assembly),
 				type.IsValueType);
 
 			reference.etype = ImportElementType (type);
-			reference.module = module;
 
 			if (IsNestedType (type))
 				reference.DeclaringType = ImportType (type.DeclaringType, context, import_kind);
@@ -347,10 +347,9 @@ namespace Mono.Cecil {
 			var reference = new TypeReference (
 				type.Namespace,
 				type.Name,
+				module,
 				ImportScope (type.Scope),
 				type.IsValueType);
-
-			reference.module = module;
 
 			MetadataSystem.TryProcessPrimitiveType (reference);
 
@@ -526,8 +525,7 @@ namespace Mono.Cecil {
 				DeclaringType = declaring_type,
 			};
 
-			if (method.IsVarArg ())
-				reference.CallingConvention &= MethodCallingConvention.VarArg;
+			reference.CallingConvention = method.CallingConvention;
 
 			if (method.HasGenericParameters)
 				ImportGenericParameters (reference, method);

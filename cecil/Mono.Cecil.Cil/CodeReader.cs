@@ -4,7 +4,7 @@
 // Author:
 //   Jb Evain (jbevain@gmail.com)
 //
-// Copyright (c) 2008 - 2010 Jb Evain
+// Copyright (c) 2008 - 2011 Jb Evain
 //
 // Permission is hereby granted, free of charge, to any person obtaining
 // a copy of this software and associated documentation files (the
@@ -49,16 +49,11 @@ namespace Mono.Cecil.Cil {
 			get { return base.position - start; }
 		}
 
-		CodeReader (Section section, MetadataReader reader)
+		public CodeReader (Section section, MetadataReader reader)
 			: base (section.Data)
 		{
 			this.code_section = section;
 			this.reader = reader;
-		}
-
-		public static CodeReader CreateCodeReader (MetadataReader metadata)
-		{
-			return new CodeReader (metadata.image.MetadataSection, metadata);
 		}
 
 		public MethodBody ReadMethodBody (MethodDefinition method)
@@ -123,7 +118,7 @@ namespace Mono.Cecil.Cil {
 			body.local_var_token = new MetadataToken (ReadUInt32 ());
 			body.init_locals = (flags & 0x10) != 0;
 
-			if (body.LocalVarToken.RID != 0)
+			if (body.local_var_token.RID != 0)
 				body.variables = ReadVariables (body.local_var_token);
 
 			ReadCode ();
@@ -145,6 +140,10 @@ namespace Mono.Cecil.Cil {
 		{
 			start = position;
 			var code_size = body.code_size;
+
+			if (code_size < 0 || buffer.Length <= (uint) (code_size + position))
+				code_size = 0;
+
 			var end = start + code_size;
 			InstructionCollection instructions = new InstructionCollection (code_size / 3);
             body.instructions = instructions;
@@ -235,7 +234,7 @@ namespace Mono.Cecil.Cil {
 
 		public VariableDefinition GetVariable (int index)
 		{
-			return body.Variables [index];
+			return body.GetVariable (index);
 		}
 
 		public CallSite GetCallSite (MetadataToken token)
@@ -364,7 +363,6 @@ namespace Mono.Cecil.Cil {
 				break;
 			case ExceptionHandlerType.Filter:
 				handler.FilterStart = GetInstruction (ReadInt32 ());
-				handler.FilterEnd = handler.HandlerStart.Previous;
 				break;
 			default:
 				Advance (4);

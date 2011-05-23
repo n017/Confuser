@@ -4,7 +4,7 @@
 // Author:
 //   Jb Evain (jbevain@gmail.com)
 //
-// Copyright (c) 2008 - 2010 Jb Evain
+// Copyright (c) 2008 - 2011 Jb Evain
 //
 // Permission is hereby granted, free of charge, to any person obtaining
 // a copy of this software and associated documentation files (the
@@ -182,11 +182,11 @@ namespace Mono.Cecil {
 		internal Image Image;
 		internal MetadataSystem MetadataSystem;
 		internal ReadingMode ReadingMode;
-		internal IAssemblyResolver AssemblyResolver;
 		internal ISymbolReaderProvider SymbolReaderProvider;
 		internal ISymbolReader SymbolReader;
 
-		TypeSystem type_system;
+		internal IAssemblyResolver assembly_resolver;
+		internal TypeSystem type_system;
 
 		readonly MetadataReader reader;
 		readonly string fq_name;
@@ -216,6 +216,7 @@ namespace Mono.Cecil {
 
 		public ModuleKind Kind {
 			get { return kind; }
+			set { kind = value; }
 		}
 
 		public TargetRuntime Runtime {
@@ -263,6 +264,10 @@ namespace Mono.Cecil {
 			get { return importer ?? (importer = new MetadataImporter (this)); }
 		}
 #endif
+
+		public IAssemblyResolver AssemblyResolver {
+			get { return assembly_resolver; }
+		}
 
 		public TypeSystem TypeSystem {
 			get { return type_system ?? (type_system = TypeSystem.CreateTypeSystem (this)); }
@@ -406,7 +411,7 @@ namespace Mono.Cecil {
 		{
 			this.MetadataSystem = new MetadataSystem ();
 			this.token = new MetadataToken (TokenType.Module, 1);
-			this.AssemblyResolver = GlobalAssemblyResolver.Instance;
+			this.assembly_resolver = GlobalAssemblyResolver.Instance;
 		}
 
 		internal ModuleDefinition (Image image)
@@ -431,7 +436,10 @@ namespace Mono.Cecil {
 		{
 			CheckFullName (fullName);
 
-			return Read (this, (_, reader) => reader.GetTypeReference (scope, fullName) != null);
+			if (!HasImage)
+				return false;
+
+			return GetTypeReference (scope, fullName) != null;
 		}
 
 		public bool TryGetTypeReference (string fullName, out TypeReference type)
@@ -443,16 +451,32 @@ namespace Mono.Cecil {
 		{
 			CheckFullName (fullName);
 
-			return (type = Read (this, (_, reader) => reader.GetTypeReference (scope, fullName))) != null;
+			if (!HasImage) {
+				type = null;
+				return false;
+			}
+
+			return (type = GetTypeReference (scope, fullName)) != null;
+		}
+
+		TypeReference GetTypeReference (string scope, string fullname)
+		{
+			return Read (new Row<string, string> (scope, fullname), (row, reader) => reader.GetTypeReference (row.Col1, row.Col2));
 		}
 
 		public IEnumerable<TypeReference> GetTypeReferences ()
 		{
+			if (!HasImage)
+				return Empty<TypeReference>.Array;
+
 			return Read (this, (_, reader) => reader.GetTypeReferences ());
 		}
 
 		public IEnumerable<MemberReference> GetMemberReferences ()
 		{
+			if (!HasImage)
+				return Empty<MemberReference>.Array;
+
 			return Read (this, (_, reader) => reader.GetMemberReferences ());
 		}
 
@@ -479,6 +503,26 @@ namespace Mono.Cecil {
             if (!HasImage) return null;
             else return Image.Sections;
         }
+
+		public IEnumerable<TypeDefinition> GetTypes ()
+		{
+			return GetTypes (Types);
+		}
+
+		static IEnumerable<TypeDefinition> GetTypes (Collection<TypeDefinition> types)
+		{
+			for (int i = 0; i < types.Count; i++) {
+				var type = types [i];
+
+				yield return type;
+
+				if (!type.HasNestedTypes)
+					continue;
+
+				foreach (var nested in GetTypes (type.NestedTypes))
+					yield return nested;
+			}
+		}
 
 		static void CheckFullName (string fullName)
 		{
@@ -742,7 +786,7 @@ namespace Mono.Cecil {
 
 		public IMetadataTokenProvider LookupToken (MetadataToken token)
 		{
-			return Read (this, (_, reader) => reader.LookupToken (token));
+			return Read (token, (t, reader) => reader.LookupToken (t));
 		}
 
 		internal TRet Read<TItem, TRet> (TItem item, Func<TItem, MetadataReader, TRet> read)
@@ -792,7 +836,7 @@ namespace Mono.Cecil {
 			};
 
 			if (parameters.AssemblyResolver != null)
-				module.AssemblyResolver = parameters.AssemblyResolver;
+				module.assembly_resolver = parameters.AssemblyResolver;
 
 			if (parameters.Kind != ModuleKind.NetModule) {
 				var assembly = new AssemblyDefinition ();

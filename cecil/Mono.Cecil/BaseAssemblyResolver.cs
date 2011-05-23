@@ -4,7 +4,7 @@
 // Author:
 //   Jb Evain (jbevain@gmail.com)
 //
-// Copyright (c) 2008 - 2010 Jb Evain
+// Copyright (c) 2008 - 2011 Jb Evain
 //
 // Permission is hereby granted, free of charge, to any person obtaining
 // a copy of this software and associated documentation files (the
@@ -35,7 +35,7 @@ using Mono.Collections.Generic;
 
 namespace Mono.Cecil {
 
-	public delegate string AssemblyResolveEventHandler (object sender, AssemblyResolveEventArgs e);
+	public delegate AssemblyDefinition AssemblyResolveEventHandler (object sender, AssemblyNameReference reference);
 
 	public sealed class AssemblyResolveEventArgs : EventArgs {
 
@@ -46,6 +46,21 @@ namespace Mono.Cecil {
 		}
 
 		public AssemblyResolveEventArgs (AssemblyNameReference reference)
+		{
+			this.reference = reference;
+		}
+	}
+
+	public class AssemblyResolutionException : FileNotFoundException {
+
+		readonly AssemblyNameReference reference;
+
+		public AssemblyNameReference AssemblyReference {
+			get { return reference; }
+		}
+
+		public AssemblyResolutionException (AssemblyNameReference reference)
+			: base (string.Format ("Failed to resolve assembly: '{0}'", reference))
 		{
 			this.reference = reference;
 		}
@@ -69,12 +84,14 @@ namespace Mono.Cecil {
 		public void RemoveSearchDirectory (string directory)
 		{
 			directories.Remove (directory);
-		}
+        }
 
-		public void ClearSearchDirectory ()
-		{
-			directories.Clear ();
-		}
+        public void ClearSearchDirectories()
+        {
+            directories.Clear();
+            directories.Add(".");
+            directories.Add( "bin");
+        }
 
 		public string [] GetSearchDirectories ()
 		{
@@ -83,79 +100,92 @@ namespace Mono.Cecil {
 			return directories;
 		}
 
-        public virtual AssemblyDefinition Resolve (AssemblyNameReference name)
-        {
-            string path = ResolvePath(name);
-            if (path == null) return null;
-            else return GetAssembly(path);
-        }
+		public virtual AssemblyDefinition Resolve (string fullName)
+		{
+			return Resolve (fullName, new ReaderParameters ());
+		}
+
+		public virtual AssemblyDefinition Resolve (string fullName, ReaderParameters parameters)
+		{
+			if (fullName == null)
+				throw new ArgumentNullException ("fullName");
+
+			return Resolve (AssemblyNameReference.Parse (fullName), parameters);
+		}
 
 		public event AssemblyResolveEventHandler ResolveFailure;
 
 		protected BaseAssemblyResolver ()
 		{
-			directories = new Collection<string> (2);
+			directories = new Collection<string> (2) { ".", "bin" };
 		}
 
-		protected AssemblyDefinition GetAssembly (string file)
+		AssemblyDefinition GetAssembly (string file, ReaderParameters parameters)
 		{
-			return ModuleDefinition.ReadModule (file, new ReaderParameters { AssemblyResolver = this}).Assembly;
+			if (parameters.AssemblyResolver == null)
+				parameters.AssemblyResolver = this;
+
+			return ModuleDefinition.ReadModule (file, parameters).Assembly;
 		}
 
-        public virtual string ResolvePath (AssemblyNameReference name)
-        {
-            var assembly = SearchDirectory(name, directories);
-            if (assembly != null)
-                return assembly;
+		public virtual AssemblyDefinition Resolve (AssemblyNameReference name)
+		{
+			return Resolve (name, new ReaderParameters ());
+		}
 
-            assembly = SearchDirectory(name, new[] { ".", "bin" } );
-            if (assembly != null)
-                return assembly;
+		public virtual AssemblyDefinition Resolve (AssemblyNameReference name, ReaderParameters parameters)
+		{
+			if (name == null)
+				throw new ArgumentNullException ("name");
+			if (parameters == null)
+				parameters = new ReaderParameters ();
+
+			var assembly = SearchDirectory (name, directories, parameters);
+			if (assembly != null)
+				return assembly;
 
 #if !SILVERLIGHT && !CF
-            var framework_dir = Path.GetDirectoryName(typeof(object).Module.FullyQualifiedName);
+			var framework_dir = Path.GetDirectoryName (typeof (object).Module.FullyQualifiedName);
 
-            if (IsZero(name.Version))
-            {
-                assembly = SearchDirectory(name, new[] { framework_dir });
-                if (assembly != null)
-                    return assembly;
-            }
+			if (IsZero (name.Version)) {
+				assembly = SearchDirectory (name, new [] { framework_dir }, parameters);
+				if (assembly != null)
+					return assembly;
+			}
 
-            if (name.Name == "mscorlib")
-            {
-                assembly = GetCorlib(name);
-                if (assembly != null)
-                    return assembly;
-            }
+			if (name.Name == "mscorlib") {
+				assembly = GetCorlib (name, parameters);
+				if (assembly != null)
+					return assembly;
+			}
 
-            assembly = GetAssemblyInGac(name);
-            if (assembly != null)
-                return assembly;
+			assembly = GetAssemblyInGac (name, parameters);
+			if (assembly != null)
+				return assembly;
 
-            assembly = SearchDirectory(name, new[] { framework_dir });
-            if (assembly != null)
-                return assembly;
+			assembly = SearchDirectory (name, new [] { framework_dir }, parameters);
+			if (assembly != null)
+				return assembly;
 #endif
 
-            if (ResolveFailure != null)
-            {
-                assembly = ResolveFailure(this, new AssemblyResolveEventArgs(name));
-                if (assembly != null)
-                    return assembly;
-            }
+			if (ResolveFailure != null) {
+				assembly = ResolveFailure (this, name);
+				if (assembly != null)
+					return assembly;
+			}
 
+			//throw new AssemblyResolutionException (name);
             return null;
-        }
+		}
 
-		string SearchDirectory (AssemblyNameReference name, IEnumerable<string> directories)
+		AssemblyDefinition SearchDirectory (AssemblyNameReference name, IEnumerable<string> directories, ReaderParameters parameters)
 		{
-			var extensions = new [] { ".exe", ".dll", "" };
+			var extensions = new [] { ".exe", ".dll" };
 			foreach (var directory in directories) {
 				foreach (var extension in extensions) {
 					string file = Path.Combine (directory, name.Name + extension);
 					if (File.Exists (file))
-						return file;
+						return GetAssembly (file, parameters);
 				}
 			}
 
@@ -164,17 +194,17 @@ namespace Mono.Cecil {
 
 		static bool IsZero (Version version)
 		{
-			return version.Major == 0 && version.Minor == 0 && version.Build == 0 && version.Revision == 0;
+			return version == null || (version.Major == 0 && version.Minor == 0 && version.Build == 0 && version.Revision == 0);
 		}
 
 #if !SILVERLIGHT && !CF
-		string GetCorlib (AssemblyNameReference reference)
+		AssemblyDefinition GetCorlib (AssemblyNameReference reference, ReaderParameters parameters)
 		{
 			var version = reference.Version;
 			var corlib = typeof (object).Assembly.GetName ();
 
 			if (corlib.Version == version || IsZero (version))
-				return typeof (object).Module.FullyQualifiedName;
+				return GetAssembly (typeof (object).Module.FullyQualifiedName, parameters);
 
 			var path = Directory.GetParent (
 				Directory.GetParent (
@@ -214,7 +244,7 @@ namespace Mono.Cecil {
 
 			var file = Path.Combine (path, "mscorlib.dll");
 			if (File.Exists (file))
-				return file;
+				return GetAssembly (file, parameters);
 
 			return null;
 		}
@@ -260,36 +290,39 @@ namespace Mono.Cecil {
 
 		static string GetCurrentMonoGac ()
 		{
-			return Path.Combine (Directory.GetParent (typeof (object).Module.FullyQualifiedName).FullName, "gac");
+			return Path.Combine (
+				Directory.GetParent (
+					Path.GetDirectoryName (typeof (object).Module.FullyQualifiedName)).FullName,
+				"gac");
 		}
 
-		string GetAssemblyInGac (AssemblyNameReference reference)
+		AssemblyDefinition GetAssemblyInGac (AssemblyNameReference reference, ReaderParameters parameters)
 		{
 			if (reference.PublicKeyToken == null || reference.PublicKeyToken.Length == 0)
 				return null;
 
-            if (gac_paths == null)
-                gac_paths = GetGacPaths();
+			if (gac_paths == null)
+				gac_paths = GetGacPaths ();
 
 			if (on_mono)
-				return GetAssemblyInMonoGac (reference);
+				return GetAssemblyInMonoGac (reference, parameters);
 
-			return GetAssemblyInNetGac (reference);
+			return GetAssemblyInNetGac (reference, parameters);
 		}
 
-		string GetAssemblyInMonoGac (AssemblyNameReference reference)
+		AssemblyDefinition GetAssemblyInMonoGac (AssemblyNameReference reference, ReaderParameters parameters)
 		{
 			for (int i = 0; i < gac_paths.Count; i++) {
 				var gac_path = gac_paths [i];
 				var file = GetAssemblyFile (reference, string.Empty, gac_path);
 				if (File.Exists (file))
-					return file;
+					return GetAssembly (file, parameters);
 			}
 
 			return null;
 		}
 
-		string GetAssemblyInNetGac (AssemblyNameReference reference)
+		AssemblyDefinition GetAssemblyInNetGac (AssemblyNameReference reference, ReaderParameters parameters)
 		{
 			var gacs = new [] { "GAC_MSIL", "GAC_32", "GAC" };
 			var prefixes = new [] { string.Empty, "v4.0_" };
@@ -299,7 +332,7 @@ namespace Mono.Cecil {
 					var gac = Path.Combine (gac_paths [i], gacs [j]);
 					var file = GetAssemblyFile (reference, prefixes [i], gac);
 					if (Directory.Exists (gac) && File.Exists (file))
-						return file;
+						return GetAssembly (file, parameters);
 				}
 			}
 
@@ -308,10 +341,11 @@ namespace Mono.Cecil {
 
 		static string GetAssemblyFile (AssemblyNameReference reference, string prefix, string gac)
 		{
-			var gac_folder = new StringBuilder ();
-			gac_folder.Append (prefix);
-			gac_folder.Append (reference.Version);
-			gac_folder.Append ("__");
+			var gac_folder = new StringBuilder ()
+				.Append (prefix)
+				.Append (reference.Version)
+				.Append ("__");
+
 			for (int i = 0; i < reference.PublicKeyToken.Length; i++)
 				gac_folder.Append (reference.PublicKeyToken [i].ToString ("x2"));
 

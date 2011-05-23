@@ -23,14 +23,11 @@ namespace Confuser.Core
                 doc.Load(file.FullName);
                 foreach (XmlNode xn in doc.SelectNodes("/FileList/File"))
                 {
-                    AssemblyNameReference an = new AssemblyNameReference(xn.Attributes["AssemblyName"].Value, new Version(xn.Attributes["Version"].Value));
                     byte[] tkn = new byte[8];
                     string tknStr = xn.Attributes["PublicKeyToken"].Value;
                     for (int i = 0; i < 8; i++)
                         tkn[i] = Convert.ToByte(tknStr.Substring(i * 2, 2), 16);
-                    an.PublicKeyToken = tkn;
-                    an.Culture = xn.Attributes["Culture"].Value;
-                    FrameworkAssemblies.Add(an.FullName);
+                    FrameworkAssemblies.Add(string.Format("{0}/{1}", xn.Attributes["AssemblyName"].Value, BitConverter.ToString(tkn ?? new byte[0])));
                 }
             }
             foreach (string file in Directory.GetFiles(Directory.GetDirectories(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Reference Assemblies")[0], "FrameworkList.xml", SearchOption.AllDirectories))
@@ -39,14 +36,11 @@ namespace Confuser.Core
                 doc.Load(file);
                 foreach (XmlNode xn in doc.SelectNodes("/FileList/File"))
                 {
-                    AssemblyNameReference an = new AssemblyNameReference(xn.Attributes["AssemblyName"].Value, new Version(xn.Attributes["Version"].Value));
                     byte[] tkn = new byte[8];
                     string tknStr = xn.Attributes["PublicKeyToken"].Value;
                     for (int i = 0; i < 8; i++)
                         tkn[i] = Convert.ToByte(tknStr.Substring(i * 2, 2), 16);
-                    an.PublicKeyToken = tkn;
-                    an.Culture = xn.Attributes["Culture"].Value;
-                    FrameworkAssemblies.Add(an.FullName);
+                    FrameworkAssemblies.Add(string.Format("{0}/{1}", xn.Attributes["AssemblyName"].Value, BitConverter.ToString(tkn ?? new byte[0])));
                 }
             }
         }
@@ -271,7 +265,7 @@ namespace Confuser.Core
                 mod.FullLoad();
                 foreach (AssemblyNameReference refer in mod.AssemblyReferences)
                 {
-                    if (!FrameworkAssemblies.Contains(refer.FullName) && !ret.ContainsKey(refer.FullName) && !IsExcludedDependency(main, refer))
+                    if (!FrameworkAssemblies.Contains(string.Format("{0}/{1}", refer.Name, BitConverter.ToString(refer.PublicKeyToken ?? new byte[0]))) && !ret.ContainsKey(refer.FullName) && !IsExcludedDependency(main, refer))
                     {
                         AssemblyDefinition asm = GlobalAssemblyResolver.Instance.Resolve(refer);
                         if (asm == null)
@@ -296,10 +290,10 @@ namespace Confuser.Core
                 mod.FullLoad();
                 foreach (AssemblyNameReference refer in mod.AssemblyReferences)
                 {
-                    if (!FrameworkAssemblies.Contains(refer.FullName) && !ret.ContainsKey(refer.FullName) && !IsExcludedDependency(asm, refer))
+                    if (!FrameworkAssemblies.Contains(string.Format("{0}/{1}", refer.Name, BitConverter.ToString(refer.PublicKeyToken ?? new byte[0]))) && !ret.ContainsKey(refer.FullName) && !IsExcludedDependency(asm, refer))
                     {
                         AssemblyDefinition asmRef = GlobalAssemblyResolver.Instance.Resolve(refer);
-                        if (asm == null)
+                        if (asmRef == null)
                         {
                             err(this, new LogEventArgs(string.Format("WARNING : Cannot load dependency '" + refer.FullName + ".")));
                         }
@@ -480,7 +474,19 @@ namespace Confuser.Core
 
         public virtual string GetDestinationPath(ModuleDefinition mod, string dstPath)
         {
-            return Path.Combine(dstPath, mod.Name);
+            string ret = mod.Name;
+            if(string.IsNullOrEmpty(Path.GetExtension(ret)))
+                switch (mod.Kind)
+                {
+                    case ModuleKind.Console:
+                    case ModuleKind.Windows:
+                        ret = Path.ChangeExtension(ret, "exe"); break;
+                    case ModuleKind.Dll:
+                        ret = Path.ChangeExtension(ret, "dll"); break;
+                    case ModuleKind.NetModule:
+                        ret = Path.ChangeExtension(ret, "netmodule"); break;
+                }
+            return Path.Combine(dstPath, ret);
         }
     }
     class CopyMarker : Marker
