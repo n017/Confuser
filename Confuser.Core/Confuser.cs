@@ -160,6 +160,18 @@ namespace Confuser.Core
 
                     foreach (ModuleDefinition mod in assemblies[i].Modules)
                     {
+                        if (sn != null && mod.Assembly != null)
+                        {
+                            if (mod.Assembly.MainModule == mod)
+                                mod.Assembly.Name.PublicKey = sn.PublicKey;
+                            mod.Attributes |= ModuleAttributes.StrongNameSigned;
+                        }
+                        else
+                        {
+                            if (mod.Assembly != null && mod.Assembly.MainModule == mod)
+                                mod.Assembly.Name.PublicKey = null;
+                            mod.Attributes &= ~ModuleAttributes.StrongNameSigned;
+                        }
                         param.Logger.Log(string.Format("Obfuscating structure of module {0}...", mod.Name));
 
                         helpers.Clear();
@@ -185,8 +197,8 @@ namespace Confuser.Core
                         param.Logger.StartPhase(3);
 
                         MemoryStream final = new MemoryStream();
-                        ProcessMdPePhases(mod, globalParams, phases, final, new WriterParameters() { StrongNameKeyPair = sn });
-                       
+                        ProcessMdPePhases(mod, globalParams, phases, final, new WriterParameters() { StrongNameKeyPair = (mod.Attributes & ModuleAttributes.StrongNameSigned) != 0 ? sn : null });
+
                         pes.Add(final.ToArray());
                         mods.Add(mod);
 

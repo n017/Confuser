@@ -297,7 +297,7 @@ namespace Mono.Cecil {
 
 			var assembly = module.Assembly;
 
-			if (assembly != null)
+			if (assembly != null && assembly.MainModule == module)
 				BuildAssembly ();
 
 			if (module.HasAssemblyReferences)

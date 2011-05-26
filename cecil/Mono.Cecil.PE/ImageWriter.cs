@@ -615,8 +615,11 @@ namespace Mono.Cecil.PE {
 				WriteUInt32 ((uint) image_base + text_map.GetRVA (TextSegment.ImportAddressTable));
 				return;
 			case TargetArchitecture.AMD64:
+                //WriteUInt16 (0xa148);
+                //WriteUInt32 ((uint) image_base + text_map.GetRVA (TextSegment.ImportAddressTable));
+                //WriteUInt16 (0xe0ff);
 				WriteUInt16 (0xa148);
-				WriteUInt32 ((uint) image_base + text_map.GetRVA (TextSegment.ImportAddressTable));
+				WriteUInt64 ((ulong) image_base + text_map.GetRVA (TextSegment.ImportAddressTable));
 				WriteUInt16 (0xe0ff);
 				return;
 			case TargetArchitecture.IA64:
@@ -653,6 +656,7 @@ namespace Mono.Cecil.PE {
 				WriteUInt32 (0x3000 + reloc_rva - page_rva);
 				break;
 			case TargetArchitecture.AMD64:
+				//WriteUInt32 (0x0000);
 				WriteUInt32 (0xa000 + reloc_rva - page_rva);
 				break;
 			case TargetArchitecture.IA64:
@@ -710,7 +714,7 @@ namespace Mono.Cecil.PE {
 			map.AddMap (TextSegment.DebugDirectory, debug_dir_len, 4);
 
 			RVA import_dir_rva = map.GetNextRVA (TextSegment.DebugDirectory);
-			RVA import_hnt_rva = import_dir_rva + (!pe64 ? 48u : 52u);
+			RVA import_hnt_rva = import_dir_rva + (!pe64 ? 48u : 56u);
 			import_hnt_rva = (import_hnt_rva + 15u) & ~15u;
 			uint import_dir_len = (import_hnt_rva - import_dir_rva) + 27u;
 

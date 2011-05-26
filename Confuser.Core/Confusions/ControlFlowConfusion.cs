@@ -175,6 +175,8 @@ namespace Confuser.Core.Confusions
         public override void Initialize(ModuleDefinition mod)
         {
             rad = new Random();
+            if (mod.Architecture != TargetArchitecture.I386)
+                Log("Junk code is not supported on target architecture, it won't generated.");
         }
         public override void DeInitialize()
         {
@@ -198,7 +200,9 @@ namespace Confuser.Core.Confusions
                 }
             }
             genJunk = true;
-            if (Array.IndexOf(parameter.Parameters.AllKeys, "genjunk") != -1)
+            if (mtd.Module.Architecture != TargetArchitecture.I386)
+                genJunk = false;
+            else if (Array.IndexOf(parameter.Parameters.AllKeys, "genjunk") != -1)
             {
                 if (!bool.TryParse(parameter.Parameters["genjunk"], out genJunk))
                 {

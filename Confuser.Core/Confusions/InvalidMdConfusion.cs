@@ -122,7 +122,7 @@ namespace Confuser.Core.Confusions
                 uint sections = rdr.ReadUInt16();
                 stream.Seek(offset = offset + 0x18, SeekOrigin.Begin);  //Optional hdr
                 bool pe32 = (rdr.ReadUInt16() == 0x010b);
-                stream.Seek(offset + 0x5c, SeekOrigin.Begin);
+                stream.Seek(offset + (pe32 ? 0x5c : 0x6c), SeekOrigin.Begin);
                 stream.Write(new byte[] { 0x06, 0x00, 0x00, 0x00 }, 0, 4);
                 stream.Seek(offset + 0x10, SeekOrigin.Begin);
                 uint entryPt = rdr.ReadUInt32(); bool ok = false;
@@ -148,10 +148,10 @@ namespace Confuser.Core.Confusions
                     { entryPt = entryPt - vLoc + rLoc; ok = true; }
                     stream.Seek(0x10, SeekOrigin.Current);
                 }
-                stream.Seek(entryPt, SeekOrigin.Begin);
-                byte[] fake = new byte[]{0xff,0x25,0x00,0x20,0x40,0x00,
-                                         0xBE,0x05,0x29,0x0E,0x31,0x1B};
-                stream.Write(fake, 0, fake.Length);
+                //stream.Seek(entryPt, SeekOrigin.Begin);
+                //byte[] fake = new byte[]{0xff,0x25,0x00,0x20,0x40,0x00,
+                //                         0xBE,0x05,0x29,0x0E,0x31,0x1B};
+                //stream.Write(fake, 0, fake.Length);
             }
         }
 

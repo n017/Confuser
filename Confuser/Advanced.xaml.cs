@@ -662,7 +662,7 @@ namespace Confuser
                 mod.FullLoad();
                 foreach (AssemblyNameReference refer in mod.AssemblyReferences)
                 {
-                    if (!FrameworkAssemblies.Contains(refer.FullName) && !ret.ContainsKey(refer.FullName))
+                    if (!FrameworkAssemblies.Contains(string.Format("{0}/{1}", refer.Name, BitConverter.ToString(refer.PublicKeyToken ?? new byte[0]))) && !ret.ContainsKey(refer.FullName))
                     {
                         AssemblyDefinition asm = GlobalAssemblyResolver.Instance.Resolve(refer);
                         if (asm == null)
@@ -686,7 +686,7 @@ namespace Confuser
                 mod.FullLoad();
                 foreach (AssemblyNameReference refer in mod.AssemblyReferences)
                 {
-                    if (!FrameworkAssemblies.Contains(refer.FullName) && !ret.ContainsKey(refer.FullName))
+                    if (!FrameworkAssemblies.Contains(string.Format("{0}/{1}", refer.Name, BitConverter.ToString(refer.PublicKeyToken ?? new byte[0]))) && !ret.ContainsKey(refer.FullName))
                     {
                         AssemblyDefinition asmRef = GlobalAssemblyResolver.Instance.Resolve(refer);
                         if (asmRef == null)
