@@ -61,8 +61,13 @@ namespace Confuser.Core.Confusions
                 AddHelper(rc.reso, HelperAttribute.NoInjection);
 
                 n = Guid.NewGuid().ToByteArray();
-                rc.key0 = n[0];
-                rc.key1 = n[1];
+                rc.key0 = rc.key1 = n[0];
+                for (int x = 0; x < n.Length; x++)
+                    if (n[x] != 0)
+                    {
+                        rc.key1 = n[x];
+                        break;
+                    }
 
                 n = Guid.NewGuid().ToByteArray();
 
@@ -145,8 +150,8 @@ namespace Confuser.Core.Confusions
             byte[] GetAsm()
             {
                 AssemblyDefinition asm = AssemblyDefinition.CreateAssembly(new AssemblyNameDefinition(ObfuscationHelper.GetNewName(Guid.NewGuid().ToString()), new Version()), ObfuscationHelper.GetNewName(Guid.NewGuid().ToString()), ModuleKind.Dll);
-                foreach(KeyValuePair<string, byte[]> i in rc.dats)
-                asm.MainModule.Resources.Add(new EmbeddedResource(i.Key, ManifestResourceAttributes.Public, i.Value));
+                foreach (KeyValuePair<string, byte[]> i in rc.dats)
+                    asm.MainModule.Resources.Add(new EmbeddedResource(i.Key, ManifestResourceAttributes.Public, i.Value));
                 MemoryStream ms = new MemoryStream();
                 asm.Write(ms);
                 return ms.ToArray();
