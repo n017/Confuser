@@ -81,6 +81,7 @@ namespace Confuser.Core.Confusions
                 byte[] dat = new byte[0x10];
                 rand.NextBytes(dat);
                 rand.NextBytes(cc.types);
+                while (cc.types.Distinct().Count() != 5) rand.NextBytes(cc.types);
 
                 cc.strer.Body.SimplifyMacros();
                 foreach (Instruction inst in cc.strer.Body.Instructions)
@@ -133,6 +134,7 @@ namespace Confuser.Core.Confusions
                 byte[] dat = new byte[0x10];
                 rand.NextBytes(dat);
                 rand.NextBytes(cc.types);
+                while (cc.types.Distinct().Count() != 5) rand.NextBytes(cc.types);
 
                 cc.strer.Body.SimplifyMacros();
                 foreach (Instruction inst in cc.strer.Body.Instructions)

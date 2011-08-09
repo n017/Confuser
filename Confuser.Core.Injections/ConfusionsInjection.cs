@@ -667,9 +667,9 @@ static class AntiDumping
         ptr = ptr2 = bas + *(uint*)ptr;
         ptr += 0x6;
         ushort sectNum = *(ushort*)ptr;
-        ptr = ptr2 = ptr2 + 0x18;
-        bool pe32 = (*(ushort*)ptr == 0x010b);
-        ptr = ptr2 = ptr2 + (pe32 ? 0xe0 : 0xf0);
+        ptr += 14;
+        ushort optSize = *(ushort*)ptr;
+        ptr = ptr2 = ptr + 0x4 + optSize;
 
         byte* newMod = stackalloc byte[11];
         *(uint*)newMod = 0x6c64746e;
@@ -689,16 +689,19 @@ static class AntiDumping
             byte* mdDir = bas + *(uint*)(ptr - 16);
             *(uint*)(ptr - 16) = 0;
 
-            byte* importDir = bas + *(uint*)(ptr - 0x78);
-            byte* oftMod = bas + *(uint*)importDir;
-            byte* modName = bas + *(uint*)(importDir + 12);
-            byte* funcName = bas + *(uint*)oftMod + 2;
-            VirtualProtect(modName, 11, 0x40, out old);
-            for (int i = 0; i < 11; i++)
-                *(modName + i) = *(newMod + i);
-            VirtualProtect(funcName, 11, 0x40, out old);
-            for (int i = 0; i < 11; i++)
-                *(funcName + i) = *(newFunc + i);
+            if (*(uint*)(ptr - 0x78) != 0)
+            {
+                byte* importDir = bas + *(uint*)(ptr - 0x78);
+                byte* oftMod = bas + *(uint*)importDir;
+                byte* modName = bas + *(uint*)(importDir + 12);
+                byte* funcName = bas + *(uint*)oftMod + 2;
+                VirtualProtect(modName, 11, 0x40, out old);
+                for (int i = 0; i < 11; i++)
+                    *(modName + i) = *(newMod + i);
+                VirtualProtect(funcName, 11, 0x40, out old);
+                for (int i = 0; i < 11; i++)
+                    *(funcName + i) = *(newFunc + i);
+            }
 
             for (int i = 0; i < sectNum; i++)
             {
@@ -775,42 +778,44 @@ static class AntiDumping
             }
 
 
-            for (int i = 0; i < sectNum; i++)
-                if (vAdrs[i] < importDir && importDir < vAdrs[i] + vSizes[i])
-                {
-                    importDir = importDir - vAdrs[i] + rAdrs[i];
-                    break;
-                }
-            byte* importDirPtr = bas + importDir;
-            uint oftMod = *(uint*)importDirPtr;
-            for (int i = 0; i < sectNum; i++)
-                if (vAdrs[i] < oftMod && oftMod < vAdrs[i] + vSizes[i])
-                {
-                    oftMod = oftMod - vAdrs[i] + rAdrs[i];
-                    break;
-                }
-            byte* oftModPtr = bas + oftMod;
-            uint modName = *(uint*)(importDirPtr + 12);
-            for (int i = 0; i < sectNum; i++)
-                if (vAdrs[i] < modName && modName < vAdrs[i] + vSizes[i])
-                {
-                    modName = modName - vAdrs[i] + rAdrs[i];
-                    break;
-                }
-            uint funcName = *(uint*)oftModPtr + 2;
-            for (int i = 0; i < sectNum; i++)
-                if (vAdrs[i] < funcName && funcName < vAdrs[i] + vSizes[i])
-                {
-                    funcName = funcName - vAdrs[i] + rAdrs[i];
-                    break;
-                }
-            VirtualProtect(bas + modName, 11, 0x40, out old);
-            for (int i = 0; i < 11; i++)
-                *(bas + modName + i) = *(newMod + i);
-            VirtualProtect(bas + funcName, 11, 0x40, out old);
-            for (int i = 0; i < 11; i++)
-                *(bas + funcName + i) = *(newFunc + i);
-
+            if (importDir != 0)
+            {
+                for (int i = 0; i < sectNum; i++)
+                    if (vAdrs[i] < importDir && importDir < vAdrs[i] + vSizes[i])
+                    {
+                        importDir = importDir - vAdrs[i] + rAdrs[i];
+                        break;
+                    }
+                byte* importDirPtr = bas + importDir;
+                uint oftMod = *(uint*)importDirPtr;
+                for (int i = 0; i < sectNum; i++)
+                    if (vAdrs[i] < oftMod && oftMod < vAdrs[i] + vSizes[i])
+                    {
+                        oftMod = oftMod - vAdrs[i] + rAdrs[i];
+                        break;
+                    }
+                byte* oftModPtr = bas + oftMod;
+                uint modName = *(uint*)(importDirPtr + 12);
+                for (int i = 0; i < sectNum; i++)
+                    if (vAdrs[i] < modName && modName < vAdrs[i] + vSizes[i])
+                    {
+                        modName = modName - vAdrs[i] + rAdrs[i];
+                        break;
+                    }
+                uint funcName = *(uint*)oftModPtr + 2;
+                for (int i = 0; i < sectNum; i++)
+                    if (vAdrs[i] < funcName && funcName < vAdrs[i] + vSizes[i])
+                    {
+                        funcName = funcName - vAdrs[i] + rAdrs[i];
+                        break;
+                    }
+                VirtualProtect(bas + modName, 11, 0x40, out old);
+                for (int i = 0; i < 11; i++)
+                    *(bas + modName + i) = *(newMod + i);
+                VirtualProtect(bas + funcName, 11, 0x40, out old);
+                for (int i = 0; i < 11; i++)
+                    *(bas + funcName + i) = *(newFunc + i);
+            }
 
 
             for (int i = 0; i < sectNum; i++)

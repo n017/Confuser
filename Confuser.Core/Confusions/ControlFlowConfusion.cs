@@ -199,15 +199,15 @@ namespace Confuser.Core.Confusions
                     slv = 5;
                 }
             }
-            genJunk = true;
+            genJunk = false;
             if (mtd.Module.Architecture != TargetArchitecture.I386)
                 genJunk = false;
             else if (Array.IndexOf(parameter.Parameters.AllKeys, "genjunk") != -1)
             {
                 if (!bool.TryParse(parameter.Parameters["genjunk"], out genJunk))
                 {
-                    Log("Invaild junk parameter, junk code would be generated.");
-                    genJunk = true;
+                    Log("Invaild junk code parameter, junk code would not generated.");
+                    genJunk = false;
                 }
             }
             double trueLv = slv / 10.0;
