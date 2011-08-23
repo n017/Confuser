@@ -13,6 +13,7 @@ using System.Windows.Navigation;
 using System.Windows.Shapes;
 using Mono.Cecil;
 using Confuser.Core;
+using System.ComponentModel;
 
 namespace Confuser
 {
@@ -21,42 +22,142 @@ namespace Confuser
     /// </summary>
     public partial class AssemblyElementPicker
     {
+        internal class TreeNodeViewModel : INotifyPropertyChanged
+        {
+            public event PropertyChangedEventHandler PropertyChanged;
+            void OnPropertyChanged(string prop)
+            {
+                if (PropertyChanged != null)
+                    PropertyChanged(this, new PropertyChangedEventArgs(prop));
+            }
+
+            object obj;
+            public object Object
+            {
+                get { return obj; }
+                set
+                {
+                    obj = value;
+                    OnPropertyChanged("Object");
+                }
+            }
+
+            Brush bg;
+            public Brush Foreground
+            {
+                get { return bg; }
+                set
+                {
+                    bg = value;
+                    OnPropertyChanged("Foreground");
+                }
+            }
+
+            ImageSource ico;
+            public ImageSource Icon
+            {
+                get { return ico; }
+                set
+                {
+                    ico = value;
+                    OnPropertyChanged("Icon");
+                }
+            }
+
+            string hdr;
+            public string Header
+            {
+                get { return hdr; }
+                set
+                {
+                    hdr = value;
+                    OnPropertyChanged("Header");
+                }
+            }
+
+            ContextMenu cMenu;
+            public ContextMenu ContextMenu
+            {
+                get { return cMenu; }
+                set
+                {
+                    cMenu = value;
+                    OnPropertyChanged("ContextMenu");
+                }
+            }
+
+            TreeNodeViewModel[] children;
+            public TreeNodeViewModel[] Children
+            {
+                get { return children; }
+                set
+                {
+                    children = value;
+                    OnPropertyChanged("Children");
+                }
+            }
+
+            bool isExpanded;
+            public bool IsExpanded
+            {
+                get { return isExpanded; }
+                set
+                {
+                    if (isExpanded != value)
+                    {
+                        isExpanded = value;
+                        OnPropertyChanged("IsExpanded");
+                        if (value && Children == Loading)
+                            if (LoadChildren != null) LoadChildren(this);
+                    }
+                    else isExpanded = value;
+                }
+            }
+
+            bool isLoaded = false;
+            public event Action<TreeNodeViewModel> LoadChildren;
+
+            static TreeNodeViewModel[] Loading = new[] {
+                new TreeNodeViewModel()
+                {
+                    Children = new TreeNodeViewModel[0],
+                    Header = "Loading...",
+                    Foreground = Brushes.White
+                }
+            };
+            static TreeNodeViewModel[] NoChildren = new TreeNodeViewModel[0];
+
+            public TreeNodeViewModel()
+            {
+                if (Loading == null) isLoaded = true;
+                else
+                    Children = Loading;
+            }
+            public TreeNodeViewModel(bool hasChildren)
+                : this()
+            {
+                if (!hasChildren) Children = new TreeNodeViewModel[0];
+            }
+        }
+
         public AssemblyElementPicker()
         {
             this.InitializeComponent();
         }
 
-        StackPanel AddIcon(ImageSource img, UIElement hdr)
+        ImageSource GetIcon(string imgId)
         {
-            StackPanel ret = new StackPanel() { Orientation = Orientation.Horizontal };
-            Image image = new Image() { Source = img, Width = 16, Height = 16 };
-            RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
-            ret.Children.Add(image);
-            ret.Children.Add(hdr);
-            return ret;
+            return FindResource(imgId) as ImageSource;
         }
 
-        UIElement GetHeader(string imgId, string txt, bool isPublic)
+        void SetCMenu(TreeNodeViewModel vm)
         {
-            UIElement txtEle;
-            txtEle = new TextBlock() { Text = txt };
-            if (!isPublic)
-                (txtEle as TextBlock).Foreground = Brushes.DimGray;
-
-            return AddIcon(FindResource(imgId) as ImageSource, txtEle);
+            vm.ContextMenu = this.FindResource("selMenu") as ContextMenu;
         }
 
-        void SetCMenu(TreeViewItem item)
-        {
-            item.ContextMenu = this.FindResource("selMenu") as ContextMenu;
-            item.AddHandler(TreeViewItem.MouseRightButtonUpEvent, new RoutedEventHandler(menu_Click));
-        }
-
-        Dictionary<IMemberDefinition, TreeViewItem> dict;
 
         public void ClearAssemblies()
         {
-            dict = new Dictionary<IMemberDefinition, TreeViewItem>();
             asmViewer.Items.Clear();
         }
 
@@ -64,64 +165,113 @@ namespace Confuser
         {
             asmViewer.BeginInit();
 
-            TreeViewItem item = new TreeViewItem();
-            item.Header = GetHeader("asm", asm.Name.Name, true);
-            item.Tag = asm;
-            SetCMenu(item);
-            PopulateModule(item, asm.MainModule);
-            asmViewer.Items.Add(item);
+            TreeNodeViewModel vm = new TreeNodeViewModel()
+            {
+                Icon = GetIcon("asm"),
+                Foreground = Brushes.WhiteSmoke,
+                Header = asm.Name.Name,
+                Object = asm
+            };
+            SetCMenu(vm);
+            vm.LoadChildren += _ => PopulateModules(_, (AssemblyDefinition)_.Object);
+            asmViewer.Items.Add(vm);
 
             asmViewer.EndInit();
         }
 
-        void PopulateModule(TreeViewItem asm, ModuleDefinition mod)
+        void PopulateModules(TreeNodeViewModel p, AssemblyDefinition asm)
         {
-            TreeViewItem item = new TreeViewItem();
-            item.Header = GetHeader("mod", mod.Name, true);
-            item.Tag = mod;
-            SetCMenu(item);
+            List<TreeNodeViewModel> items = new List<TreeNodeViewModel>();
+            foreach (var mod in asm.Modules)
+            {
+                TreeNodeViewModel vm = new TreeNodeViewModel()
+                {
+                    Icon = GetIcon("mod"),
+                    Foreground = Brushes.WhiteSmoke,
+                    Header = mod.Name,
+                    Object = mod
+                };
+                SetCMenu(vm);
+                vm.LoadChildren += _ => PopulateNamespaces(_, (ModuleDefinition)_.Object);
+                items.Add(vm);
+            }
+            p.Children = items.ToArray();
+        }
 
-            SortedDictionary<string, TreeViewItem> nss = new SortedDictionary<string, TreeViewItem>();
+        void PopulateNamespaces(TreeNodeViewModel p, ModuleDefinition mod)
+        {
+            SortedDictionary<string, TreeNodeViewModel> nss = new SortedDictionary<string, TreeNodeViewModel>();
+            Dictionary<string, List<TypeDefinition>> typeDefs = new Dictionary<string, List<TypeDefinition>>();
             foreach (TypeDefinition t in mod.Types)
             {
                 if (!nss.ContainsKey(t.Namespace))
                 {
-                    nss.Add(t.Namespace, new TreeViewItem() { Header = AddIcon(FindResource("ns") as ImageSource, new TextBlock() { Text = t.Namespace == "" ? "-" : t.Namespace }) });
+                    typeDefs.Add(t.Namespace, new List<TypeDefinition>());
+                    TreeNodeViewModel vm = new TreeNodeViewModel()
+                    {
+                        Icon = GetIcon("ns"),
+                        Foreground = Brushes.WhiteSmoke,
+                        Header = t.Namespace == "" ? "-" : t.Namespace,
+                        Object = typeDefs[t.Namespace]
+                    };
+                    SetCMenu(vm);
+                    vm.LoadChildren += _ => PopulateTypes(_, (List<TypeDefinition>)_.Object);
+                    nss.Add(t.Namespace, vm);
                 }
+                typeDefs[t.Namespace].Add(t);
             }
-
-            foreach (TypeDefinition type in mod.Types)
-            {
-                PopulateType(nss[type.Namespace], type);
-            }
-
-            foreach (TreeViewItem ns in nss.Values)
-            {
-                SetCMenu(ns);
-                item.Items.Add(ns);
-            }
-
-            asm.Items.Add(item);
+            p.Children = nss.Values.ToArray();
         }
 
-        void PopulateType(TreeViewItem par, TypeDefinition type)
+        void PopulateTypes(TreeNodeViewModel p, List<TypeDefinition> ns)
         {
-            TreeViewItem item = new TreeViewItem();
+            List<TreeNodeViewModel> items = new List<TreeNodeViewModel>();
+            foreach (var type in ns)
+            {
+                string img = "";
+                if (type.IsEnum) img = "enum";
+                else if (type.IsInterface) img = "iface";
+                else if (type.IsValueType) img = "vt";
+                else if (type.BaseType != null && (type.BaseType.Name == "Delegate" || type.BaseType.Name == "MultiCastDelegate")) img = "dele";
+                else img = "type";
 
-            string img = "";
-            if (type.IsEnum) img = "enum";
-            else if (type.IsInterface) img = "iface";
-            else if (type.IsValueType) img = "vt";
-            else if (type.BaseType != null && (type.BaseType.Name == "Delegate" || type.BaseType.Name == "MultiCastDelegate")) img = "dele";
-            else img = "type";
-            item.Header = GetHeader(img, type.Name, type.IsPublic || type.IsNestedPublic);
+                TreeNodeViewModel vm = new TreeNodeViewModel()
+                {
+                    Icon = GetIcon(img),
+                    Foreground = type.IsPublic || type.IsNestedPublic ? Brushes.WhiteSmoke : Brushes.LightGray,
+                    Header = type.Name,
+                    Object = type
+                };
+                SetCMenu(vm);
+                vm.LoadChildren += _ => PopulateMembers(_, (TypeDefinition)_.Object);
+                items.Add(vm);
+            }
+            p.Children = items.ToArray();
+        }
 
-            item.Tag = type;
-            SetCMenu(item);
+        void PopulateMembers(TreeNodeViewModel p, TypeDefinition type)
+        {
+            List<TreeNodeViewModel> items = new List<TreeNodeViewModel>();
 
             foreach (TypeDefinition nested in type.NestedTypes)
             {
-                PopulateType(item, nested);
+                string img = "";
+                if (nested.IsEnum) img = "enum";
+                else if (nested.IsInterface) img = "iface";
+                else if (nested.IsValueType) img = "vt";
+                else if (nested.BaseType != null && (nested.BaseType.Name == "Delegate" || nested.BaseType.Name == "MulticastDelegate")) img = "dele";
+                else img = "type";
+
+                TreeNodeViewModel vm = new TreeNodeViewModel()
+                {
+                    Icon = GetIcon(img),
+                    Foreground = nested.IsPublic || nested.IsNestedPublic ? Brushes.WhiteSmoke : Brushes.LightGray,
+                    Header = nested.Name,
+                    Object = nested
+                };
+                SetCMenu(vm);
+                vm.LoadChildren += _ => PopulateMembers(_, (TypeDefinition)_.Object);
+                items.Add(vm);
             }
 
             foreach (MethodDefinition mtd in from mtd in type.Methods orderby !mtd.IsConstructor select mtd)
@@ -144,12 +294,16 @@ namespace Confuser
                 }
                 mtdName.Append(") : ");
                 mtdName.Append(mtd.ReturnType.Name);
-                TreeViewItem mtdItem = new TreeViewItem();
-                mtdItem.Header = GetHeader(mtd.IsConstructor ? "ctor" : "mtd", mtdName.ToString(), mtd.IsPublic);
-                mtdItem.Tag = mtd;
-                SetCMenu(mtdItem);
-                item.Items.Add(mtdItem);
-                dict[mtd] = mtdItem;
+
+                TreeNodeViewModel vm = new TreeNodeViewModel(false)
+                {
+                    Icon = GetIcon(mtd.IsConstructor ? "ctor" : "mtd"),
+                    Foreground = mtd.IsPublic ? Brushes.WhiteSmoke : Brushes.LightGray,
+                    Header = mtdName.ToString(),
+                    Object = mtd
+                };
+                SetCMenu(vm);
+                items.Add(vm);
             }
 
             foreach (PropertyDefinition prop in from prop in type.Properties orderby prop.Name select prop)
@@ -158,12 +312,16 @@ namespace Confuser
                 propName.Append(prop.Name);
                 propName.Append(" : ");
                 propName.Append(prop.PropertyType.Name);
-                TreeViewItem propItem = new TreeViewItem();
-                propItem.Header = GetHeader("prop", propName.ToString(), true);
-                propItem.Tag = prop;
-                SetCMenu(propItem);
-                item.Items.Add(propItem);
-                dict[prop] = propItem;
+
+                TreeNodeViewModel vm = new TreeNodeViewModel(false)
+                {
+                    Icon = GetIcon("prop"),
+                    Foreground = true ? Brushes.WhiteSmoke : Brushes.LightGray,
+                    Header = propName.ToString(),
+                    Object = prop
+                };
+                SetCMenu(vm);
+                items.Add(vm);
             }
 
             foreach (EventDefinition evt in from evt in type.Events orderby evt.Name select evt)
@@ -172,12 +330,16 @@ namespace Confuser
                 evtName.Append(evt.Name);
                 evtName.Append(" : ");
                 evtName.Append(evt.EventType.Name);
-                TreeViewItem evtItem = new TreeViewItem();
-                evtItem.Header = GetHeader("evt", evtName.ToString(), true);
-                evtItem.Tag = evt;
-                SetCMenu(evtItem);
-                item.Items.Add(evtItem);
-                dict[evt] = evtItem;
+
+                TreeNodeViewModel vm = new TreeNodeViewModel(false)
+                {
+                    Icon = GetIcon("evt"),
+                    Foreground = true ? Brushes.WhiteSmoke : Brushes.LightGray,
+                    Header = evtName.ToString(),
+                    Object = evt
+                };
+                SetCMenu(vm);
+                items.Add(vm);
             }
 
             foreach (FieldDefinition fld in from fld in type.Fields orderby fld.Name select fld)
@@ -186,41 +348,37 @@ namespace Confuser
                 fldName.Append(fld.Name);
                 fldName.Append(" : ");
                 fldName.Append(fld.FieldType.Name);
-                TreeViewItem fldItem = new TreeViewItem();
-                fldItem.Header = GetHeader("fld", fldName.ToString(), fld.IsPublic);
-                fldItem.Tag = fld;
-                SetCMenu(fldItem);
-                item.Items.Add(fldItem);
-                dict[fld] = fldItem;
+
+                TreeNodeViewModel vm = new TreeNodeViewModel(false)
+                {
+                    Icon = GetIcon("fld"),
+                    Foreground = fld.IsPublic ? Brushes.WhiteSmoke : Brushes.LightGray,
+                    Header = fldName.ToString(),
+                    Object = fld
+                };
+                SetCMenu(vm);
+                items.Add(vm);
             }
 
-            par.Items.Add(item);
-            dict[type] = item;
-        }
-
-        void menu_Click(object sender, RoutedEventArgs e)
-        {
-            (sender as TreeViewItem).ContextMenu.Tag = sender;
-            (sender as TreeViewItem).ContextMenu.IsOpen = true;
-            e.Handled = true;
+            p.Children = items.ToArray();
         }
 
         private void expAll_Click(object sender, RoutedEventArgs e)
         {
-            TreeViewItem item = ((sender as MenuItem).Parent as ContextMenu).Tag as TreeViewItem;
-            Expand(item, true);
+            TreeViewItem item = ((sender as MenuItem).Parent as ContextMenu).PlacementTarget as TreeViewItem;
+            Expand(item.DataContext as TreeNodeViewModel, true);
         }
 
         private void colAll_Click(object sender, RoutedEventArgs e)
         {
-            TreeViewItem item = ((sender as MenuItem).Parent as ContextMenu).Tag as TreeViewItem;
-            Expand(item, false);
+            TreeViewItem item = ((sender as MenuItem).Parent as ContextMenu).PlacementTarget as TreeViewItem;
+            Expand(item.DataContext as TreeNodeViewModel, false);
         }
 
-        private void Expand(TreeViewItem item, bool val)
+        private void Expand(TreeNodeViewModel vm, bool val)
         {
-            item.IsExpanded = val;
-            foreach (TreeViewItem c in item.Items)
+            vm.IsExpanded = val;
+            foreach (TreeNodeViewModel c in vm.Children)
                 Expand(c, val);
         }
     }

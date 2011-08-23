@@ -389,7 +389,8 @@ namespace Confuser
 
         private void elements_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
         {
-            if (elements.SelectedItem == null || (elements.SelectedItem as TreeViewItem).Tag == null)
+            if (elements.SelectedItem == null || (elements.SelectedItem as AssemblyElementPicker.TreeNodeViewModel) == null||
+                !((elements.SelectedItem as AssemblyElementPicker.TreeNodeViewModel).Object is IAnnotationProvider))
             {
                 confusionList.ItemsSource = null;
                 elementSet.IsEnabled = false;
@@ -397,7 +398,7 @@ namespace Confuser
             }
             else elementSet.IsEnabled = true;
 
-            IAnnotationProvider provider = (elements.SelectedItem as TreeViewItem).Tag as IAnnotationProvider;
+            IAnnotationProvider provider = (elements.SelectedItem as AssemblyElementPicker.TreeNodeViewModel).Object as IAnnotationProvider;
             IDictionary<Core.IConfusion, NameValueCollection> dict;
             if (!provider.Annotations.Contains("ConfusionSets"))
                 provider.Annotations["ConfusionSets"] = dict = new ConfusionSets();
@@ -439,7 +440,7 @@ namespace Confuser
         private void applyChildClick(object sender, RoutedEventArgs e)
         {
             IDictionary<Core.IConfusion, NameValueCollection> dict = confusionList.ItemsSource as IDictionary<Core.IConfusion, NameValueCollection>;
-            SetChilds((elements.SelectedItem as TreeViewItem).Tag as IAnnotationProvider, dict);
+            SetChilds((elements.SelectedItem as AssemblyElementPicker.TreeNodeViewModel).Object as IAnnotationProvider, dict);
         }
 
         void SetChilds(IAnnotationProvider obj, IDictionary<Core.IConfusion, NameValueCollection> dict)

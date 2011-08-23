@@ -3,27 +3,40 @@
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 	xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:local="clr-namespace:Confuser"
 	mc:Ignorable="d" x:Name="asmViewer" VirtualizingStackPanel.IsVirtualizing="True"
 	x:Class="Confuser.AssemblyElementPicker" Style="{DynamicResource {x:Type TreeView}}">
 	<TreeView.Resources>
-		<ResourceDictionary>
-			<ImageSource x:Key="asm">PickerIcons/assembly.png</ImageSource>
-			<ImageSource x:Key="mod">PickerIcons/module.png</ImageSource>
-			<ImageSource x:Key="ns">PickerIcons/namespace.png</ImageSource>
-			<ImageSource x:Key="type">PickerIcons/type.png</ImageSource>
-			<ImageSource x:Key="iface">PickerIcons/interface.png</ImageSource>
-			<ImageSource x:Key="vt">PickerIcons/valuetype.png</ImageSource>
-			<ImageSource x:Key="dele">PickerIcons/delegate.png</ImageSource>
-			<ImageSource x:Key="enum">PickerIcons/enum.png</ImageSource>
-			<ImageSource x:Key="ctor">PickerIcons/constructor.png</ImageSource>
-			<ImageSource x:Key="mtd">PickerIcons/method.png</ImageSource>
-			<ImageSource x:Key="fld">PickerIcons/field.png</ImageSource>
-			<ImageSource x:Key="prop">PickerIcons/property.png</ImageSource>
-			<ImageSource x:Key="evt">PickerIcons/event.png</ImageSource>
-            <ContextMenu x:Key="selMenu" Template="{DynamicResource contextMenu}">
-                <MenuItem Header="Expand All" Click="expAll_Click"/>
-                <MenuItem Header="Collapse All" Click="colAll_Click"/>
-            </ContextMenu>
-        </ResourceDictionary>
-	</TreeView.Resources>
+		<ImageSource x:Key="asm">PickerIcons/assembly.png</ImageSource>
+		<ImageSource x:Key="mod">PickerIcons/module.png</ImageSource>
+		<ImageSource x:Key="ns">PickerIcons/namespace.png</ImageSource>
+		<ImageSource x:Key="type">PickerIcons/type.png</ImageSource>
+		<ImageSource x:Key="iface">PickerIcons/interface.png</ImageSource>
+		<ImageSource x:Key="vt">PickerIcons/valuetype.png</ImageSource>
+		<ImageSource x:Key="dele">PickerIcons/delegate.png</ImageSource>
+		<ImageSource x:Key="enum">PickerIcons/enum.png</ImageSource>
+		<ImageSource x:Key="ctor">PickerIcons/constructor.png</ImageSource>
+		<ImageSource x:Key="mtd">PickerIcons/method.png</ImageSource>
+		<ImageSource x:Key="fld">PickerIcons/field.png</ImageSource>
+		<ImageSource x:Key="prop">PickerIcons/property.png</ImageSource>
+		<ImageSource x:Key="evt">PickerIcons/event.png</ImageSource>
+        <ContextMenu x:Key="selMenu" Template="{DynamicResource contextMenu}">
+            <MenuItem Header="Expand All" Click="expAll_Click"/>
+            <MenuItem Header="Collapse All" Click="colAll_Click"/>
+        </ContextMenu>
+    </TreeView.Resources>
+    <TreeView.ItemContainerStyle>
+        <Style TargetType="{x:Type TreeViewItem}" BasedOn="{StaticResource {x:Type TreeViewItem}}">
+            <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+            <Setter Property="ContextMenu" Value="{Binding ContextMenu, Mode=TwoWay}" />
+        </Style>
+    </TreeView.ItemContainerStyle>
+    <TreeView.ItemTemplate>
+        <HierarchicalDataTemplate DataType="{x:Type local:AssemblyElementPicker+TreeNodeViewModel}" ItemsSource="{Binding Children}">
+            <StackPanel Orientation="Horizontal">
+                <Image Source="{Binding Icon}" Width="16" Height="16" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                <TextBlock Text="{Binding Header}" Foreground="{Binding Foreground}"/>
+            </StackPanel>
+        </HierarchicalDataTemplate>
+    </TreeView.ItemTemplate>
 </TreeView>
