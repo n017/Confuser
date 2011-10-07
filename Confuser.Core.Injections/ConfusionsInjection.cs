@@ -177,7 +177,7 @@ static class Proxies
 
             System.Reflection.Emit.DynamicMethod dm;
             if (mtd.DeclaringType.IsInterface)
-                dm = new System.Reflection.Emit.DynamicMethod("", mtd.ReturnType, arg, true);
+                dm = new System.Reflection.Emit.DynamicMethod("", mtd.ReturnType, arg, (Type)null, true);
             else
                 dm = new System.Reflection.Emit.DynamicMethod("", mtd.ReturnType, arg, mtd.DeclaringType, true);
             var gen = dm.GetILGenerator();
