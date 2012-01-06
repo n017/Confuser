@@ -35,12 +35,9 @@ using RVA = System.UInt32;
 
 namespace Mono.Cecil.PE {
 
-	sealed class ImageReader : BinaryStreamReader {
+	public sealed class ImageReader : BinaryStreamReader {
 
 		readonly Image image;
-
-		DataDirectory cli;
-		DataDirectory metadata;
 
 		public ImageReader (Stream stream)
 			: base (stream)
@@ -205,9 +202,9 @@ namespace Mono.Cecil.PE {
 			Advance (56);
 
 			// CLIHeader			8
-			cli = ReadDataDirectory ();
+			image.CLIHeader = ReadDataDirectory ();
 
-			if (cli.IsZero)
+            if (image.CLIHeader.IsZero)
 				throw new BadImageFormatException ();
 
 			// Reserved				8
@@ -306,7 +303,7 @@ namespace Mono.Cecil.PE {
 
 		void ReadCLIHeader ()
 		{
-			MoveTo (cli);
+            MoveTo (image.CLIHeader);
 
 			// - CLIHeader
 
@@ -316,7 +313,7 @@ namespace Mono.Cecil.PE {
 			Advance (8);
 
 			// Metadata					8
-			metadata = ReadDataDirectory ();
+			image.Metadata = ReadDataDirectory ();
 			// Flags					4
 			image.Attributes = (ModuleAttributes) ReadUInt32 ();
 			// EntryPointToken			4
@@ -332,7 +329,7 @@ namespace Mono.Cecil.PE {
 
 		void ReadMetadata ()
 		{
-			MoveTo (metadata);
+            MoveTo (image.Metadata);
 
 			if (ReadUInt32 () != 0x424a5342)
 				throw new BadImageFormatException ();
@@ -350,7 +347,7 @@ namespace Mono.Cecil.PE {
 
 			var streams = ReadUInt16 ();
 
-			var section = image.GetSectionAtVirtualAddress (metadata.VirtualAddress);
+			var section = image.GetSectionAtVirtualAddress (image.Metadata.VirtualAddress);
 			if (section == null)
 				throw new BadImageFormatException ();
 
@@ -366,7 +363,7 @@ namespace Mono.Cecil.PE {
 		void ReadMetadataStream (Section section)
 		{
 			// Offset		4
-			uint start = metadata.VirtualAddress - section.VirtualAddress + ReadUInt32 (); // relative to the section start
+			uint start = image.Metadata.VirtualAddress - section.VirtualAddress + ReadUInt32 (); // relative to the section start
 
 			// Size			4
 			uint size = ReadUInt32 ();

@@ -79,13 +79,13 @@ namespace Mono.Cecil.Metadata {
 		GenericParamConstraint = 0x2c,
 	}
 
-	struct TableInformation {
+	public struct TableInformation {
 		public uint Offset;
 		public uint Length;
 		public uint RowSize;
 	}
 
-	sealed class TableHeap : Heap {
+	public sealed class TableHeap : Heap {
 
 		public long Valid;
 		public long Sorted;

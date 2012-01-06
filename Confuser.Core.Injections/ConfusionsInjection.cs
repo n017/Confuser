@@ -530,19 +530,9 @@ static class AntiTamper
         IntPtr modPtr = Marshal.GetHINSTANCE(mod);
         if (modPtr == (IntPtr)(-1)) Environment.FailFast("Module error");
         Stream stream;
-        bool inMem;
-        if (mod.FullyQualifiedName == "<Unknown>")
-        {
-            inMem = true;
-            stream = new UnmanagedMemoryStream((byte*)modPtr.ToPointer(), 0xfffffff, 0xfffffff, FileAccess.ReadWrite);
-        }
-        else
-        {
-            inMem = false;
-            stream = new FileStream(mod.FullyQualifiedName, FileMode.Open, FileAccess.Read, FileShare.Read);
-        }
+        stream = new UnmanagedMemoryStream((byte*)modPtr.ToPointer(), 0xfffffff, 0xfffffff, FileAccess.ReadWrite);
 
-        byte[] file;
+        byte[] buff;
         int checkSumOffset;
         ulong checkSum;
         byte[] iv;
@@ -556,16 +546,61 @@ static class AntiTamper
             stream.Seek(offset, SeekOrigin.Begin);
             stream.Seek(0x6, SeekOrigin.Current);
             uint sections = rdr.ReadUInt16();
+            stream.Seek(0xC, SeekOrigin.Current);
+            uint optSize = rdr.ReadUInt16();
             stream.Seek(offset = offset + 0x18, SeekOrigin.Begin);  //Optional hdr
             bool pe32 = (rdr.ReadUInt16() == 0x010b);
             stream.Seek(0x3e, SeekOrigin.Current);
             checkSumOffset = (int)stream.Position;
-            int len = rdr.ReadInt32() ^ 0x11111111;
-            if (len == 0x11111111)
+            uint md = rdr.ReadUInt32() ^ 0x11111111;
+            if (md == 0x11111111)
                 Environment.FailFast("Broken file");
 
-            stream.Seek(0, SeekOrigin.Begin);
-            file = rdr.ReadBytes(len);
+            stream.Seek(md, SeekOrigin.Begin);
+            using (MemoryStream str = new MemoryStream())
+            {
+                stream.Position += 12;
+                stream.Position += rdr.ReadUInt32() + 4;
+                stream.Position += 2;
+
+                ushort streams = rdr.ReadUInt16();
+
+                for (int i = 0; i < streams; i++)
+                {
+                    uint pos = rdr.ReadUInt32() + md;
+                    uint size = rdr.ReadUInt32();
+
+                    int c = 0;
+                    while (rdr.ReadByte() != 0) c++;
+                    long ori = stream.Position += (((c + 1) + 3) & ~3) - (c + 1);
+
+                    stream.Position = pos;
+                    str.Write(rdr.ReadBytes((int)size), 0, (int)size);
+                    stream.Position = ori;
+                }
+
+                buff = str.ToArray();
+            }
+
+            stream.Seek(offset = offset + optSize, SeekOrigin.Begin);  //sect hdr
+            uint datLoc = 0;
+            for (int i = 0; i < sections; i++)
+            {
+                string str = "";
+                for (int j = 0; j < 8; j++)
+                {
+                    byte chr = rdr.ReadByte();
+                    if (chr != 0) str += (char)chr;
+                }
+                uint vSize = rdr.ReadUInt32();
+                uint vLoc = rdr.ReadUInt32();
+                uint rSize = rdr.ReadUInt32();
+                uint rLoc = rdr.ReadUInt32();
+                if (str.GetHashCode() == 0x03d46cda)
+                    datLoc = vLoc;
+                stream.Seek(0x10, SeekOrigin.Current);
+            }
+            stream.Seek(datLoc, SeekOrigin.Begin);
             checkSum = rdr.ReadUInt64() ^ 0x2222222222222222;
             sn = rdr.ReadInt32();
             snLen = rdr.ReadInt32();
@@ -573,19 +608,13 @@ static class AntiTamper
             dats = rdr.ReadBytes(rdr.ReadInt32() ^ 0x44444444);
         }
 
-        Buffer.BlockCopy(new byte[4], 0, file, checkSumOffset, 4);
-        if (sn != 0)
-        {
-            Buffer.BlockCopy(new byte[snLen], 0, file, sn, snLen);
-        }
-
-        byte[] md5 = MD5.Create().ComputeHash(file);
+        byte[] md5 = MD5.Create().ComputeHash(buff);
         ulong tCs = BitConverter.ToUInt64(md5, 0) ^ BitConverter.ToUInt64(md5, 8);
         if (tCs != checkSum)
             Environment.FailFast("Broken file");
 
-        byte[] b = Decrypt(file, iv, dats);
-        Buffer.BlockCopy(new byte[file.Length], 0, file, 0, file.Length);
+        byte[] b = Decrypt(buff, iv, dats);
+        Buffer.BlockCopy(new byte[buff.Length], 0, buff, 0, buff.Length);
         if (b[0] != 0xd6 || b[1] != 0x6f)
             Environment.FailFast("Broken file");
         byte[] tB = new byte[b.Length - 2];
@@ -602,7 +631,7 @@ static class AntiTamper
                 uint rva = rdr.ReadUInt32() ^ 0x55555555;
                 byte[] cDat = rdr.ReadBytes(rdr.ReadInt32());
                 uint old;
-                IntPtr ptr = (IntPtr)((uint)modPtr + (inMem ? pos : rva));
+                IntPtr ptr = (IntPtr)((uint)modPtr + rva);
                 VirtualProtect(ptr, (uint)cDat.Length, 0x04, out old);
                 Marshal.Copy(cDat, 0, ptr, cDat.Length);
                 VirtualProtect(ptr, (uint)cDat.Length, old, out old);
@@ -625,16 +654,16 @@ static class AntiTamper
         }
     }
 
-    static byte[] Decrypt(byte[] file, byte[] iv, byte[] dat)
+    static byte[] Decrypt(byte[] buff, byte[] iv, byte[] dat)
     {
         Rijndael ri = Rijndael.Create();
         byte[] ret = new byte[dat.Length];
         MemoryStream ms = new MemoryStream(dat);
-        using (CryptoStream cStr = new CryptoStream(ms, ri.CreateDecryptor(SHA256.Create().ComputeHash(file), iv), CryptoStreamMode.Read))
+        using (CryptoStream cStr = new CryptoStream(ms, ri.CreateDecryptor(SHA256.Create().ComputeHash(buff), iv), CryptoStreamMode.Read))
         { cStr.Read(ret, 0, dat.Length); }
 
         SHA512 sha = SHA512.Create();
-        byte[] c = sha.ComputeHash(file);
+        byte[] c = sha.ComputeHash(buff);
         for (int i = 0; i < ret.Length; i += 64)
         {
             int len = ret.Length <= i + 64 ? ret.Length : i + 64;

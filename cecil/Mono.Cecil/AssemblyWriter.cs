@@ -1458,7 +1458,7 @@ namespace Mono.Cecil {
     {
         public delegate void MetadataProcess(MetadataAccessor accessor);
         public delegate void PeProcess(Stream pe);
-        public delegate void ImageProcess(ImageAccesssor accessor);
+        public delegate void ImageProcess(ImageAccessor accessor);
 
         public void Process(ModuleDefinition mod, string fileName)
         {
@@ -1523,7 +1523,7 @@ namespace Mono.Cecil {
 				module.SymbolReader.Dispose ();
 
 			var writer = ImageWriter.CreateWriter (module, metadata, stream);
-            OnProcessImage(new ImageAccesssor(writer));
+            OnProcessImage(new ImageAccessor(writer));
 			writer.WriteImage ();
             OnProcessPe(stream);
 
@@ -1551,7 +1551,7 @@ namespace Mono.Cecil {
             if (AfterWriteTables != null) AfterWriteTables(accessor);
         }
         public event ImageProcess ProcessImage;
-        private void OnProcessImage(ImageAccesssor accessor)
+        private void OnProcessImage(ImageAccessor accessor)
         {
             if (ProcessImage != null) ProcessImage(accessor);
         }
@@ -1594,12 +1594,22 @@ namespace Mono.Cecil {
                 return psr.LookupToken(provider);
             }
         }
-        public class ImageAccesssor
+        public class ImageAccessor
         {
             ImageWriter writer;
-            internal ImageAccesssor(ImageWriter writer) { this.writer = writer; }
+            internal ImageAccessor(ImageWriter writer) { this.writer = writer; }
 
             public Collection<Section> Sections { get { return writer.sections; } }
+            public ModuleDefinition Module { get { return writer.module; } }
+
+            public Section CreateSection(string name, uint size, uint characteristics, Section previous)
+            {
+                return writer.CreateSection(name, size, characteristics, previous);
+            }
+            public ByteBuffer GetCodeBuffer()
+            {
+                return writer.metadata.code;
+            }
         }
     }
     ////////////

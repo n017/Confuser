@@ -376,9 +376,27 @@ namespace Confuser.Core
                     param.Logger.Progress(now1 / total1); now1++;
                 }
             });
-            psr.ProcessPe += new MetadataProcessor.PeProcess(delegate(Stream str)
+            psr.ProcessImage += new MetadataProcessor.ImageProcess(delegate(MetadataProcessor.ImageAccessor accessor)
             {
                 param.Logger.StartPhase(4);
+                param.Logger.Log(string.Format("Obfuscating Image of module {0}...", mod.Name));
+                ImagePhase[] imgPhases = (from i in phases where (i is ImagePhase) orderby (int)i.Priority + i.PhaseID * 10 ascending select (ImagePhase)i).ToArray();
+                for (int i = 0; i < imgPhases.Length; i++)
+                {
+                    if (GetTargets(mod, imgPhases[i].Confusion).Count == 0) continue;
+                    param.Logger.Log("Executing " + imgPhases[i].Confusion.Name + " Phase " + imgPhases[i].PhaseID + "...");
+                    imgPhases[i].Confuser = this;
+                    NameValueCollection globalParam;
+                    if (globalParams.ContainsKey(imgPhases[i].Confusion))
+                        globalParam = globalParams[imgPhases[i].Confusion];
+                    else
+                        globalParam = new NameValueCollection();
+                    imgPhases[i].Process(globalParam, accessor);
+                    param.Logger.Progress((double)i / imgPhases.Length);
+                }
+            });
+            psr.ProcessPe += new MetadataProcessor.PeProcess(delegate(Stream str)
+            {
                 param.Logger.Log(string.Format("Obfuscating PE of module {0}...", mod.Name));
                 PePhase[] pePhases = (from i in phases where (i is PePhase) orderby (int)i.Priority + i.PhaseID * 10 ascending select (PePhase)i).ToArray();
                 for (int i = 0; i < pePhases.Length; i++)

@@ -36,7 +36,7 @@ using RVA = System.UInt32;
 
 namespace Mono.Cecil.PE {
 
-	sealed class Image {
+	public sealed class Image {
 
 		public ModuleKind Kind;
 		public TargetRuntime Runtime;
@@ -51,7 +51,9 @@ namespace Mono.Cecil.PE {
 		public ModuleAttributes Attributes;
 
 		public DataDirectory Debug;
-		public DataDirectory Resources;
+        public DataDirectory Resources;
+        public DataDirectory CLIHeader;
+        public DataDirectory Metadata;
 
 		public StringHeap StringHeap;
 		public BlobHeap BlobHeap;

@@ -31,7 +31,7 @@ using System.IO;
 
 namespace Mono.Cecil.PE {
 
-	class BinaryStreamReader : BinaryReader {
+	public class BinaryStreamReader : BinaryReader {
 
 		public BinaryStreamReader (Stream stream)
 			: base (stream)

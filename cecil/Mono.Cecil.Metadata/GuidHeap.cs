@@ -32,7 +32,7 @@ using Mono.Cecil.PE;
 
 namespace Mono.Cecil.Metadata {
 
-	sealed class GuidHeap : Heap {
+	public sealed class GuidHeap : Heap {
 
 		public GuidHeap (Section section, uint start, uint size)
 			: base (section, start, size)

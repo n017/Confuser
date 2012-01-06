@@ -122,8 +122,8 @@ namespace Confuser.Core.Confusions
                 uint sections = rdr.ReadUInt16();
                 stream.Seek(offset = offset + 0x18, SeekOrigin.Begin);  //Optional hdr
                 bool pe32 = (rdr.ReadUInt16() == 0x010b);
-                stream.Seek(offset + (pe32 ? 0x5c : 0x6c), SeekOrigin.Begin);
-                stream.Write(new byte[] { 0x06, 0x00, 0x00, 0x00 }, 0, 4);
+                //stream.Seek(offset + (pe32 ? 0x5c : 0x6c), SeekOrigin.Begin);
+                //stream.Write(new byte[] { 0x06, 0x00, 0x00, 0x00 }, 0, 4);
                 stream.Seek(offset + 0x10, SeekOrigin.Begin);
                 uint entryPt = rdr.ReadUInt32(); bool ok = false;
                 stream.Seek(offset = offset + (pe32 ? 0xE0U : 0xF0U), SeekOrigin.Begin);   //sections

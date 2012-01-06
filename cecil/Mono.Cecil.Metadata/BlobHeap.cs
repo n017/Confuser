@@ -32,7 +32,7 @@ using Mono.Cecil.PE;
 
 namespace Mono.Cecil.Metadata {
 
-	sealed class BlobHeap : Heap {
+	public sealed class BlobHeap : Heap {
 
 		public BlobHeap (Section section, uint start, uint size)
 			: base (section, start, size)

@@ -41,9 +41,9 @@ namespace Mono.Cecil.PE {
 
 	sealed class ImageWriter : BinaryStreamWriter {
 
-		readonly ModuleDefinition module;
-		readonly MetadataBuilder metadata;
-		readonly TextMap text_map;
+		internal readonly ModuleDefinition module;
+		internal readonly MetadataBuilder metadata;
+		internal readonly TextMap text_map;
 
 		ImageDebugDirectory debug_directory;
 		byte [] debug_data;
@@ -142,7 +142,7 @@ namespace Mono.Cecil.PE {
             sections.Add(reloc);
 		}
 
-		Section CreateSection (string name, uint size, uint characteristics, Section previous)
+		internal Section CreateSection (string name, uint size, uint characteristics, Section previous)
 		{
 			return new Section {
 				Name = name,
@@ -152,9 +152,9 @@ namespace Mono.Cecil.PE {
 				VirtualSize = size,
 				PointerToRawData = previous != null
 					? previous.PointerToRawData + previous.SizeOfRawData
-					: Align (GetHeaderSize (), file_alignment),
+					: 0,
 				SizeOfRawData = Align (size, file_alignment),
-                Data = new byte[size],
+                Data = new byte[Align(size, file_alignment)],
                 Characteristics = characteristics
 			};
 		}
@@ -234,7 +234,10 @@ namespace Mono.Cecil.PE {
 			WriteUInt32 (text.SizeOfRawData);	// CodeSize
             uint dataSize = 0;
             foreach (Section sect in sections)
+            {
+                sect.PointerToRawData += Align(GetHeaderSize(), file_alignment);
                 if (sect.Name != ".text") dataSize += sect.SizeOfRawData;
+            }
             WriteUInt32(dataSize);	// InitializedDataSize
 			WriteUInt32 (0);	// UninitializedDataSize
 
@@ -263,7 +266,11 @@ namespace Mono.Cecil.PE {
 			WriteUInt32 (0);	// Reserved
 
             Section reloc = GetSection(".reloc");
-			WriteUInt32 (reloc.VirtualAddress + Align (reloc.VirtualSize, section_alignment));	// ImageSize
+            Section last = sections[sections.Count - 1];
+            foreach (Section sect in sections)
+                if (sect.VirtualAddress > last.VirtualAddress)
+                    last = sect;
+			WriteUInt32 (last.VirtualAddress + Align (last.VirtualSize, section_alignment));	// ImageSize
 			WriteUInt32 (text.PointerToRawData);	// HeaderSize
 
 			WriteUInt32 (0);	// Checksum

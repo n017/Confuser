@@ -127,4 +127,11 @@ namespace Confuser.Core
         public override sealed void DeInitialize() { }
         public override sealed bool WholeRun { get { return true; } }
     }
+    public abstract class ImagePhase : Phase
+    {
+        public abstract void Process(NameValueCollection parameters, MetadataProcessor.ImageAccessor accessor);
+        public override sealed void Initialize(ModuleDefinition mod) { }
+        public override sealed void DeInitialize() { }
+        public override sealed bool WholeRun { get { return true; } }
+    }
 }

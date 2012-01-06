@@ -10,6 +10,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Security.Cryptography;
 using Mono.Cecil.Cil;
+using Mono.Cecil.PE;
 
 //TODO: Implement better version by JIT hooking
 namespace Confuser.Core.Confusions
@@ -176,10 +177,41 @@ namespace Confuser.Core.Confusions
                 }
             }
         }
-        class Phase4 : PePhase
+        class Phase4 : ImagePhase
         {
             AntiTamperConfusion cion;
             public Phase4(AntiTamperConfusion cion) { this.cion = cion; }
+            public override Priority Priority
+            {
+                get { return Priority.MetadataLevel; }
+            }
+            public override IConfusion Confusion
+            {
+                get { return cion; }
+            }
+            public override int PhaseID
+            {
+                get { return 4; }
+            }
+
+            uint EstimateSize(MetadataProcessor.ImageAccessor accessor)
+            {
+                uint size = accessor.Sections.Single(_ => _.Name == ".text").SizeOfRawData;
+                size += 24 + 16;
+                return size;
+            }
+            public override void Process(NameValueCollection parameters, MetadataProcessor.ImageAccessor accessor)
+            {
+                uint size = EstimateSize(accessor);
+                Section prev = accessor.Sections[accessor.Sections.Count - 1];
+                Section sect = accessor.CreateSection(".confuse", size, 0x40000040, prev);
+                accessor.Sections.Add(sect);
+            }
+        }
+        class Phase5 : PePhase
+        {
+            AntiTamperConfusion cion;
+            public Phase5(AntiTamperConfusion cion) { this.cion = cion; }
             public override Priority Priority
             {
                 get { return Priority.PELevel; }
@@ -273,7 +305,7 @@ namespace Confuser.Core.Confusions
                     cion.codes[i] = rdr.ReadBytes((int)len);
                     stream.Seek(ptr, SeekOrigin.Begin);
                     byte[] bs = new byte[len];
-                    rand.NextBytes(bs);
+                    //rand.NextBytes(bs);
                     stream.Write(bs, 0, (int)len);
                 }
 
@@ -295,11 +327,11 @@ namespace Confuser.Core.Confusions
                     }
                 snLen = rdr.ReadUInt32();
             }
-            static byte[] Encrypt(byte[] file, byte[] dat, out byte[] iv, byte key)
+            static byte[] Encrypt(byte[] buff, byte[] dat, out byte[] iv, byte key)
             {
                 dat = (byte[])dat.Clone();
                 SHA512 sha = SHA512.Create();
-                byte[] c = sha.ComputeHash(file);
+                byte[] c = sha.ComputeHash(buff);
                 for (int i = 0; i < dat.Length; i += 64)
                 {
                     byte[] o = new byte[64];
@@ -313,20 +345,20 @@ namespace Confuser.Core.Confusions
                 Rijndael ri = Rijndael.Create();
                 ri.GenerateIV(); iv = ri.IV;
                 MemoryStream ret = new MemoryStream();
-                using (CryptoStream cStr = new CryptoStream(ret, ri.CreateEncryptor(SHA256.Create().ComputeHash(file), iv), CryptoStreamMode.Write))
+                using (CryptoStream cStr = new CryptoStream(ret, ri.CreateEncryptor(SHA256.Create().ComputeHash(buff), iv), CryptoStreamMode.Write))
                     cStr.Write(dat, 0, dat.Length);
                 return ret.ToArray();
             }
-            static byte[] Decrypt(byte[] file, byte[] iv, byte[] dat, byte key)
+            static byte[] Decrypt(byte[] buff, byte[] iv, byte[] dat, byte key)
             {
                 Rijndael ri = Rijndael.Create();
                 byte[] ret = new byte[dat.Length];
                 MemoryStream ms = new MemoryStream(dat);
-                using (CryptoStream cStr = new CryptoStream(ms, ri.CreateDecryptor(SHA256.Create().ComputeHash(file), iv), CryptoStreamMode.Read))
+                using (CryptoStream cStr = new CryptoStream(ms, ri.CreateDecryptor(SHA256.Create().ComputeHash(buff), iv), CryptoStreamMode.Read))
                 { cStr.Read(ret, 0, dat.Length); }
 
                 SHA512 sha = SHA512.Create();
-                byte[] c = sha.ComputeHash(file);
+                byte[] c = sha.ComputeHash(buff);
                 for (int i = 0; i < ret.Length; i += 64)
                 {
                     int len = ret.Length <= i + 64 ? ret.Length : i + 64;
@@ -343,6 +375,8 @@ namespace Confuser.Core.Confusions
                 uint sn;
                 uint snLen;
                 ExtractCodes(stream, out csOffset, out sn, out snLen);
+                stream.Position = 0;
+                Image img = ImageReader.ReadImageFrom(stream);
 
                 MemoryStream ms = new MemoryStream();
                 ms.WriteByte(0xd6);
@@ -357,18 +391,43 @@ namespace Confuser.Core.Confusions
                     wtr.Write(cion.codes[i].Length);
                     wtr.Write(cion.codes[i]);
                 }
-                byte[] file = new byte[stream.Length];
-                stream.Seek(0, SeekOrigin.Begin);
-                stream.Read(file, 0, (int)stream.Length);
-                byte[] iv;
-                byte[] dat = Encrypt(file, ms.ToArray(), out iv, cion.key5);
 
-                byte[] md5 = MD5.Create().ComputeHash(file);
+                byte[] buff;
+                BinaryReader sReader = new BinaryReader(stream);
+                using (MemoryStream str = new MemoryStream())
+                {
+                    stream.Position = img.ResolveVirtualAddress(img.Metadata.VirtualAddress) + 12;
+                    stream.Position += sReader.ReadUInt32() + 4;
+                    stream.Position += 2;
+
+                    ushort streams = sReader.ReadUInt16();
+
+                    for (int i = 0; i < streams; i++)
+                    {
+                        uint offset = img.ResolveVirtualAddress(img.Metadata.VirtualAddress + sReader.ReadUInt32());
+                        uint size = sReader.ReadUInt32();
+
+                        int c = 0;
+                        while (sReader.ReadByte() != 0) c++;
+                        long ori = stream.Position += (((c + 1) + 3) & ~3) - (c + 1);
+
+                        stream.Position = offset;
+                        str.Write(sReader.ReadBytes((int)size), 0, (int)size);
+                        stream.Position = ori;
+                    }
+
+                    buff = str.ToArray();
+                }
+
+                byte[] iv;
+                byte[] dat = Encrypt(buff, ms.ToArray(), out iv, cion.key5);
+
+                byte[] md5 = MD5.Create().ComputeHash(buff);
                 long checkSum = BitConverter.ToInt64(md5, 0) ^ BitConverter.ToInt64(md5, 8);
                 wtr = new BinaryWriter(stream);
                 stream.Seek(csOffset, SeekOrigin.Begin);
-                wtr.Write(file.Length ^ cion.key0);
-                stream.Seek(0, SeekOrigin.End);
+                wtr.Write(img.Metadata.VirtualAddress ^ (uint)cion.key0);
+                stream.Seek(img.GetSection(".confuse").PointerToRawData, SeekOrigin.Begin);
                 wtr.Write(checkSum ^ cion.key1);
                 wtr.Write(sn);
                 wtr.Write(snLen);
@@ -390,6 +449,7 @@ namespace Confuser.Core.Confusions
         uint[] rvas;
         uint[] ptrs;
         byte[][] codes;
+        uint sectRaw;
 
         public string Name
         {
@@ -427,7 +487,7 @@ namespace Confuser.Core.Confusions
         Phase[] phases;
         public Phase[] Phases
         {
-            get { if (phases == null)phases = new Phase[] { new Phase1(this), new Phase2(this), new Phase3(this), new Phase4(this) }; return phases; }
+            get { if (phases == null)phases = new Phase[] { new Phase1(this), new Phase2(this), new Phase3(this), new Phase4(this), new Phase5(this) }; return phases; }
         }
     }
 }

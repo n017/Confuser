@@ -48,12 +48,21 @@ namespace Confuser.Core
 
             Dictionary<MetadataToken, IMemberDefinition> mems = new Dictionary<MetadataToken, IMemberDefinition>();
             mems.Add(type.MetadataToken, ret);
+            foreach (TypeDefinition ty in type.NestedTypes)
+            {
+                TypeDefinition t = Inject(mod, ty);
+                mems.Add(ty.MetadataToken, t);
+                ret.NestedTypes.Add(t);
+            }
             foreach (FieldDefinition fld in type.Fields)
             {
-                FieldDefinition n = new FieldDefinition(fld.Name, fld.Attributes, fld.FieldType == type ? ret : mod.Import(fld.FieldType));
+                TypeReference typeRef = fld.FieldType;
+                if (mems.ContainsKey(typeRef.MetadataToken)) typeRef = mems[typeRef.MetadataToken] as TypeReference;
+                else typeRef = mod.Import(typeRef);
+                FieldDefinition n = new FieldDefinition(fld.Name, fld.Attributes, typeRef);
                 mems.Add(fld.MetadataToken, n);
                 ret.Fields.Add(n);
-            } 
+            }
             foreach (MethodDefinition mtd in type.Methods)
             {
                 MethodDefinition n = Inject(mod, mtd);
