@@ -180,7 +180,7 @@ namespace Confuser.Core
                         {
                             MethodDefinition cctor = new MethodDefinition(".cctor", MethodAttributes.Private | MethodAttributes.HideBySig |
                                 MethodAttributes.SpecialName | MethodAttributes.RTSpecialName |
-                                MethodAttributes.Static, mod.Import(typeof(void)));
+                                MethodAttributes.Static, mod.TypeSystem.Void);
                             cctor.Body = new MethodBody(cctor);
                             cctor.Body.GetILProcessor().Emit(OpCodes.Ret);
                             mod.GetType("<Module>").Methods.Add(cctor);
@@ -465,8 +465,8 @@ namespace Confuser.Core
         void MarkModule(ModuleDefinition mod)
         {
             TypeDefinition att = new TypeDefinition("", "ConfusedByAttribute", TypeAttributes.Class | TypeAttributes.NotPublic, mod.Import(typeof(Attribute)));
-            MethodDefinition ctor = new MethodDefinition(".ctor", MethodAttributes.RTSpecialName | MethodAttributes.SpecialName | MethodAttributes.Public, mod.Import(typeof(void)));
-            ctor.Parameters.Add(new ParameterDefinition(mod.Import(typeof(string))));
+            MethodDefinition ctor = new MethodDefinition(".ctor", MethodAttributes.RTSpecialName | MethodAttributes.SpecialName | MethodAttributes.Public, mod.TypeSystem.Void);
+            ctor.Parameters.Add(new ParameterDefinition(mod.TypeSystem.String));
             ILProcessor psr = (ctor.Body = new MethodBody(ctor)).GetILProcessor();
             psr.Emit(OpCodes.Ldarg_0);
             psr.Emit(OpCodes.Call, mod.Import(typeof(Attribute).GetConstructor(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance, null, Type.EmptyTypes, null)));
@@ -475,7 +475,7 @@ namespace Confuser.Core
             mod.Types.Add(att);
 
             CustomAttribute ca = new CustomAttribute(ctor);
-            ca.ConstructorArguments.Add(new CustomAttributeArgument(mod.Import(typeof(string)), string.Format("Confuser v" + typeof(Confuser).Assembly.GetName().Version.ToString())));
+            ca.ConstructorArguments.Add(new CustomAttributeArgument(mod.TypeSystem.String, string.Format("Confuser v" + typeof(Confuser).Assembly.GetName().Version.ToString())));
             mod.CustomAttributes.Add(ca);
         }
 

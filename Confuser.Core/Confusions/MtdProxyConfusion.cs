@@ -45,9 +45,9 @@ namespace Confuser.Core.Confusions
                 this.mod = mod;
 
                 mc.mcd = mod.Import(typeof(MulticastDelegate));
-                mc.v = mod.Import(typeof(void));
-                mc.obj = mod.Import(typeof(object));
-                mc.ptr = mod.Import(typeof(IntPtr));
+                mc.v = mod.TypeSystem.Void;
+                mc.obj = mod.TypeSystem.Object;
+                mc.ptr = mod.TypeSystem.IntPtr;
 
                 mc.txts = new List<Context>();
                 mc.delegates = new Dictionary<string, TypeDefinition>();

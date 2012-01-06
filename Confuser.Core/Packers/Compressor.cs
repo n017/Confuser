@@ -69,7 +69,7 @@ namespace Confuser.Core
 
             MethodDefinition cctor = new MethodDefinition(".cctor", MethodAttributes.Private | MethodAttributes.HideBySig |
                                                             MethodAttributes.SpecialName | MethodAttributes.RTSpecialName |
-                                                            MethodAttributes.Static, mod.Import(typeof(void)));
+                                                            MethodAttributes.Static, mod.TypeSystem.Void);
             mod.GetType("<Module>").Methods.Add(cctor);
             MethodBody bdy = cctor.Body = new MethodBody(cctor);
             ILProcessor psr = bdy.GetILProcessor();

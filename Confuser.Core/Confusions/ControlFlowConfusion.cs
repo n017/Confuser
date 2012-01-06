@@ -603,7 +603,7 @@ namespace Confuser.Core.Confusions
         private void SwitcizeFlow(MethodBody bdy, ref Instruction[][] blks)
         {
             List<Instruction[]> ret = new List<Instruction[]>();
-            VariableDefinition counter = new VariableDefinition(bdy.Method.Module.Import(typeof(int)));
+            VariableDefinition counter = new VariableDefinition(bdy.Method.Module.TypeSystem.Int32);
             bdy.Variables.Add(counter);
             bdy.InitLocals = true;
             Instruction loop;

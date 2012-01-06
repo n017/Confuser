@@ -223,9 +223,10 @@ namespace Mono.Cecil {
 		{
 			var references = module.AssemblyReferences;
 
+            var pkt = name.GetPublicKeyToken();
 			for (int i = 0; i < references.Count; i++) {
 				var reference = references [i];
-				if (name.FullName != reference.FullName) // TODO compare field by field
+				if (name.Name != reference.Name || (pkt != null && pkt.Equals(reference.PublicKeyToken))) // TODO compare field by field
 					continue;
 
 				assembly_reference = reference;
@@ -407,8 +408,8 @@ namespace Mono.Cecil {
 
 			for (int i = 0; i < references.Count; i++) {
 				var reference = references [i];
-				if (name_reference.FullName != reference.FullName) // TODO compare field by field
-					continue;
+                if (name_reference.Name != reference.Name || (name_reference.PublicKeyToken != null && name_reference.PublicKeyToken.Equals(reference.PublicKeyToken))) // TODO compare field by field
+                    continue;
 
 				assembly_reference = reference;
 				return true;
