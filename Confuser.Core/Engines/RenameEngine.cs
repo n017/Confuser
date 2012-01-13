@@ -581,7 +581,7 @@ System.Resources.ResourceManager
 
                     int asmId = -1;
                     foreach (var rec in doc.OfType<AssemblyInfoRecord>())
-                        if (rec.AssemblyFullName == mod.Assembly.Name.FullName)
+                        if (AssemblyNameReference.Parse(rec.AssemblyFullName).Name == mod.Assembly.Name.Name)
                         {
                             asmId = rec.AssemblyId;
                         }
@@ -684,6 +684,8 @@ System.Resources.ResourceManager
 
         bool IsTypePublic(TypeDefinition type)
         {
+            if (type.Module.Kind == ModuleKind.Windows || type.Module.Kind == ModuleKind.Console)
+                return false;
             do
             {
                 if (!type.IsPublic && !type.IsNestedFamily && !type.IsNestedFamilyAndAssembly && !type.IsNestedFamilyOrAssembly && !type.IsNestedPublic && !type.IsPublic)
@@ -869,7 +871,7 @@ System.Resources.ResourceManager
             }
             else if (type != null)
             {
-                memInst = StackTrace3(idx, c, insts, mtd.paramLoc[Array.IndexOf(mtd.paramType,"TargetType")]);
+                memInst = StackTrace3(idx, c, insts, mtd.paramLoc[Array.IndexOf(mtd.paramType, "TargetType")]);
                 return type;
             }
             return null;
