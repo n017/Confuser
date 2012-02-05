@@ -48,6 +48,13 @@ namespace Mono.Cecil {
 		public static bool IsNullOrEmpty<T> (this Collection<T> self)
 		{
 			return self == null || self.size == 0;
-		}
-	}
+        }
+
+        public static bool Equals<T>(this T[] self, T[] array)
+        {
+            for (int i = 0; i < self.Length; i++)
+                if (!self[i].Equals(array[i])) return false;
+            return true;
+        }
+    }
 }

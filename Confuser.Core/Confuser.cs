@@ -437,7 +437,11 @@ namespace Confuser.Core
                 pParam.Parameters = (NameValueCollection)(assemblies[0] as IAnnotationProvider).Annotations["PackerParams"];
                 string[] final = packer.Pack(param, pParam);
                 for (int i = 0; i < final.Length; i++)
+                {
+                    string path = Path.Combine(param.DestinationPath, Path.GetFileName(final[i]));
+                    if (File.Exists(path)) File.Delete(path);
                     File.Move(final[i], Path.Combine(param.DestinationPath, Path.GetFileName(final[i])));
+                }
             }
             else
             {
