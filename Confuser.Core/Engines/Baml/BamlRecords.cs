@@ -71,6 +71,7 @@ namespace Confuser.Core.Engines.Baml
         public abstract void Read(BamlBinaryReader reader);
         public abstract void Write(BamlBinaryWriter writer);
         public abstract BamlRecordType Type { get; }
+        public long Position { get; internal set; }
     }
     abstract class SizedBamlRecord : BamlRecord
     {
@@ -78,8 +79,9 @@ namespace Confuser.Core.Engines.Baml
         {
             long pos = reader.BaseStream.Position;
             int size = reader.ReadEncodedInt();
-            size -= (int)(reader.BaseStream.Position - pos);
-            ReadData(reader, size);
+
+            ReadData(reader, size - (int)(reader.BaseStream.Position - pos));
+            System.Diagnostics.Debug.Assert(reader.BaseStream.Position - pos == size);
         }
         int SizeofEncodedInt(int val)
         {
@@ -876,15 +878,16 @@ namespace Confuser.Core.Engines.Baml
             get { return BamlRecordType.DeferableContentStart; }
         }
 
-        public uint ContentSize { get; set; }
+        public BamlRecord EndRecord { get; set; }
+        internal uint size = 0xffffffff;
 
         public override void Read(BamlBinaryReader reader)
         {
-            ContentSize = reader.ReadUInt32();
+            size = reader.ReadUInt32();
         }
         public override void Write(BamlBinaryWriter writer)
         {
-            writer.Write(ContentSize);
+            writer.Write((uint)0);
         }
     }
     class StaticResourceStartRecord : ElementStartRecord

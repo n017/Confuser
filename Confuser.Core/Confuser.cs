@@ -160,18 +160,6 @@ namespace Confuser.Core
 
                     foreach (ModuleDefinition mod in assemblies[i].Modules)
                     {
-                        if (sn != null && mod.Assembly != null)
-                        {
-                            if (mod.Assembly.MainModule == mod)
-                                mod.Assembly.Name.PublicKey = sn.PublicKey;
-                            mod.Attributes |= ModuleAttributes.StrongNameSigned;
-                        }
-                        else
-                        {
-                            if (mod.Assembly != null && mod.Assembly.MainModule == mod)
-                                mod.Assembly.Name.PublicKey = null;
-                            mod.Attributes &= ~ModuleAttributes.StrongNameSigned;
-                        }
                         param.Logger.Log(string.Format("Obfuscating structure of module {0}...", mod.Name));
 
                         helpers.Clear();
@@ -221,6 +209,30 @@ namespace Confuser.Core
             }
         }
 
+        void UpdateAssemblyReference(TypeDefinition typeDef, string from, string to)
+        {
+            foreach (var i in typeDef.NestedTypes)
+                UpdateAssemblyReference(i, from, to);
+            foreach (var i in typeDef.Methods)
+            {
+                if (!i.HasBody) continue;
+                foreach (var inst in i.Body.Instructions)
+                {
+                    if (inst.Operand is string)
+                    {
+                        string op = (string)inst.Operand;
+                        if (op.Contains(from))
+                            op = op.Replace(from, to);
+                        inst.Operand = op;
+                    }
+                }
+            }
+        }
+        string ToString(byte[] arr)
+        {
+            if (arr == null || arr.Length == 0) return "null";
+            return BitConverter.ToString(arr).Replace("-", "").ToLower();
+        }
         void Initialize(out System.Reflection.StrongNameKeyPair sn)
         {
             sn = null;
@@ -240,6 +252,53 @@ namespace Confuser.Core
             param.Logger.Log(string.Format("Analysing assemblies..."));
             mkr.Initalize(param.Confusions, param.Packers);
             assemblies = new List<AssemblyDefinition>(mkr.GetAssemblies(param.SourceAssembly, param.DefaultPreset, this, (sender, e) => param.Logger.Log(e.Message)));
+
+            Dictionary<string, string> repl = new Dictionary<string, string>();
+            foreach (var i in assemblies)
+            {
+                string o1 = ToString(i.Name.PublicKeyToken);
+                string o2 = ToString(i.Name.PublicKey);
+                if (sn != null)
+                {
+                    i.Name.PublicKey = sn.PublicKey;
+                    i.MainModule.Attributes |= ModuleAttributes.StrongNameSigned;
+                }
+                else
+                {
+                    i.Name.PublicKey = null;
+                    i.MainModule.Attributes &= ~ModuleAttributes.StrongNameSigned;
+                }
+                string n1 = ToString(i.Name.PublicKeyToken);
+                string n2 = ToString(i.Name.PublicKey);
+                if (o1 != n1 && !repl.ContainsKey(o1))
+                    repl.Add(o1, n1);
+                if (o2 != n2 && !repl.ContainsKey(o2))
+                    repl.Add(o2, n2);
+            }
+
+            foreach (var asm in assemblies)
+                foreach (var mod in asm.Modules)
+                {
+                    for (int i = 0; i < mod.AssemblyReferences.Count; i++)
+                    {
+                        AssemblyNameReference nameRef = mod.AssemblyReferences[i];
+                        foreach (var asmRef in assemblies)
+                            if (asmRef.Name.Name == nameRef.Name)
+                            {
+                                nameRef = asmRef.Name;
+                                break;
+                            }
+                        mod.AssemblyReferences[i] = nameRef;
+                    }
+                }
+
+            foreach (var i in repl)
+            {
+                foreach (var j in assemblies)
+                    foreach (var k in j.Modules)
+                        foreach (var l in k.Types)
+                            UpdateAssemblyReference(l, i.Key, i.Value);
+            }
 
             helpers = new Dictionary<IMemberDefinition, HelperAttribute>();
 

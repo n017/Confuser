@@ -506,14 +506,21 @@ System.Resources.ResourceManager
                         {
                             MethodReference refer = mtd.Module.Import(imple);
                             bool ok = true;
-                            foreach (MethodReference over in mtd.Overrides)
-                                if (over.FullName == refer.FullName)
-                                {
-                                    ok = false;
-                                    break;
-                                }
+                            foreach (MethodDefinition m in mtd.DeclaringType.Methods)
+                            {
+                                foreach (MethodReference over in m.Overrides)
+                                    if (over.FullName == refer.FullName)
+                                    {
+                                        ok = false;
+                                        break;
+                                    }
+                                if (!ok) break;
+                            }
                             if (ok)
+                            {
                                 mtd.Overrides.Add(refer);
+                                mtd.IsVirtual = true;
+                            }
                         }
                         if (now.HasInterfaces)
                             foreach (TypeReference i in now.Interfaces)
@@ -576,15 +583,28 @@ System.Resources.ResourceManager
                     ress.Add(entry.Key as string, entry.Value);
                 if (stream != null && (entry.Key as string).EndsWith(".baml"))
                 {
+                    cc++;
                     BamlDocument doc = BamlReader.ReadDocument(stream);
-                    int c = 0;
 
                     int asmId = -1;
                     foreach (var rec in doc.OfType<AssemblyInfoRecord>())
-                        if (AssemblyNameReference.Parse(rec.AssemblyFullName).Name == mod.Assembly.Name.Name)
+                    {
+                        AssemblyNameReference nameRef = AssemblyNameReference.Parse(rec.AssemblyFullName);
+                        if (nameRef.Name == mod.Assembly.Name.Name)
                         {
                             asmId = rec.AssemblyId;
+                            rec.AssemblyFullName = mod.Assembly.FullName;
                         }
+                        else
+                        {
+                            foreach (var i in ivtMap)
+                                if (i.Key.Name.Name == nameRef.Name)
+                                {
+                                    rec.AssemblyFullName = i.Key.FullName;
+                                    break;
+                                }
+                        }
+                    }
                     Dictionary<ushort, TypeDefinition> types = new Dictionary<ushort, TypeDefinition>();
                     foreach (var rec in doc.OfType<TypeInfoRecord>())
                         if ((rec.AssemblyId & 0xfff) == asmId)
@@ -594,7 +614,6 @@ System.Resources.ResourceManager
                             {
                                 types.Add(rec.TypeId, type);
                                 ((type as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new BamlTypeReference(rec));
-                                c++; cc++;
                             }
                         }
 
@@ -606,7 +625,11 @@ System.Resources.ResourceManager
                             if (prop != null && types[rec.OwnerTypeId].Fields.FirstOrDefault(fld => fld.Name == prop.Name + "Property") == null)
                             {
                                 ((prop as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new BamlAttributeReference(rec));
-                                c++; cc++;
+                            }
+                            FieldDefinition field = types[rec.OwnerTypeId].Fields.FirstOrDefault(p => p.Name == rec.Name);
+                            if (field != null)
+                            {
+                                ((field as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new BamlAttributeReference(rec));
                             }
                         }
                     var rootRec = doc.OfType<ElementStartRecord>().FirstOrDefault();
@@ -627,17 +650,17 @@ System.Resources.ResourceManager
                             if (mems.ContainsKey((string)rec.Value))
                             {
                                 ((mems[(string)rec.Value] as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new BamlPropertyReference(rec));
-                                c++; cc++;
                             }
                         }
                     }
 
-                    if (c != 0)
-                        bamls.Add(entry.Key as string, doc);
+                    bamls.Add(entry.Key as string, doc);
                 }
             }
             if (cc != 0)
                 ((res as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new SaveBamlsReference(mod, resId));
+            else
+                System.Diagnostics.Debugger.Break();
         }
         void AnalysisCodes(MethodDefinition mtd)
         {

@@ -52,8 +52,10 @@ namespace Confuser.Core.Engines.Baml
                 ret.WriterVersion.Major != 0 || ret.WriterVersion.Minor != 0x60)
                 throw new NotSupportedException();
 
+            Dictionary<long, BamlRecord> recs = new Dictionary<long, BamlRecord>();
             while (str.Position < str.Length)
             {
+                long pos = str.Position;
                 BamlRecordType type = (BamlRecordType)reader.ReadByte();
                 BamlRecord rec = null;
                 switch (type)
@@ -167,9 +169,24 @@ namespace Confuser.Core.Engines.Baml
                     default:
                         throw new NotSupportedException();
                 }
+                rec.Position = pos;
+
                 rec.Read(reader);
                 ret.Add(rec);
-            } return ret;
+                recs.Add(pos, rec);
+            }
+            foreach (BamlRecord rec in ret)
+            {
+                var defer = rec as DeferableContentStartRecord;
+                if (defer != null)
+                {
+                    long newPos = rec.Position + 1 + 4 + defer.size;
+                    defer.EndRecord = recs[newPos];
+                    System.Diagnostics.Debug.Assert(defer.EndRecord != null);
+                }
+            }
+
+            return ret;
         }
     }
 
@@ -188,11 +205,22 @@ namespace Confuser.Core.Engines.Baml
             writer.Write(doc.ReaderVersion.Major); writer.Write(doc.ReaderVersion.Minor);
             writer.Write(doc.UpdaterVersion.Major); writer.Write(doc.UpdaterVersion.Minor);
             writer.Write(doc.WriterVersion.Major); writer.Write(doc.WriterVersion.Minor);
+
+            List<DeferableContentStartRecord> defers = new List<DeferableContentStartRecord>();
             foreach (BamlRecord rec in doc)
             {
+                rec.Position = str.Position;
                 writer.Write((byte)rec.Type);
                 rec.Write(writer);
+                if (rec is DeferableContentStartRecord) defers.Add(rec as DeferableContentStartRecord);
             }
+            foreach (var i in defers)
+            {
+                str.Seek(i.Position + 1, SeekOrigin.Begin);
+                writer.Write((uint)(i.EndRecord.Position - i.Position - 5));
+            }
+
+
         }
     }
 }
