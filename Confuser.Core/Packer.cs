@@ -26,35 +26,28 @@ namespace Confuser.Core
     {
         class PackerMarker : Marker
         {
-            ModuleDefinition origin;
-            public PackerMarker(ModuleDefinition mod) { origin = mod; }
+            AssemblySetting origin;
+            public PackerMarker(AssemblySetting origin) { this.origin = origin; }
 
-            protected override void MarkAssembly(AssemblyDefinition asm, IDictionary<IConfusion, NameValueCollection> current, Confuser cr)
+            protected override AssemblySetting MarkAssembly(AssemblyDefinition asm, Marking mark, out bool exclude)
             {
-                IAnnotationProvider m = asm;
-                m.Annotations.Clear();
-                IAnnotationProvider src = (IAnnotationProvider)origin.Assembly;
-                current.Clear();
-                foreach (var i in (IDictionary<IConfusion, NameValueCollection>)src.Annotations["ConfusionSets"])
-                    current.Add(i.Key, i.Value);
-                foreach (object key in src.Annotations.Keys)
-                {
-                    if (key.ToString() == "Packer" || key.ToString() == "PackerParams") continue;
-                    m.Annotations[key] = src.Annotations[key];
-                }
+                mark.CurrentConfusions.Clear();
+                AssemblySetting ret = new AssemblySetting(asm);
+                foreach (var i in origin.GlobalParameters)
+                    mark.CurrentConfusions.Add(i.Key, i.Value);
+                //ret.Packer = origin.Packer;
+                //ret.PackerParameters = origin.PackerParameters;
+                exclude = false;
+                return ret;
             }
-            protected override void MarkModule(ModuleDefinition mod, IDictionary<IConfusion, NameValueCollection> current, Confuser cr)
+            protected override ModuleSetting MarkModule(ModuleDefinition mod, Marking mark, out bool exclude)
             {
-                IAnnotationProvider m = mod;
-                m.Annotations.Clear();
-                IAnnotationProvider src = (IAnnotationProvider)origin;
-                foreach (object key in src.Annotations.Keys)
-                    m.Annotations.Add(key, src.Annotations[src]);
-
-                var dict = (IDictionary<IConfusion, NameValueCollection>)src.Annotations["ConfusionSets"];
-                current.Clear();
-                foreach (var i in dict)
-                    current.Add(i.Key, i.Value);
+                mark.CurrentConfusions.Clear();
+                ModuleSetting ret = new ModuleSetting(mod);
+                foreach (var i in origin.Modules[0].Parameters)
+                    mark.CurrentConfusions.Add(i.Key, i.Value);
+                exclude = false;
+                return ret;
             }
         }
 
@@ -113,14 +106,13 @@ namespace Confuser.Core
 
             Confuser cr = new Confuser();
             ConfuserParameter par = new ConfuserParameter();
-            par.SourceAssembly = tmp + asm.MainModule.Name;
-            par.ReferencesPath = tmp;
+            par.SourceAssemblies = new string[] { tmp + asm.MainModule.Name };
             tmp = Path.GetTempPath() + "\\" + Path.GetRandomFileName() + "\\";
             par.DestinationPath = tmp;
             par.Confusions = crParam.Confusions;
             par.DefaultPreset = crParam.DefaultPreset;
             par.StrongNameKeyPath = crParam.StrongNameKeyPath;
-            par.Marker = new PackerMarker(param.Modules[0]);
+            par.Marker = new PackerMarker(cr.settings[0]);
             cr.Confuse(par);
 
             return Directory.GetFiles(tmp);

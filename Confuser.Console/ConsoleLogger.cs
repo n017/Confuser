@@ -11,28 +11,26 @@ namespace Confuser.Console
         public static int ReturnValue = -1;
         public static void Initalize(Logger logger)
         {
-            logger.BeginPhase += BeginPhase;
-            logger.Logging += Logging;
-            logger.Progressing += Progressing;
+            logger.BeginAssembly += BeginAssembly;
+            logger.EndAssembly += EndAssembly;
+            logger.Phase += BeginPhase;
+            logger.Log += Logging;
+            logger.Progress += Progressing;
             logger.Fault += Fault;
             logger.End += End;
         }
 
-        static void BeginPhase(object sender, PhaseEventArgs e)
+        static void BeginAssembly(object sender, AssemblyEventArgs e)
         {
-            switch (e.Phase)
-            {
-                case 1:
-                    WriteLineWithColor(ConsoleColor.Yellow, "Initalizing..."); break;
-                case 2:
-                    WriteLineWithColor(ConsoleColor.Yellow, "Obfuscating Structure..."); break;
-                case 3:
-                    WriteLineWithColor(ConsoleColor.Yellow, "Obfuscating Metadata..."); break;
-                case 4:
-                    WriteLineWithColor(ConsoleColor.Yellow, "Processing PE..."); break;
-                default:
-                    WriteLineWithColor(ConsoleColor.Yellow, "Running Phase " + e.Phase + "..."); break;
-            }
+            WriteLineWithColor(ConsoleColor.Yellow, string.Format("Processing '{0}'...",e.Assembly.FullName));
+        }
+        static void EndAssembly(object sender, AssemblyEventArgs e)
+        {
+            //
+        }
+        static void BeginPhase(object sender, LogEventArgs e)
+        {
+            WriteLineWithColor(ConsoleColor.Yellow, e.Message);
         }
         static void Logging(object sender, LogEventArgs e)
         {

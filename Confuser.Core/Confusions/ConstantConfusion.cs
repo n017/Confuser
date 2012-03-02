@@ -9,6 +9,7 @@ using Mono.Cecil.Cil;
 using System.IO.Compression;
 using Mono.Cecil.Rocks;
 using Confuser.Core.Poly.Visitors;
+using System.Collections.Specialized;
 
 namespace Confuser.Core.Confusions
 {
@@ -229,10 +230,11 @@ namespace Confuser.Core.Confusions
                 else
                     return true;
             }
-            void ExtractData(IList<IAnnotationProvider> mtds, List<Context> txts, bool num)
+            void ExtractData(IList<Tuple<IAnnotationProvider, NameValueCollection>> mtds, List<Context> txts, bool num)
             {
-                foreach (MethodDefinition mtd in mtds)
+                foreach (var tuple in mtds)
                 {
+                    MethodDefinition mtd = tuple.Item1 as MethodDefinition;
                     if (mtd == cc.strer || !mtd.HasBody) continue;
                     var bdy = mtd.Body;
                     bdy.SimplifyMacros();
@@ -317,7 +319,7 @@ namespace Confuser.Core.Confusions
                         txts[i].psr.InsertAfter(call, Instruction.Create(OpCodes.Castclass, txts[i].mtd.Module.TypeSystem.String));
                     txts[i].psr.Replace(idx, Instruction.Create(OpCodes.Ldc_I4, ids[i]));
                     if (i % interval == 0 || i == txts.Count - 1)
-                        progresser.SetProgress((i + 1) / txts.Count);
+                        progresser.SetProgress(i + 1, txts.Count);
                 }
 
                 List<int> hashs = new List<int>();
@@ -340,7 +342,7 @@ namespace Confuser.Core.Confusions
                 }
 
                 List<Context> txts = new List<Context>();
-                ExtractData(parameter.Target as IList<IAnnotationProvider>, txts, Array.IndexOf(parameter.GlobalParameters.AllKeys, "numeric") != -1);
+                ExtractData(parameter.Target as IList<Tuple<IAnnotationProvider, NameValueCollection>>, txts, Array.IndexOf(parameter.GlobalParameters.AllKeys, "numeric") != -1);
 
                 int[] ids;
                 bool retry;
@@ -424,7 +426,7 @@ namespace Confuser.Core.Confusions
             void ProcessSafe(ConfusionParameter parameter)
             {
                 List<Context> txts = new List<Context>();
-                ExtractData(parameter.Target as IList<IAnnotationProvider>, txts, Array.IndexOf(parameter.GlobalParameters.AllKeys, "numeric") != -1);
+                ExtractData(parameter.Target as IList<Tuple<IAnnotationProvider, NameValueCollection>>, txts, Array.IndexOf(parameter.GlobalParameters.AllKeys, "numeric") != -1);
 
                 int[] ids = new int[txts.Count];
                 for (int i = 0; i < txts.Count; i++)

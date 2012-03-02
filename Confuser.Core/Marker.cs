@@ -11,57 +11,109 @@ using System.Xml;
 
 namespace Confuser.Core
 {
-    public class Marker
+    public class ObfuscationSettings : Dictionary<IConfusion, NameValueCollection>
     {
-        public static readonly List<string> FrameworkAssemblies;
-        static Marker()
+        public ObfuscationSettings() { }
+        public ObfuscationSettings(ObfuscationSettings settings) : base(settings) { }
+
+        public bool IsEmpty() { return this.Count == 0; }
+    }
+    public struct MarkerSetting
+    {
+        public Packer Packer;
+        public NameValueCollection PackerParameters;
+        public AssemblySetting[] Assemblies;
+    }
+    public struct AssemblySetting
+    {
+        public AssemblySetting(AssemblyDefinition asm)
         {
-            FrameworkAssemblies = new List<string>();
-            foreach (FileInfo file in Directory.GetParent(Environment.GetFolderPath(Environment.SpecialFolder.System)).GetDirectories("Microsoft.NET")[0].GetFiles("FrameworkList.xml", SearchOption.AllDirectories))
-            {
-                XmlDocument doc = new XmlDocument();
-                doc.Load(file.FullName);
-                foreach (XmlNode xn in doc.SelectNodes("/FileList/File"))
-                {
-                    byte[] tkn = new byte[8];
-                    string tknStr = xn.Attributes["PublicKeyToken"].Value;
-                    for (int i = 0; i < 8; i++)
-                        tkn[i] = Convert.ToByte(tknStr.Substring(i * 2, 2), 16);
-                    FrameworkAssemblies.Add(string.Format("{0}/{1}", xn.Attributes["AssemblyName"].Value, BitConverter.ToString(tkn ?? new byte[0])));
-                }
-            }
-            foreach (string file in Directory.GetFiles(Directory.GetDirectories(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Reference Assemblies")[0], "FrameworkList.xml", SearchOption.AllDirectories))
-            {
-                XmlDocument doc = new XmlDocument();
-                doc.Load(file);
-                foreach (XmlNode xn in doc.SelectNodes("/FileList/File"))
-                {
-                    byte[] tkn = new byte[8];
-                    string tknStr = xn.Attributes["PublicKeyToken"].Value;
-                    for (int i = 0; i < 8; i++)
-                        tkn[i] = Convert.ToByte(tknStr.Substring(i * 2, 2), 16);
-                    FrameworkAssemblies.Add(string.Format("{0}/{1}", xn.Attributes["AssemblyName"].Value, BitConverter.ToString(tkn ?? new byte[0])));
-                }
-            }
+            this.Assembly = asm;
+            GlobalParameters = null;
+            Modules = Mono.Empty<ModuleSetting>.Array;
         }
 
-        class Settings
+        public AssemblyDefinition Assembly;
+        public ObfuscationSettings GlobalParameters;
+        public ModuleSetting[] Modules;
+    }
+    public struct ModuleSetting
+    {
+        public ModuleSetting(ModuleDefinition mod)
         {
-            public Settings()
+            this.Module = mod;
+            Parameters = null;
+            Members = Mono.Empty<MemberSetting>.Array;
+        }
+
+        public ModuleDefinition Module;
+        public ObfuscationSettings Parameters;
+        public MemberSetting[] Members;
+    }
+    public struct MemberSetting
+    {
+        public MemberSetting(IMemberDefinition obj)
+        {
+            this.Object = obj;
+            Parameters = null;
+            Members = Mono.Empty<MemberSetting>.Array;
+        }
+        public IMemberDefinition Object;
+        public ObfuscationSettings Parameters;
+        public MemberSetting[] Members;
+    }
+
+    public class Marker
+    {
+        //public static readonly List<string> FrameworkAssemblies;
+        static Marker()
+        {
+            //FrameworkAssemblies = new List<string>();
+            //foreach (FileInfo file in Directory.GetParent(Environment.GetFolderPath(Environment.SpecialFolder.System)).GetDirectories("Microsoft.NET")[0].GetFiles("FrameworkList.xml", SearchOption.AllDirectories))
+            //{
+            //    XmlDocument doc = new XmlDocument();
+            //    doc.Load(file.FullName);
+            //    foreach (XmlNode xn in doc.SelectNodes("/FileList/File"))
+            //    {
+            //        byte[] tkn = new byte[8];
+            //        string tknStr = xn.Attributes["PublicKeyToken"].Value;
+            //        for (int i = 0; i < 8; i++)
+            //            tkn[i] = Convert.ToByte(tknStr.Substring(i * 2, 2), 16);
+            //        FrameworkAssemblies.Add(string.Format("{0}/{1}", xn.Attributes["AssemblyName"].Value, BitConverter.ToString(tkn ?? new byte[0])));
+            //    }
+            //}
+            //foreach (string file in Directory.GetFiles(Directory.GetDirectories(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Reference Assemblies")[0], "FrameworkList.xml", SearchOption.AllDirectories))
+            //{
+            //    XmlDocument doc = new XmlDocument();
+            //    doc.Load(file);
+            //    foreach (XmlNode xn in doc.SelectNodes("/FileList/File"))
+            //    {
+            //        byte[] tkn = new byte[8];
+            //        string tknStr = xn.Attributes["PublicKeyToken"].Value;
+            //        for (int i = 0; i < 8; i++)
+            //            tkn[i] = Convert.ToByte(tknStr.Substring(i * 2, 2), 16);
+            //        FrameworkAssemblies.Add(string.Format("{0}/{1}", xn.Attributes["AssemblyName"].Value, BitConverter.ToString(tkn ?? new byte[0])));
+            //    }
+            //}
+        }
+
+        public class Marking
+        {
+            public Marking()
             {
-                inheritStack = new Stack<Dictionary<IConfusion, NameValueCollection>>();
+                inheritStack = new Stack<ObfuscationSettings>();
                 StartLevel();
             }
 
-            Stack<Dictionary<IConfusion, NameValueCollection>> inheritStack;
-            public Dictionary<IConfusion, NameValueCollection> CurrentConfusions;
+            Stack<ObfuscationSettings> inheritStack;
+            public ObfuscationSettings CurrentConfusions { get; private set; }
 
             public void StartLevel()
             {
                 if (inheritStack.Count > 0)
-                    CurrentConfusions = new Dictionary<IConfusion, NameValueCollection>(inheritStack.Peek());
+                    CurrentConfusions = new ObfuscationSettings(inheritStack.Peek());
                 else
-                    CurrentConfusions = new Dictionary<IConfusion, NameValueCollection>();
+                    CurrentConfusions = new ObfuscationSettings();
                 inheritStack.Push(CurrentConfusions);
             }
             public void LeaveLevel()
@@ -72,9 +124,9 @@ namespace Confuser.Core
             public void SkipLevel()
             {
                 if (inheritStack.Count > 1)
-                    CurrentConfusions = new Dictionary<IConfusion, NameValueCollection>(inheritStack.ToArray()[inheritStack.Count - 2]);
+                    CurrentConfusions = new ObfuscationSettings(inheritStack.ToArray()[inheritStack.Count - 2]);
                 else
-                    CurrentConfusions = new Dictionary<IConfusion, NameValueCollection>();
+                    CurrentConfusions = new ObfuscationSettings();
                 inheritStack.Push(CurrentConfusions);
             }
         }
@@ -90,7 +142,7 @@ namespace Confuser.Core
             foreach (Packer pack in packs)
                 Packers.Add(pack.ID, pack);
         }
-        private void FillPreset(Preset preset, Dictionary<IConfusion, NameValueCollection> cs)
+        private void FillPreset(Preset preset, ObfuscationSettings cs)
         {
             foreach (IConfusion i in Confusions.Values)
                 if (i.Preset <= preset && !cs.ContainsKey(i))
@@ -99,7 +151,7 @@ namespace Confuser.Core
 
         Confuser cr;
         protected Confuser Confuser { get { return cr; } set { cr = value; } }
-        private bool ProcessAttribute(ICustomAttributeProvider provider, Settings setting)
+        private bool ProcessAttribute(ICustomAttributeProvider provider, Marking setting)
         {
             CustomAttribute att = GetAttribute(provider.CustomAttributes, "ConfusingAttribute");
             if (att == null)
@@ -162,7 +214,7 @@ namespace Confuser.Core
         {
             return attributes.FirstOrDefault((att) => att.AttributeType.FullName == name);
         }
-        private void ProcessConfig(string cfg, Dictionary<IConfusion, NameValueCollection> cs)
+        private void ProcessConfig(string cfg, ObfuscationSettings cs)
         {
             MatchCollection matches = Regex.Matches(cfg, @"(\+|\-|)\[([^,\]]*)(?:,([^\]]*))?\]");
             foreach (Match match in matches)
@@ -239,194 +291,164 @@ namespace Confuser.Core
                 param.Add(args[0], args[1]);
             }
         }
-        private bool IsExcludedDependency(ICustomAttributeProvider provider, AssemblyNameReference refer)
-        {
-            foreach (CustomAttribute attr in provider.CustomAttributes)
-            {
-                if (attr.AttributeType.FullName == "ExcludeDependencyAttribute" &&
-                    attr.ConstructorArguments[0].Value.ToString() == refer.ToString())
-                    return true;
-            }
-            return false;
-        }
 
-        public virtual AssemblyDefinition[] GetAssemblies(string src, Preset preset, Confuser cr, EventHandler<LogEventArgs> err)
+        public virtual MarkerSetting MarkAssemblies(IList<AssemblyDefinition> asms, Preset preset, Confuser cr, EventHandler<LogEventArgs> err)
         {
             this.cr = cr;
-            Settings setting = new Settings();
-            FillPreset(preset, setting.CurrentConfusions);
-            Dictionary<string, AssemblyDefinition> ret = new Dictionary<string, AssemblyDefinition>();
+            MarkerSetting ret = new MarkerSetting();
+            ret.Assemblies = new AssemblySetting[asms.Count];
 
-            AssemblyDefinition main = AssemblyDefinition.ReadAssembly(src);
-            MarkAssembly(main, setting);
-            ret.Add(main.FullName, main);
-            foreach (ModuleDefinition mod in main.Modules)
+            for (int i = 0; i < asms.Count; i++)
             {
-                mod.FullLoad();
-                foreach (AssemblyNameReference refer in mod.AssemblyReferences)
+                Marking setting = new Marking();
+                FillPreset(preset, setting.CurrentConfusions);
+                ret.Assemblies[i] = MarkAssembly(asms[i], setting);
+                if (i == 0)
                 {
-                    if (!FrameworkAssemblies.Contains(string.Format("{0}/{1}", refer.Name, BitConverter.ToString(refer.PublicKeyToken ?? new byte[0]))) && !ret.ContainsKey(refer.FullName) && !IsExcludedDependency(main, refer))
-                    {
-                        AssemblyDefinition asm = GlobalAssemblyResolver.Instance.Resolve(refer);
-                        if (asm == null)
-                        {
-                            err(this, new LogEventArgs(string.Format("WARNING : Cannot load dependency '" + refer.FullName + ".")));
-                        }
-                        else
-                        {
-                            MarkAssembly(asm, setting);
-                            ret.Add(refer.FullName, asm);
-                            GetAssemblies(asm, setting, ret, err);
-                        }
-                    }
+                    NameValueCollection param;
+                    Packer packer;
+                    ProcessPackers(asms[i], out param, out packer);
+                    ret.Packer = packer;
+                    ret.PackerParameters = param;
                 }
             }
-            return ret.Values.ToArray();
-        }
-        void GetAssemblies(AssemblyDefinition asm, Settings setting, Dictionary<string, AssemblyDefinition> ret, EventHandler<LogEventArgs> err)
-        {
-            foreach (ModuleDefinition mod in asm.Modules)
-            {
-                mod.FullLoad();
-                foreach (AssemblyNameReference refer in mod.AssemblyReferences)
-                {
-                    if (!FrameworkAssemblies.Contains(string.Format("{0}/{1}", refer.Name, BitConverter.ToString(refer.PublicKeyToken ?? new byte[0]))) && !ret.ContainsKey(refer.FullName) && !IsExcludedDependency(asm, refer))
-                    {
-                        AssemblyDefinition asmRef = GlobalAssemblyResolver.Instance.Resolve(refer);
-                        if (asmRef == null)
-                        {
-                            err(this, new LogEventArgs(string.Format("WARNING : Cannot load dependency '" + refer.FullName + ".")));
-                        }
-                        else
-                        {
-                            MarkAssembly(asmRef, setting);
-                            ret.Add(refer.FullName, asmRef);
-                            GetAssemblies(asmRef, setting, ret, err);
-                        }
-                    }
-                }
-            }
-        }
-        protected void MarkAssemblies(AssemblyDefinition[] assemblies, Preset preset)
-        {
-            Settings setting = new Settings();
-            FillPreset(preset, setting.CurrentConfusions);
-            Dictionary<string, AssemblyDefinition> ret = new Dictionary<string, AssemblyDefinition>();
 
-            foreach (AssemblyDefinition asm in assemblies)
-            {
-                MarkAssembly(asm, setting);
-            }
+            return ret;
         }
 
-        internal void MarkHelperAssembly(AssemblyDefinition asm)
+        internal void MarkHelperAssembly(AssemblyDefinition asm, Confuser cr)
         {
-            MarkAssembly(asm, new Settings());
+            cr.settings.Add(MarkAssembly(asm, new Marking()));
         }
-        private void MarkAssembly(AssemblyDefinition asm, Settings setting)
+        private AssemblySetting MarkAssembly(AssemblyDefinition asm, Marking mark)
         {
-            bool exclude = ProcessAttribute(asm, setting);
-            MarkAssembly(asm, setting.CurrentConfusions, cr);
+            bool exclude;
+            AssemblySetting ret = MarkAssembly(asm, mark, out exclude);
 
-            (asm as IAnnotationProvider).Annotations["ConfusionSets"] = setting.CurrentConfusions;
-            (asm as IAnnotationProvider).Annotations["GlobalParams"] = setting.CurrentConfusions;
-
-            NameValueCollection param;
-            Packer packer;
-            ProcessPackers(asm, out param, out packer);
-            (asm as IAnnotationProvider).Annotations["Packer"] = packer;
-            (asm as IAnnotationProvider).Annotations["PackerParams"] = param;
+            ret.GlobalParameters = mark.CurrentConfusions;
 
             if (!exclude)
+            {
+                List<ModuleSetting> modSettings = new List<ModuleSetting>();
                 foreach (ModuleDefinition mod in asm.Modules)
-                    MarkModule(mod, setting);
+                    MarkModule(mod, mark, modSettings);
+                ret.Modules = modSettings.ToArray();
+            }
 
-            setting.LeaveLevel();
+            mark.LeaveLevel();
+            return ret;
         }
-        protected virtual void MarkAssembly(AssemblyDefinition asm, IDictionary<IConfusion, NameValueCollection> current, Confuser cr) { }
-
-        private void MarkModule(ModuleDefinition mod, Settings setting)
+        protected virtual AssemblySetting MarkAssembly(AssemblyDefinition asm, Marking mark, out bool exclude)
         {
-            bool exclude = ProcessAttribute(mod, setting);
-            MarkModule(mod, setting.CurrentConfusions, cr);
+            exclude = ProcessAttribute(asm, mark);
+            return new AssemblySetting(asm);
+        }
 
-            (mod as IAnnotationProvider).Annotations["ConfusionSets"] = setting.CurrentConfusions;
+        private void MarkModule(ModuleDefinition mod, Marking mark, List<ModuleSetting> settings)
+        {
+            bool exclude;
+            ModuleSetting ret = MarkModule(mod, mark, out exclude);
+
+            ret.Parameters = mark.CurrentConfusions;
 
             if (!exclude)
+            {
+                List<MemberSetting> typeSettings = new List<MemberSetting>();
                 foreach (TypeDefinition type in mod.Types)
                 {
-                    setting.StartLevel();
-                    MarkType(type, setting);
-                    setting.LeaveLevel();
+                    mark.StartLevel();
+                    MarkType(type, mark, typeSettings);
+                    mark.LeaveLevel();
                 }
+                ret.Members = typeSettings.ToArray();
+            }
 
-            setting.LeaveLevel();
+            if (!ret.Parameters.IsEmpty() || ret.Members.Length != 0)
+                settings.Add(ret);
+
+            mark.LeaveLevel();
         }
-        protected virtual void MarkModule(ModuleDefinition mod, IDictionary<IConfusion, NameValueCollection> current, Confuser cr) { }
-
-        private void MarkType(TypeDefinition type, Settings setting)
+        protected virtual ModuleSetting MarkModule(ModuleDefinition mod, Marking mark, out bool exclude)
         {
-            bool exclude = ProcessAttribute(type, setting);
-            MarkType(type, setting.CurrentConfusions, cr);
+            exclude = ProcessAttribute(mod, mark);
+            return new ModuleSetting(mod);
+        }
 
-            (type as IAnnotationProvider).Annotations["ConfusionSets"] = setting.CurrentConfusions;
+        private void MarkType(TypeDefinition type, Marking mark, List<MemberSetting> settings)
+        {
+            bool exclude;
+            MemberSetting ret = MarkType(type, mark, out exclude);
 
+            ret.Parameters = mark.CurrentConfusions;
 
             if (!exclude)
             {
+                List<MemberSetting> memSettings = new List<MemberSetting>();
+
                 foreach (TypeDefinition nType in type.NestedTypes)
                 {
-                    setting.StartLevel();
-                    MarkType(nType, setting);
-                    setting.LeaveLevel();
+                    mark.StartLevel();
+                    MarkType(nType, mark, memSettings);
+                    mark.LeaveLevel();
                 }
 
                 foreach (MethodDefinition mtd in type.Methods)
                 {
-                    setting.StartLevel();
-                    MarkMember(mtd, setting, Target.Methods);
-                    setting.LeaveLevel();
+                    mark.StartLevel();
+                    MarkMember(mtd, mark, Target.Methods, memSettings);
+                    mark.LeaveLevel();
                 }
 
                 foreach (FieldDefinition fld in type.Fields)
                 {
-                    setting.StartLevel();
-                    MarkMember(fld, setting, Target.Fields);
-                    setting.LeaveLevel();
+                    mark.StartLevel();
+                    MarkMember(fld, mark, Target.Fields, memSettings);
+                    mark.LeaveLevel();
                 }
 
                 foreach (PropertyDefinition prop in type.Properties)
                 {
-                    setting.StartLevel();
-                    MarkMember(prop, setting, Target.Properties);
-                    setting.LeaveLevel();
+                    mark.StartLevel();
+                    MarkMember(prop, mark, Target.Properties, memSettings);
+                    mark.LeaveLevel();
                 }
 
                 foreach (EventDefinition evt in type.Events)
                 {
-                    setting.StartLevel();
-                    MarkMember(evt, setting, Target.Events);
-                    setting.LeaveLevel();
+                    mark.StartLevel();
+                    MarkMember(evt, mark, Target.Events, memSettings);
+                    mark.LeaveLevel();
                 }
+
+                ret.Members = memSettings.ToArray();
             }
 
-            setting.LeaveLevel();
-        }
-        protected virtual void MarkType(TypeDefinition type, IDictionary<IConfusion, NameValueCollection> current, Confuser cr) { }
+            if (!ret.Parameters.IsEmpty() || ret.Members.Length != 0)
+                settings.Add(ret);
 
-        private void MarkMember(IMemberDefinition mem, Settings setting, Target target)
+            mark.LeaveLevel();
+        }
+        protected virtual MemberSetting MarkType(TypeDefinition type, Marking mark, out bool exclude)
+        {
+            exclude = ProcessAttribute(type, mark);
+            return new MemberSetting(type);
+        }
+
+        private void MarkMember(IMemberDefinition mem, Marking mark, Target target, List<MemberSetting> settings)
         {
             if (target == Target.Methods && (mem as MethodDefinition).SemanticsAttributes != MethodSemanticsAttributes.None)
             {
                 return;
             }
 
-            bool exclude = ProcessAttribute(mem, setting);
-            MarkMember(mem, setting.CurrentConfusions, cr);
+            bool exclude;
+            MemberSetting ret = MarkMember(mem, mark, out exclude);
 
-            (mem as IAnnotationProvider).Annotations["ConfusionSets"] = setting.CurrentConfusions;
+            ret.Parameters = mark.CurrentConfusions;
 
             if (!exclude)
+            {
+                List<MemberSetting> semSettings = new List<MemberSetting>();
                 if (target == Target.Properties)
                 {
                     PropertyDefinition prop = mem as PropertyDefinition;
@@ -439,11 +461,11 @@ namespace Confuser.Core
                         sems.AddRange(prop.OtherMethods);
                     foreach (MethodDefinition mtd in sems)
                     {
-                        setting.StartLevel();
-                        ProcessAttribute(mtd, setting);
-                        (mtd as IAnnotationProvider).Annotations["ConfusionSets"] = setting.CurrentConfusions;
-                        setting.LeaveLevel();
-                        setting.LeaveLevel();
+                        mark.StartLevel();
+                        ProcessAttribute(mtd, mark);
+                        semSettings.Add(new MemberSetting(mtd) { Parameters = mark.CurrentConfusions, Members = new MemberSetting[0] });
+                        mark.LeaveLevel();
+                        mark.LeaveLevel();
                     }
                 }
                 else if (target == Target.Events)
@@ -460,46 +482,41 @@ namespace Confuser.Core
                         sems.AddRange(evt.OtherMethods);
                     foreach (MethodDefinition mtd in sems)
                     {
-                        setting.StartLevel();
-                        ProcessAttribute(mtd, setting);
-                        (mtd as IAnnotationProvider).Annotations["ConfusionSets"] = setting.CurrentConfusions;
-                        setting.LeaveLevel();
-                        setting.LeaveLevel();
+                        mark.StartLevel();
+                        ProcessAttribute(mtd, mark);
+                        semSettings.Add(new MemberSetting(mtd) { Parameters = mark.CurrentConfusions, Members = new MemberSetting[0] });
+                        mark.LeaveLevel();
+                        mark.LeaveLevel();
                     }
                 }
+                ret.Members = semSettings.ToArray();
+            }
 
-            setting.LeaveLevel();
+            if (!ret.Parameters.IsEmpty() || ret.Members.Length != 0)
+                settings.Add(ret);
+
+            mark.LeaveLevel();
         }
-        protected virtual void MarkMember(IMemberDefinition mem, IDictionary<IConfusion, NameValueCollection> current, Confuser cr) { }
-
-        public virtual string GetDestinationPath(ModuleDefinition mod, string dstPath)
+        protected virtual MemberSetting MarkMember(IMemberDefinition mem, Marking mark, out bool exclude)
         {
-            string ret = mod.Name;
-            if(string.IsNullOrEmpty(Path.GetExtension(ret)))
-                switch (mod.Kind)
-                {
-                    case ModuleKind.Console:
-                    case ModuleKind.Windows:
-                        ret = Path.ChangeExtension(ret, "exe"); break;
-                    case ModuleKind.Dll:
-                        ret = Path.ChangeExtension(ret, "dll"); break;
-                    case ModuleKind.NetModule:
-                        ret = Path.ChangeExtension(ret, "netmodule"); break;
-                }
-            return Path.Combine(dstPath, ret);
+            exclude = ProcessAttribute(mem, mark);
+            return new MemberSetting(mem);
         }
+
     }
     class CopyMarker : Marker
     {
-        AssemblyDefinition origin;
+        AssemblySetting origin;
         IConfusion exclude;
-        public CopyMarker(AssemblyDefinition asm, IConfusion exclude) { origin = asm; this.exclude = exclude; }
-        protected override void MarkAssembly(AssemblyDefinition asm, IDictionary<IConfusion, NameValueCollection> current, Confuser cr)
+        public CopyMarker(AssemblySetting settings, IConfusion exclude) { origin = settings; this.exclude = exclude; }
+        protected override AssemblySetting MarkAssembly(AssemblyDefinition asm, Marking mark, out bool exclude)
         {
-            current.Clear();
-            foreach (var i in (IDictionary<IConfusion, NameValueCollection>)((IAnnotationProvider)origin).Annotations["ConfusionSets"])
-                if (i.Key != exclude)
-                    current.Add(i);
+            var ret = base.MarkAssembly(asm, mark, out exclude);
+            mark.CurrentConfusions.Clear();
+            foreach (var i in origin.GlobalParameters)
+                if (i.Key != this.exclude)
+                    mark.CurrentConfusions.Add(i.Key, i.Value);
+            return ret;
         }
     }
 }

@@ -69,52 +69,69 @@
     </Reference>
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
-    <Reference Include="WindowsBase" />
-    <Reference Include="PresentationCore" />
-    <Reference Include="PresentationFramework" />
+    <Reference Include="UIAutomationProvider">
+      <RequiredTargetFramework>3.0</RequiredTargetFramework>
+    </Reference>
+    <Reference Include="WindowsBase">
+      <RequiredTargetFramework>3.0</RequiredTargetFramework>
+    </Reference>
+    <Reference Include="PresentationCore">
+      <RequiredTargetFramework>3.0</RequiredTargetFramework>
+    </Reference>
+    <Reference Include="PresentationFramework">
+      <RequiredTargetFramework>3.0</RequiredTargetFramework>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <ApplicationDefinition Include="App.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
-    <Compile Include="Advanced.xaml.cs">
-      <DependentUpon>Advanced.xaml</DependentUpon>
+    <Compile Include="AdvSelection.xaml.cs">
+      <DependentUpon>AdvSelection.xaml</DependentUpon>
     </Compile>
     <Compile Include="App.xaml.cs">
       <DependentUpon>App.xaml</DependentUpon>
     </Compile>
-    <Compile Include="AssemblyElementPicker.xaml.cs">
-      <DependentUpon>AssemblyElementPicker.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="Basic.xaml.cs">
-      <DependentUpon>Basic.xaml</DependentUpon>
+    <Compile Include="AsmSelector\AsmIcon.cs" />
+    <Compile Include="AsmSelector\AssemblySelector.cs" />
+    <Compile Include="AsmSelector\Childer.cs" />
+    <Compile Include="AsmSelector\Colorizer.cs" />
+    <Compile Include="AsmSelector\IconRenderer.cs" />
+    <Compile Include="AsmSelector\Namespace.cs" />
+    <Compile Include="AsmSelector\Texter.cs" />
+    <Compile Include="Bitmap.cs" />
+    <Compile Include="CommandLink.cs" />
+    <Compile Include="ConfuserDatas.cs" />
+    <Compile Include="Failure.xaml.cs">
+      <DependentUpon>Failure.xaml</DependentUpon>
     </Compile>
     <Compile Include="Helper.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Scroller.xaml.cs">
-      <DependentUpon>Scroller.xaml</DependentUpon>
+    <Compile Include="Loading.cs" />
+    <Compile Include="MainWindow.xaml.cs">
+      <DependentUpon>MainWindow.xaml</DependentUpon>
     </Compile>
-    <Page Include="Advanced.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
-    <Page Include="AssemblyElementPicker.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
-    <Page Include="ExpressionDark.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
-    <Page Include="Basic.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
-    <Page Include="Scroller.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
+    <Compile Include="Progress.xaml.cs">
+      <DependentUpon>Progress.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="RelayCommand.cs" />
+    <Compile Include="Settings.xaml.cs">
+      <DependentUpon>Settings.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Simple.xaml.cs">
+      <DependentUpon>Simple.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Start.xaml.cs">
+      <DependentUpon>Start.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Success.xaml.cs">
+      <DependentUpon>Success.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Summary.xaml.cs">
+      <DependentUpon>Summary.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="UIElementAdorner.cs" />
     <AppDesigner Include="Properties\" />
     <None Include="Application.ico">
       <Visible>false</Visible>
@@ -130,21 +147,6 @@
       <Project>{FAD246BD-65C2-4379-8B1F-59C1BA71B8E9}</Project>
       <Name>Confuser.Core</Name>
     </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
-    <Resource Include="PickerIcons\assembly.png" />
-    <Resource Include="PickerIcons\constructor.png" />
-    <Resource Include="PickerIcons\delegate.png" />
-    <Resource Include="PickerIcons\enum.png" />
-    <Resource Include="PickerIcons\event.png" />
-    <Resource Include="PickerIcons\field.png" />
-    <Resource Include="PickerIcons\interface.png" />
-    <Resource Include="PickerIcons\method.png" />
-    <Resource Include="PickerIcons\module.png" />
-    <Resource Include="PickerIcons\namespace.png" />
-    <Resource Include="PickerIcons\property.png" />
-    <Resource Include="PickerIcons\type.png" />
-    <Resource Include="PickerIcons\valuetype.png" />
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Application.ico" />
@@ -180,6 +182,83 @@
       <ProductName>Windows Installer 3.1</ProductName>
       <Install>true</Install>
     </BootstrapperPackage>
+  </ItemGroup>
+  <ItemGroup>
+    <Page Include="AdvSelection.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Darkness.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Failure.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="MainWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Progress.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Settings.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Simple.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Start.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Success.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Summary.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Themes\Generic.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="error.png" />
+    <Resource Include="ok.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="loading.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="AsmSelector\assembly.png" />
+    <EmbeddedResource Include="AsmSelector\constant.png" />
+    <EmbeddedResource Include="AsmSelector\constructor.png" />
+    <EmbeddedResource Include="AsmSelector\delegate.png" />
+    <EmbeddedResource Include="AsmSelector\enum.png" />
+    <EmbeddedResource Include="AsmSelector\event.png" />
+    <EmbeddedResource Include="AsmSelector\famasm.png" />
+    <EmbeddedResource Include="AsmSelector\field.png" />
+    <EmbeddedResource Include="AsmSelector\interface.png" />
+    <EmbeddedResource Include="AsmSelector\internal.png" />
+    <EmbeddedResource Include="AsmSelector\method.png" />
+    <EmbeddedResource Include="AsmSelector\module.png" />
+    <EmbeddedResource Include="AsmSelector\namespace.png" />
+    <EmbeddedResource Include="AsmSelector\omethod.png" />
+    <EmbeddedResource Include="AsmSelector\private.png" />
+    <EmbeddedResource Include="AsmSelector\property.png" />
+    <EmbeddedResource Include="AsmSelector\propget.png" />
+    <EmbeddedResource Include="AsmSelector\propset.png" />
+    <EmbeddedResource Include="AsmSelector\protected.png" />
+    <EmbeddedResource Include="AsmSelector\static.png" />
+    <EmbeddedResource Include="AsmSelector\type.png" />
+    <EmbeddedResource Include="AsmSelector\valuetype.png" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

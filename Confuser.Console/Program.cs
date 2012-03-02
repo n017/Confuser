@@ -33,11 +33,11 @@ namespace Confuser.Console
                 }
 
                 Marker marker;
-                string source;
+                string[] source;
                 if (args[0] == "-assembly")
                 {
                     marker = new Marker();
-                    source = args[1];
+                    source = new string[] { args[1] };
                 }
                 else if (args[0] == "-config")
                 {
@@ -58,7 +58,7 @@ namespace Confuser.Console
                         return 4;
                     }
                     marker = mkr;
-                    source = "";
+                    source = mkr.GetAssemblies();
                 }
                 else
                 {
@@ -83,8 +83,7 @@ namespace Confuser.Console
                 param.DestinationPath = args[2];
                 param.DefaultPreset = Preset.None;
                 param.Marker = marker;
-                param.ReferencesPath = string.IsNullOrEmpty(source) ? "" : Path.GetDirectoryName(source);
-                param.SourceAssembly = source;
+                param.SourceAssemblies = source;
                 param.StrongNameKeyPath = args.Length == 5 ? args[4] : null;
                 ConsoleLogger.Initalize(param.Logger);
                 WriteLine("START WORKING.");

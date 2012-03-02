@@ -30,7 +30,7 @@ using Mono.Collections.Generic;
 
 namespace Mono {
 
-	static class Empty<T> {
+	public static class Empty<T> {
 
 		public static readonly T [] Array = new T [0];
 	}
@@ -38,7 +38,7 @@ namespace Mono {
 
 namespace Mono.Cecil {
 
-	static partial class Mixin {
+	public static partial class Mixin {
 
 		public static bool IsNullOrEmpty<T> (this T [] self)
 		{

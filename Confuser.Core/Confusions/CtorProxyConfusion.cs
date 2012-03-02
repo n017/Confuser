@@ -73,10 +73,10 @@ namespace Confuser.Core.Confusions
 
             public override void Process(ConfusionParameter parameter)
             {
-                IList<IAnnotationProvider> targets = parameter.Target as IList<IAnnotationProvider>;
+                IList<Tuple<IAnnotationProvider, NameValueCollection>> targets = parameter.Target as IList<Tuple<IAnnotationProvider, NameValueCollection>>;
                 for (int i = 0; i < targets.Count; i++)
                 {
-                    MethodDefinition mtd = targets[i] as MethodDefinition;
+                    MethodDefinition mtd = targets[i].Item1 as MethodDefinition;
                     if (!mtd.HasBody || mtd.DeclaringType.FullName == "<Module>") continue;
 
                     MethodBody bdy = mtd.Body;
@@ -89,9 +89,9 @@ namespace Confuser.Core.Confusions
                             CreateDelegate(mtd.Body, inst, inst.Operand as MethodReference, mod);
                         }
                     }
-                    progresser.SetProgress((i + 1) / (double)targets.Count);
+                    progresser.SetProgress(i + 1 , targets.Count);
                 }
-                double total = cc.txts.Count;
+                int total = cc.txts.Count;
                 int interval = 1;
                 if (total > 1000)
                     interval = (int)total / 100;
@@ -99,7 +99,7 @@ namespace Confuser.Core.Confusions
                 {
                     CreateFieldBridge(mod, cc.txts[i]);
                     if (i % interval == 0 || i == cc.txts.Count - 1)
-                        progresser.SetProgress((i + 1) / total);
+                        progresser.SetProgress(i + 1, total);
                 }
             }
 
@@ -233,7 +233,7 @@ namespace Confuser.Core.Confusions
             }
             public override void Process(ConfusionParameter parameter)
             {
-                double total = cc.txts.Count;
+                int total = cc.txts.Count;
                 int interval = 1;
                 if (total > 1000)
                     interval = (int)total / 100;
@@ -251,7 +251,7 @@ namespace Confuser.Core.Confusions
                     }
 
                     if (i % interval == 0 || i == cc.txts.Count - 1)
-                        progresser.SetProgress((i + 1) / total);
+                        progresser.SetProgress(i + 1, total);
                 }
 
                 total = cc.delegates.Count;
@@ -265,7 +265,7 @@ namespace Confuser.Core.Confusions
                     etor.Current.GetStaticConstructor().Body.GetILProcessor().Emit(OpCodes.Ret);
                     etor.MoveNext();
                     if (i % interval == 0 || i == cc.txts.Count - 1)
-                        progresser.SetProgress((i + 1) / total);
+                        progresser.SetProgress(i + 1, total);
                 }
             }
 

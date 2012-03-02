@@ -147,6 +147,7 @@ namespace Mono.Cecil {
 
 				return scope;
 			}
+            set { scope = value; }
 		}
 
 		public bool IsNested {

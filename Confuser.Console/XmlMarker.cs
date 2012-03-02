@@ -153,24 +153,28 @@ namespace Confuser.Console
         }
 
         static ModuleDefinition Empty = ModuleDefinition.CreateModule("Empty", ModuleKind.NetModule);
-        public override AssemblyDefinition[] GetAssemblies(string src, Preset preset, Confuser.Core.Confuser cr, EventHandler<LogEventArgs> err)
+        public string[] GetAssemblies()
         {
-            List<AssemblyDefinition> asms = new List<AssemblyDefinition>();
+            List<string> ret = new List<string>();
             foreach (XElement element in xmlDoc.XPathSelectElements("configuration/assembly"))
             {
                 string path = element.Attribute("path").Value;
                 if (!Path.IsPathRooted(path))
                     path = new Uri(Path.Combine(Path.GetDirectoryName(xmlDoc.BaseUri), path)).LocalPath;
-                AssemblyDefinition asmDef = AssemblyDefinition.ReadAssembly(path, new ReaderParameters(ReadingMode.Immediate));
-                ((IAnnotationProvider)asmDef).Annotations.Add("Xml_Mark", element);
-                GlobalAssemblyResolver.Instance.AssemblyCache.Add(asmDef.FullName, asmDef);
-                MarkAssembly(asmDef, preset, cr);
-                asms.Add(asmDef);
+                ret.Add(path);
             }
-            base.Confuser = cr;
-            var ret = asms.ToArray();
-            MarkAssemblies(ret, preset);
-            return ret;
+            return ret.ToArray();
+        }
+        public override MarkerSetting MarkAssemblies(IList<AssemblyDefinition> asms, Preset preset, Confuser.Core.Confuser cr, EventHandler<LogEventArgs> err)
+        {
+            int i = 0;
+            foreach (XElement element in xmlDoc.XPathSelectElements("configuration/assembly"))
+            {
+                ((IAnnotationProvider)asms[i]).Annotations.Add("Xml_Mark", element);
+                GlobalAssemblyResolver.Instance.AssemblyCache.Add(asms[i].FullName, asms[i]);
+                MarkAssembly(asms[i], preset, cr);
+            }
+            return base.MarkAssemblies(asms, preset, cr, err);
         }
         void MarkAssembly(AssemblyDefinition asm, Preset preset, Core.Confuser cr)
         {

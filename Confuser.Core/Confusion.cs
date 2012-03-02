@@ -89,12 +89,11 @@ namespace Confuser.Core
         protected void Log(string message) { cr.Log(message); }
         protected void AddHelperAssembly(AssemblyDefinition asm)
         {
-            CopyMarker mkr = new CopyMarker(cr.assemblies[0], Confusion);
+            CopyMarker mkr = new CopyMarker(cr.settings[0], Confusion);
             mkr.Initalize(cr.param.Confusions, cr.param.Packers);
-            mkr.MarkHelperAssembly(asm);
+            mkr.MarkHelperAssembly(asm, cr);
             foreach (IEngine eng in cr.engines)
                 eng.Analysis(cr.param.Logger, new AssemblyDefinition[] { asm });
-            cr.assemblies.Add(asm);
         }
 
         protected ConfuserParameter Parameter { get { return cr.param; } }

@@ -12,75 +12,96 @@ using System.Collections.Specialized;
 
 namespace Confuser.Core
 {
-    public class PhaseEventArgs : EventArgs
+    public class AssemblyEventArgs : EventArgs
     {
-        public PhaseEventArgs(int phase) { this.phase = phase; }
-        int phase;
-        public int Phase { get { return phase; } }
+        public AssemblyEventArgs(AssemblyDefinition asmDef) { this.Assembly = asmDef; }
+        public AssemblyDefinition Assembly { get; private set; }
     }
     public class LogEventArgs : EventArgs
     {
-        public LogEventArgs(string message) { this.message = message; }
-        string message;
-        public string Message { get { return message; } }
+        public LogEventArgs(string msg) { this.Message = msg; }
+        public string Message { get; private set; }
     }
     public class ProgressEventArgs : EventArgs
     {
-        public ProgressEventArgs(double progress) { this.progress = progress; }
-        double progress;
-        public double Progress { get { return progress; } }
+        public ProgressEventArgs(int progress, int overall)
+        {
+            this.Progress = progress;
+            this.Total = overall;
+        }
+        public int Progress { get; private set; }
+        public int Total { get; private set; }
     }
     public class ExceptionEventArgs : EventArgs
     {
-        public ExceptionEventArgs(Exception ex) { this.ex = ex; }
-        Exception ex;
-        public Exception Exception { get { return ex; } }
+        public ExceptionEventArgs(Exception ex) { this.Exception = ex; }
+        public Exception Exception { get; private set; }
     }
 
     public class Logger : IProgresser
     {
-        public event EventHandler<PhaseEventArgs> BeginPhase;
-        public event EventHandler<LogEventArgs> Logging;
-        public event EventHandler<ProgressEventArgs> Progressing;
+        public event EventHandler<LogEventArgs> Phase;
+        public event EventHandler<AssemblyEventArgs> BeginAssembly;
+        public event EventHandler<AssemblyEventArgs> EndAssembly;
+        public event EventHandler<LogEventArgs> Log;
+        public event EventHandler<ProgressEventArgs> Progress;
         public event EventHandler<ExceptionEventArgs> Fault;
         public event EventHandler<LogEventArgs> End;
 
-        internal void Log(string message)
+        class Asm : IDisposable
         {
-            if (Logging != null)
-                Logging(this, new LogEventArgs(message));
+            public AssemblyDefinition asmDef;
+            public Logger logger;
+            public void Dispose()
+            {
+                if (logger.EndAssembly != null)
+                    logger.EndAssembly(logger, new AssemblyEventArgs(asmDef));
+            }
         }
-        internal void StartPhase(int phase)
+
+        internal void _BeginPhase(string phase)
         {
-            if (BeginPhase != null)
-                BeginPhase(this, new PhaseEventArgs(phase));
+            if (Phase != null)
+                Phase(this, new LogEventArgs(phase));
         }
-        internal void Progress(double precentage)
+        internal IDisposable _Assembly(AssemblyDefinition asmDef)
         {
-            if (Progressing != null)
-                Progressing(this, new ProgressEventArgs(precentage));
+            if (BeginAssembly != null)
+                BeginAssembly(this, new AssemblyEventArgs(asmDef));
+            return new Asm() { asmDef = asmDef, logger = this };
         }
-        internal void Fatal(Exception ex)
+        public void _Log(string message)
+        {
+            if (Log != null)
+                Log(this, new LogEventArgs(message));
+        }
+        public void _Progress(int progress, int overall)
+        {
+            if (Progress != null)
+                Progress(this, new ProgressEventArgs(progress, overall));
+        }
+        internal void _Fatal(Exception ex)
         {
             if (Fault != null)
                 Fault(this, new ExceptionEventArgs(ex));
             else
                 throw ex;
         }
-        internal void Finish(string message)
+        internal void _Finish(string message)
         {
             if (End != null)
                 End(this, new LogEventArgs(message));
         }
 
-        void IProgresser.SetProgress(double precentage)
+
+        void IProgresser.SetProgress(int progress, int overall)
         {
-            Progress(precentage);
+            _Progress(progress, overall);
         }
     }
     public interface IProgresser
     {
-        void SetProgress(double precentage);
+        void SetProgress(int progress, int overall);
     }
     public interface IProgressProvider
     {
@@ -89,14 +110,11 @@ namespace Confuser.Core
 
     public class ConfuserParameter
     {
-        string src = "";
-        public string SourceAssembly { get { return src; } set { src = value; } }
+        string[] src = new string[0];
+        public string[] SourceAssemblies { get { return src; } set { src = value; } }
 
         string dstPath = "";
         public string DestinationPath { get { return dstPath; } set { dstPath = value; } }
-
-        string refers = "";
-        public string ReferencesPath { get { return refers; } set { refers = value; } }
 
         IConfusion[] cions = new IConfusion[0];
         public IConfusion[] Confusions { get { return cions; } set { cions = value; } }
@@ -117,12 +135,37 @@ namespace Confuser.Core
         public Marker Marker { get { return mkr; } set { mkr = value; } }
     }
 
+    public struct Tuple<T1, T2>
+    {
+        public Tuple(T1 item1, T2 item2)
+        {
+            Item1 = item1;
+            Item2 = item2;
+        }
+        public T1 Item1;
+        public T2 Item2;
+    }
+
+    public struct Tuple<T1, T2, T3>
+    {
+        public Tuple(T1 item1, T2 item2, T3 item3)
+        {
+            Item1 = item1;
+            Item2 = item2;
+            Item3 = item3;
+        }
+        public T1 Item1;
+        public T2 Item2;
+        public T3 Item3;
+    }
+
     public class Confuser
     {
         internal ConfuserParameter param;
-        internal List<AssemblyDefinition> assemblies;
+        internal List<AssemblySetting> settings;
+        internal MarkerSetting mkrSettings;
         internal List<IEngine> engines;
-        internal void Log(string message) { param.Logger.Log(message); }
+        internal void Log(string message) { param.Logger._Log(message); }
 
         public Thread ConfuseAsync(ConfuserParameter param)
         {
@@ -138,69 +181,55 @@ namespace Confuser.Core
             try
             {
                 this.param = param;
-                param.Logger.StartPhase(1);
-                param.Logger.Log("Started at " + DateTime.Now.ToShortTimeString() + ".");
-                param.Logger.Log("Loading...");
+                param.Logger._BeginPhase("Initializing...");
+                Log("Started at " + DateTime.Now.ToShortTimeString() + ".");
+                Log("Loading...");
 
                 System.Reflection.StrongNameKeyPair sn;
                 Initialize(out sn);
 
+                param.Logger._BeginPhase("Obfuscating...");
                 List<byte[]> pes = new List<byte[]>();
                 List<ModuleDefinition> mods = new List<ModuleDefinition>();
-                for (int i = 0; i < assemblies.Count; i++)
+                for (int i = 0; i < settings.Count; i++)
                 {
-                    param.Logger.StartPhase(2);
-                    param.Logger.Log(string.Format("Obfuscating assembly {0}...", assemblies[i].FullName));
-
-                    IDictionary<IConfusion, NameValueCollection> globalParams = GetGlobalParams(assemblies[i]);
-                    List<Phase> phases = new List<Phase>();
-                    foreach (IConfusion cion in param.Confusions)
-                        foreach (Phase phase in cion.Phases)
-                            phases.Add(phase);
-
-                    foreach (ModuleDefinition mod in assemblies[i].Modules)
+                    using (param.Logger._Assembly(settings[i].Assembly))
                     {
-                        param.Logger.Log(string.Format("Obfuscating structure of module {0}...", mod.Name));
+                        Log(string.Format("Obfuscating assembly {0}...", settings[i].Assembly.FullName));
 
-                        helpers.Clear();
-                        //global cctor which used in many confusion
-                        if (mod.GetType("<Module>").GetStaticConstructor() == null)
+                        ObfuscationSettings globalParams = settings[i].GlobalParameters;
+                        List<Phase> phases = new List<Phase>();
+                        foreach (IConfusion cion in param.Confusions)
+                            foreach (Phase phase in cion.Phases)
+                                phases.Add(phase);
+
+                        foreach (ModuleSetting mod in settings[i].Modules)
                         {
-                            MethodDefinition cctor = new MethodDefinition(".cctor", MethodAttributes.Private | MethodAttributes.HideBySig |
-                                MethodAttributes.SpecialName | MethodAttributes.RTSpecialName |
-                                MethodAttributes.Static, mod.TypeSystem.Void);
-                            cctor.Body = new MethodBody(cctor);
-                            cctor.Body.GetILProcessor().Emit(OpCodes.Ret);
-                            mod.GetType("<Module>").Methods.Add(cctor);
+                            Log(string.Format("Obfuscating structure of module {0}...", mod.Module.Name));
+
+                            helpers.Clear();
+                            helpers.Add(mod.Module.GetType("<Module>").GetStaticConstructor(), HelperAttribute.NoEncrypt);
+
+                            ProcessStructuralPhases(mod, globalParams, phases);
+
+                            MemoryStream final = new MemoryStream();
+                            ProcessMdPePhases(mod, globalParams, phases, final, new WriterParameters() { StrongNameKeyPair = (mod.Module.Attributes & ModuleAttributes.StrongNameSigned) != 0 ? sn : null });
+
+                            pes.Add(final.ToArray());
+                            mods.Add(mod.Module);
+
+                            Log("Module " + mod.Module.Name + " Done.");
                         }
-                        else
-                        {
-                            MethodDefinition cctor = mod.GetType("<Module>").GetStaticConstructor();
-                            ((IAnnotationProvider)cctor).Annotations.Clear();
-                        }
-                        helpers.Add(mod.GetType("<Module>").GetStaticConstructor(), HelperAttribute.NoEncrypt);
-
-                        ProcessStructuralPhases(mod, globalParams, phases);
-
-                        param.Logger.StartPhase(3);
-
-                        MemoryStream final = new MemoryStream();
-                        ProcessMdPePhases(mod, globalParams, phases, final, new WriterParameters() { StrongNameKeyPair = (mod.Attributes & ModuleAttributes.StrongNameSigned) != 0 ? sn : null });
-
-                        pes.Add(final.ToArray());
-                        mods.Add(mod);
-
-                        param.Logger.Log("Module " + mod.Name + " Done.");
                     }
                 }
 
                 Finalize(mods.ToArray(), pes.ToArray());
 
-                param.Logger.Finish("Ended at " + DateTime.Now.ToShortTimeString() + ".");
+                param.Logger._Finish("Ended at " + DateTime.Now.ToShortTimeString() + ".");
             }
             catch (Exception ex)
             {
-                param.Logger.Fatal(ex);
+                param.Logger._Fatal(ex);
             }
             finally
             {
@@ -209,8 +238,60 @@ namespace Confuser.Core
             }
         }
 
+        void UpdateCustomAttributeRef(ICustomAttributeProvider ca)
+        {
+            if (!ca.HasCustomAttributes) return;
+            foreach (var i in ca.CustomAttributes)
+            {
+                foreach (var arg in i.ConstructorArguments)
+                    UpdateCustomAttributeArgs(arg);
+                foreach (var arg in i.Fields)
+                    UpdateCustomAttributeArgs(arg.Argument);
+                foreach (var arg in i.Properties)
+                    UpdateCustomAttributeArgs(arg.Argument);
+            }
+        }
+        void UpdateCustomAttributeArgs(CustomAttributeArgument arg)
+        {
+            if (arg.Value is TypeReference)
+            {
+                TypeReference typeRef = arg.Value as TypeReference;
+                if (typeRef.Scope is AssemblyNameReference)
+                {
+                    AssemblyNameReference nameRef = typeRef.Scope as AssemblyNameReference;
+                    foreach (var i in settings)
+                        if (i.Assembly.Name.Name == nameRef.Name)
+                            typeRef.Scope = i.Assembly.Name;
+                }
+            }
+            else if (arg.Value is CustomAttributeArgument[])
+                foreach (var i in arg.Value as CustomAttributeArgument[])
+                    UpdateCustomAttributeArgs(i);
+        }
         void UpdateAssemblyReference(TypeDefinition typeDef, string from, string to)
         {
+            UpdateCustomAttributeRef(typeDef);
+            if (typeDef.HasGenericParameters)
+                foreach (var p in typeDef.GenericParameters)
+                    UpdateCustomAttributeRef(p);
+            foreach (var i in typeDef.Methods)
+            {
+                if (i.HasParameters)
+                    foreach (var p in i.Parameters)
+                        UpdateCustomAttributeRef(p);
+                if (i.HasGenericParameters)
+                    foreach (var p in i.GenericParameters)
+                        UpdateCustomAttributeRef(p);
+                UpdateCustomAttributeRef(i.MethodReturnType);
+                UpdateCustomAttributeRef(i);
+            }
+            foreach (var i in typeDef.Fields)
+                UpdateCustomAttributeRef(i);
+            foreach (var i in typeDef.Properties)
+                UpdateCustomAttributeRef(i);
+            foreach (var i in typeDef.Events)
+                UpdateCustomAttributeRef(i);
+
             foreach (var i in typeDef.NestedTypes)
                 UpdateAssemblyReference(i, from, to);
             foreach (var i in typeDef.Methods)
@@ -237,9 +318,9 @@ namespace Confuser.Core
         {
             sn = null;
             if (string.IsNullOrEmpty(param.StrongNameKeyPath))
-                param.Logger.Log("Strong name key not specified.");
+                Log("Strong name key not specified.");
             else if (!File.Exists(param.StrongNameKeyPath))
-                param.Logger.Log("Strong name key not found. Output assembly will not be signed.");
+                Log("Strong name key not found. Output assembly will not be signed.");
             else
                 sn = new System.Reflection.StrongNameKeyPair(new FileStream(param.StrongNameKeyPath, FileMode.Open));
 
@@ -247,11 +328,14 @@ namespace Confuser.Core
 
             GlobalAssemblyResolver.Instance.AssemblyCache.Clear();
             GlobalAssemblyResolver.Instance.ClearSearchDirectories();
-            GlobalAssemblyResolver.Instance.AddSearchDirectory(param.ReferencesPath);
+            foreach (var i in param.SourceAssemblies)
+                GlobalAssemblyResolver.Instance.AddSearchDirectory(Path.GetDirectoryName(i));
 
-            param.Logger.Log(string.Format("Analysing assemblies..."));
+            Log(string.Format("Loading assemblies..."));
             mkr.Initalize(param.Confusions, param.Packers);
-            assemblies = new List<AssemblyDefinition>(mkr.GetAssemblies(param.SourceAssembly, param.DefaultPreset, this, (sender, e) => param.Logger.Log(e.Message)));
+            var assemblies = new List<AssemblyDefinition>(param.SourceAssemblies.Select(_ => AssemblyDefinition.ReadAssembly(_, new ReaderParameters(ReadingMode.Immediate))));
+            mkrSettings = mkr.MarkAssemblies(assemblies, param.DefaultPreset, this, (sender, e) => Log(e.Message));
+            settings = mkrSettings.Assemblies.ToList();
 
             Dictionary<string, string> repl = new Dictionary<string, string>();
             foreach (var i in assemblies)
@@ -279,6 +363,22 @@ namespace Confuser.Core
             foreach (var asm in assemblies)
                 foreach (var mod in asm.Modules)
                 {
+                    //global cctor which used in many confusion
+                    if (mod.GetType("<Module>").GetStaticConstructor() == null)
+                    {
+                        MethodDefinition cctor = new MethodDefinition(".cctor", MethodAttributes.Private | MethodAttributes.HideBySig |
+                            MethodAttributes.SpecialName | MethodAttributes.RTSpecialName |
+                            MethodAttributes.Static, mod.TypeSystem.Void);
+                        cctor.Body = new MethodBody(cctor);
+                        cctor.Body.GetILProcessor().Emit(OpCodes.Ret);
+                        mod.GetType("<Module>").Methods.Add(cctor);
+                    }
+                    else
+                    {
+                        MethodDefinition cctor = mod.GetType("<Module>").GetStaticConstructor();
+                        ((IAnnotationProvider)cctor).Annotations.Clear();
+                    }
+
                     for (int i = 0; i < mod.AssemblyReferences.Count; i++)
                     {
                         AssemblyNameReference nameRef = mod.AssemblyReferences[i];
@@ -295,13 +395,22 @@ namespace Confuser.Core
             foreach (var i in repl)
             {
                 foreach (var j in assemblies)
+                {
+                    UpdateCustomAttributeRef(j);
                     foreach (var k in j.Modules)
+                    {
+                        UpdateCustomAttributeRef(k);
                         foreach (var l in k.Types)
                             UpdateAssemblyReference(l, i.Key, i.Value);
+                    }
+                }
             }
 
+            foreach (var i in assemblies)
+                GlobalAssemblyResolver.Instance.AssemblyCache.Add(i.FullName, i);
             helpers = new Dictionary<IMemberDefinition, HelperAttribute>();
 
+            Log(string.Format("Analysing assemblies..."));
             engines = new List<IEngine>();
             foreach (IConfusion cion in param.Confusions)
                 foreach (Phase phase in cion.Phases)
@@ -310,10 +419,10 @@ namespace Confuser.Core
             for (int i = 0; i < engines.Count; i++)
             {
                 engines[i].Analysis(param.Logger, assemblies);
-                param.Logger.Progress((double)(i + 1) / engines.Count);
+                param.Logger._Progress(i + 1, engines.Count);
             }
         }
-        void ProcessStructuralPhases(ModuleDefinition mod, IDictionary<IConfusion, NameValueCollection> globalParams, IEnumerable<Phase> phases)
+        void ProcessStructuralPhases(ModuleSetting mod, ObfuscationSettings globalParams, IEnumerable<Phase> phases)
         {
             ConfusionParameter cParam = new ConfusionParameter();
             bool end1 = false;
@@ -321,78 +430,72 @@ namespace Confuser.Core
             {
                 if (!end1 && i.PhaseID > 1)
                 {
-                    MarkModule(mod);
+                    MarkModule(mod.Module);
                     MarkObfuscateHelpers(mod);
-                    CecilHelper.RefreshTokens(mod);
+                    CecilHelper.RefreshTokens(mod.Module);
                     end1 = true;
                 }
-                List<IAnnotationProvider> mems = GetTargets(mod, i.Confusion);
+                var mems = GetTargets(mod, i.Confusion);
                 if (mems.Count == 0) continue;
 
                 i.Confuser = this;
-                param.Logger.Log("Executing " + i.Confusion.Name + " Phase " + i.PhaseID + "...");
+                Log("Executing " + i.Confusion.Name + " Phase " + i.PhaseID + "...");
 
-                i.Initialize(mod);
+                i.Initialize(mod.Module);
                 if (globalParams.ContainsKey(i.Confusion))
                     cParam.GlobalParameters = globalParams[i.Confusion];
                 else
                     cParam.GlobalParameters = new NameValueCollection();
+
+                int total = mems.Count;
                 if (i.WholeRun == true)
                 {
                     cParam.Parameters = null;
                     cParam.Target = null;
                     i.Process(cParam);
-                    param.Logger.Progress(1);
+                    param.Logger._Progress(total, total);
                 }
                 else
                 {
                     if (i is IProgressProvider)
                     {
-                        cParam.Parameters = new NameValueCollection();
-                        foreach (IAnnotationProvider mem in mems)
-                        {
-                            NameValueCollection memParam = (from set in mem.Annotations["ConfusionSets"] as IDictionary<IConfusion, NameValueCollection> where set.Key.Phases.Contains(i) select set.Value).FirstOrDefault();
-                            string hash = mem.GetHashCode().ToString("X8");
-                            foreach (string pkey in memParam.AllKeys)
-                                cParam.Parameters[hash + "_" + pkey] = memParam[pkey];
-                        }
+                        cParam.Parameters = null;
                         cParam.Target = mems;
                         (i as IProgressProvider).SetProgresser(param.Logger);
                         i.Process(cParam);
                     }
                     else
                     {
-                        double total = mems.Count;
                         int interval = 1;
                         if (total > 1000)
                             interval = (int)total / 100;
                         int now = 0;
-                        foreach (IAnnotationProvider mem in mems)
+                        foreach (var mem in mems)
                         {
-                            cParam.Parameters = (from set in mem.Annotations["ConfusionSets"] as IDictionary<IConfusion, NameValueCollection> where set.Key.Phases.Contains(i) select set.Value).FirstOrDefault();
-                            cParam.Target = mem;
+                            cParam.Parameters = mem.Item2;
+                            cParam.Target = mem.Item1;
                             i.Process(cParam);
                             if (now % interval == 0 || now == total - 1)
-                                param.Logger.Progress((now + 1) / total);
+                                param.Logger._Progress(now + 1, total);
                             now++;
                         }
                     }
-                    param.Logger.Progress(1);
+                    param.Logger._Progress(total, total);
                 }
                 i.DeInitialize();
             }
         }
-        void ProcessMdPePhases(ModuleDefinition mod, IDictionary<IConfusion, NameValueCollection> globalParams, IEnumerable<Phase> phases, Stream stream, WriterParameters parameters)
+        void ProcessMdPePhases(ModuleSetting mod, ObfuscationSettings globalParams, IEnumerable<Phase> phases, Stream stream, WriterParameters parameters)
         {
             MetadataProcessor psr = new MetadataProcessor();
-            double total1 = (from i in phases where (i is MetadataPhase) select i).Count();
+            int total1 = (from i in phases where (i is MetadataPhase) select i).Count();
             int now1 = 1;
             psr.BeforeBuildModule += new MetadataProcessor.MetadataProcess(delegate(MetadataProcessor.MetadataAccessor accessor)
             {
                 foreach (MetadataPhase i in from i in phases where (i is MetadataPhase) && i.PhaseID == 1 orderby i.Priority ascending select i)
                 {
                     if (GetTargets(mod, i.Confusion).Count == 0) continue;
-                    param.Logger.Log("Executing " + i.Confusion.Name + " Phase 1...");
+                    Log("Executing " + i.Confusion.Name + " Phase 1...");
                     i.Confuser = this;
                     NameValueCollection globalParam;
                     if (globalParams.ContainsKey(i.Confusion))
@@ -400,7 +503,7 @@ namespace Confuser.Core
                     else
                         globalParam = new NameValueCollection();
                     i.Process(globalParam, accessor);
-                    param.Logger.Progress(now1 / total1); now1++;
+                    param.Logger._Progress(now1, total1); now1++;
                 }
             });
             psr.BeforeWriteTables += new MetadataProcessor.MetadataProcess(delegate(MetadataProcessor.MetadataAccessor accessor)
@@ -408,7 +511,7 @@ namespace Confuser.Core
                 foreach (MetadataPhase i in from i in phases where (i is MetadataPhase) && i.PhaseID == 2 orderby i.Priority ascending select i)
                 {
                     if (GetTargets(mod, i.Confusion).Count == 0) continue;
-                    param.Logger.Log("Executing " + i.Confusion.Name + " Phase 2...");
+                    Log("Executing " + i.Confusion.Name + " Phase 2...");
                     i.Confuser = this;
                     NameValueCollection globalParam;
                     if (globalParams.ContainsKey(i.Confusion))
@@ -416,7 +519,7 @@ namespace Confuser.Core
                     else
                         globalParam = new NameValueCollection();
                     i.Process(globalParam, accessor);
-                    param.Logger.Progress(now1 / total1); now1++;
+                    param.Logger._Progress(now1, total1); now1++;
                 }
             });
             psr.AfterWriteTables += new MetadataProcessor.MetadataProcess(delegate(MetadataProcessor.MetadataAccessor accessor)
@@ -424,7 +527,7 @@ namespace Confuser.Core
                 foreach (MetadataPhase i in from i in phases where (i is MetadataPhase) && i.PhaseID == 3 orderby i.Priority ascending select i)
                 {
                     if (GetTargets(mod, i.Confusion).Count == 0) continue;
-                    param.Logger.Log("Executing " + i.Confusion.Name + " Phase 3...");
+                    Log("Executing " + i.Confusion.Name + " Phase 3...");
                     i.Confuser = this;
                     NameValueCollection globalParam;
                     if (globalParams.ContainsKey(i.Confusion))
@@ -432,18 +535,17 @@ namespace Confuser.Core
                     else
                         globalParam = new NameValueCollection();
                     i.Process(globalParam, accessor);
-                    param.Logger.Progress(now1 / total1); now1++;
+                    param.Logger._Progress(now1, total1); now1++;
                 }
             });
             psr.ProcessImage += new MetadataProcessor.ImageProcess(delegate(MetadataProcessor.ImageAccessor accessor)
             {
-                param.Logger.StartPhase(4);
-                param.Logger.Log(string.Format("Obfuscating Image of module {0}...", mod.Name));
+                Log(string.Format("Obfuscating Image of module {0}...", mod.Module.Name));
                 ImagePhase[] imgPhases = (from i in phases where (i is ImagePhase) orderby (int)i.Priority + i.PhaseID * 10 ascending select (ImagePhase)i).ToArray();
                 for (int i = 0; i < imgPhases.Length; i++)
                 {
                     if (GetTargets(mod, imgPhases[i].Confusion).Count == 0) continue;
-                    param.Logger.Log("Executing " + imgPhases[i].Confusion.Name + " Phase " + imgPhases[i].PhaseID + "...");
+                    Log("Executing " + imgPhases[i].Confusion.Name + " Phase " + imgPhases[i].PhaseID + "...");
                     imgPhases[i].Confuser = this;
                     NameValueCollection globalParam;
                     if (globalParams.ContainsKey(imgPhases[i].Confusion))
@@ -451,17 +553,17 @@ namespace Confuser.Core
                     else
                         globalParam = new NameValueCollection();
                     imgPhases[i].Process(globalParam, accessor);
-                    param.Logger.Progress((double)i / imgPhases.Length);
+                    param.Logger._Progress(i, imgPhases.Length);
                 }
             });
             psr.ProcessPe += new MetadataProcessor.PeProcess(delegate(Stream str)
             {
-                param.Logger.Log(string.Format("Obfuscating PE of module {0}...", mod.Name));
+                Log(string.Format("Obfuscating PE of module {0}...", mod.Module.Name));
                 PePhase[] pePhases = (from i in phases where (i is PePhase) orderby (int)i.Priority + i.PhaseID * 10 ascending select (PePhase)i).ToArray();
                 for (int i = 0; i < pePhases.Length; i++)
                 {
                     if (GetTargets(mod, pePhases[i].Confusion).Count == 0) continue;
-                    param.Logger.Log("Executing " + pePhases[i].Confusion.Name + " Phase " + pePhases[i].PhaseID + "...");
+                    Log("Executing " + pePhases[i].Confusion.Name + " Phase " + pePhases[i].PhaseID + "...");
                     pePhases[i].Confuser = this;
                     NameValueCollection globalParam;
                     if (globalParams.ContainsKey(pePhases[i].Confusion))
@@ -469,19 +571,21 @@ namespace Confuser.Core
                     else
                         globalParam = new NameValueCollection();
                     pePhases[i].Process(globalParam, str);
-                    param.Logger.Progress((double)i / pePhases.Length);
+                    param.Logger._Progress(i, pePhases.Length);
                 }
             });
-            param.Logger.Log(string.Format("Obfuscating metadata of module {0}...", mod.Name));
-            psr.Process(mod, stream, parameters);
+            Log(string.Format("Obfuscating metadata of module {0}...", mod.Module.Name));
+            psr.Process(mod.Module, stream, parameters);
         }
         void Finalize(ModuleDefinition[] mods, byte[][] pes)
         {
-            Packer packer = (Packer)(assemblies[0] as IAnnotationProvider).Annotations["Packer"];
-            if (assemblies[0].MainModule.Kind == ModuleKind.Dll ||
-                assemblies[0].MainModule.Kind == ModuleKind.NetModule)
+            param.Logger._BeginPhase("Finalizing...");
+            Packer packer = mkrSettings.Packer;
+            if (packer != null && (
+                settings[0].Assembly.MainModule.Kind == ModuleKind.Dll ||
+                settings[0].Assembly.MainModule.Kind == ModuleKind.NetModule))
             {
-                param.Logger.Log("Warning: Cannot pack a library or net module!");
+                Log("Warning: Cannot pack a library or net module!");
                 packer = null;
             }
             if (packer != null)
@@ -489,11 +593,11 @@ namespace Confuser.Core
                 if (!Directory.Exists(param.DestinationPath))
                     Directory.CreateDirectory(param.DestinationPath);
 
-                param.Logger.Log("Packing output assemblies...");
+                Log("Packing output assemblies...");
                 packer.Confuser = this;
                 PackerParameter pParam = new PackerParameter();
                 pParam.Modules = mods; pParam.PEs = pes;
-                pParam.Parameters = (NameValueCollection)(assemblies[0] as IAnnotationProvider).Annotations["PackerParams"];
+                pParam.Parameters = mkrSettings.PackerParameters;
                 string[] final = packer.Pack(param, pParam);
                 for (int i = 0; i < final.Length; i++)
                 {
@@ -504,10 +608,13 @@ namespace Confuser.Core
             }
             else
             {
-                param.Logger.Log("Writing outputs...");
+                Log("Writing outputs...");
                 for (int i = 0; i < pes.Length; i++)
                 {
-                    string dest = param.Marker.GetDestinationPath(mods[i], param.DestinationPath);
+                    string filename = Path.GetFileName(mods[i].FullyQualifiedName);
+                    if (string.IsNullOrEmpty(filename)) filename = mods[i].Name;
+
+                    string dest = Path.Combine(param.DestinationPath, Path.GetFileName(mods[i].FullyQualifiedName));
                     if (!Directory.Exists(Path.GetDirectoryName(dest)))
                         Directory.CreateDirectory(Path.GetDirectoryName(dest));
                     Stream dstStream = new FileStream(dest, FileMode.Create, FileAccess.Write);
@@ -542,82 +649,82 @@ namespace Confuser.Core
             mod.CustomAttributes.Add(ca);
         }
 
-        IDictionary<IConfusion, NameValueCollection> GetGlobalParams(AssemblyDefinition asm)
+        List<MemberSetting> newAdded = new List<MemberSetting>();
+        List<Tuple<IAnnotationProvider, NameValueCollection>> GetTargets(ModuleSetting mod, IConfusion cion)
         {
-            return (asm as IAnnotationProvider).Annotations["GlobalParams"] as IDictionary<IConfusion, NameValueCollection>;
-        }
-
-        List<IAnnotationProvider> GetTargets(ModuleDefinition mod, IConfusion cion)
-        {
-            List<IAnnotationProvider> mems = new List<IAnnotationProvider>();
-            IDictionary<IConfusion, NameValueCollection> sets = (mod as IAnnotationProvider).Annotations["ConfusionSets"] as IDictionary<IConfusion, NameValueCollection>;
-            if (sets != null)
-                foreach (KeyValuePair<IConfusion, NameValueCollection> kv in sets)
-                    if (kv.Key == cion && (kv.Key.Target & Target.Module) == Target.Module)
-                        mems.Add(mod);
-            foreach (TypeDefinition type in mod.Types)
+            List<Tuple<IAnnotationProvider, NameValueCollection>> mems = new List<Tuple<IAnnotationProvider, NameValueCollection>>();
+            if (mod.Parameters.ContainsKey(cion) && (cion.Target & Target.Module) != 0)
             {
-                sets = (type as IAnnotationProvider).Annotations["ConfusionSets"] as IDictionary<IConfusion, NameValueCollection>;
-                if (sets != null)
-                    foreach (KeyValuePair<IConfusion, NameValueCollection> kv in sets)
-                        if (kv.Key == cion && (kv.Key.Target & Target.Types) == Target.Types)
-                            mems.Add(type);
-                GetTargets(type, mems, cion);
+                mems.Add(new Tuple<IAnnotationProvider, NameValueCollection>(mod.Module, mod.Parameters[cion]));
             }
+            foreach (MemberSetting _mem in mod.Members)
+                GetTargets(_mem, mems, cion);
+            foreach (MemberSetting _mem in newAdded)
+                GetTargets(_mem, mems, cion);
             return mems;
         }
-        void GetTargets(TypeDefinition type, List<IAnnotationProvider> mems, IConfusion cion)
+        void GetTargets(MemberSetting mem, List<Tuple<IAnnotationProvider, NameValueCollection>> mems, IConfusion cion)
         {
-            foreach (TypeDefinition nType in type.NestedTypes)
+            if (mem.Parameters.ContainsKey(cion))
             {
-                IDictionary<IConfusion, NameValueCollection> sets = (nType as IAnnotationProvider).Annotations["ConfusionSets"] as IDictionary<IConfusion, NameValueCollection>;
-                if (sets != null)
-                    foreach (KeyValuePair<IConfusion, NameValueCollection> kv in sets)
-                        if (kv.Key == cion && (kv.Key.Target & Target.Types) == Target.Types)
-                            mems.Add(nType);
-                GetTargets(nType, mems, cion);
+                if (mem.Object is TypeDefinition && (cion.Target & Target.Types) != 0)
+                    mems.Add(new Tuple<IAnnotationProvider, NameValueCollection>(mem.Object, mem.Parameters[cion]));
+                else if (mem.Object is MethodDefinition && (cion.Target & Target.Methods) != 0)
+                    mems.Add(new Tuple<IAnnotationProvider, NameValueCollection>(mem.Object, mem.Parameters[cion]));
+                else if (mem.Object is FieldDefinition && (cion.Target & Target.Fields) != 0)
+                    mems.Add(new Tuple<IAnnotationProvider, NameValueCollection>(mem.Object, mem.Parameters[cion]));
+                else if (mem.Object is PropertyDefinition && (cion.Target & Target.Properties) != 0)
+                    mems.Add(new Tuple<IAnnotationProvider, NameValueCollection>(mem.Object, mem.Parameters[cion]));
+                else if (mem.Object is EventDefinition && (cion.Target & Target.Events) != 0)
+                    mems.Add(new Tuple<IAnnotationProvider, NameValueCollection>(mem.Object, mem.Parameters[cion]));
             }
-            foreach (MethodDefinition mtd in type.Methods)
+            foreach (MemberSetting _mem in mem.Members)
+                GetTargets(_mem, mems, cion);
+        }
+        MemberSetting? GetSetting(IMemberDefinition mem)
+        {
+            foreach (MemberSetting _mem in newAdded)
             {
-                IDictionary<IConfusion, NameValueCollection> sets = (mtd as IAnnotationProvider).Annotations["ConfusionSets"] as IDictionary<IConfusion, NameValueCollection>;
-                if (sets != null)
-                    foreach (KeyValuePair<IConfusion, NameValueCollection> kv in sets)
-                        if (kv.Key == cion && (kv.Key.Target & Target.Methods) == Target.Methods)
-                            mems.Add(mtd);
+                if (_mem.Object == mem) return _mem;
+                var r = GetSetting(_mem, mem);
+                if (r != null) return r.Value;
             }
-            foreach (FieldDefinition fld in type.Fields)
+            foreach (var i in settings)
+                foreach (var j in i.Modules)
+                {
+                    if (j.Module != ((MemberReference)mem).Module) continue;
+                    TypeDefinition root = mem is TypeDefinition ? mem as TypeDefinition : mem.DeclaringType;
+                    while (root.DeclaringType != null) root = root.DeclaringType;
+                    foreach (var k in j.Members)
+                    {
+                        if (k.Object == root)
+                            return GetSetting(k, mem);
+                    }
+                    return null;
+                }
+            return null;
+        }
+        MemberSetting? GetSetting(MemberSetting set, IMemberDefinition mem)
+        {
+            MemberSetting? ret = null;
+            foreach (var i in set.Members)
             {
-                IDictionary<IConfusion, NameValueCollection> sets = (fld as IAnnotationProvider).Annotations["ConfusionSets"] as IDictionary<IConfusion, NameValueCollection>;
-                if (sets != null)
-                    foreach (KeyValuePair<IConfusion, NameValueCollection> kv in sets)
-                        if (kv.Key == cion && (kv.Key.Target & Target.Fields) == Target.Fields)
-                            mems.Add(fld);
+                if (i.Object == mem) return i;
+                else
+                {
+                    ret = GetSetting(i, mem);
+                    if (ret != null) return ret;
+                }
             }
-            foreach (EventDefinition evt in type.Events)
-            {
-                IDictionary<IConfusion, NameValueCollection> sets = (evt as IAnnotationProvider).Annotations["ConfusionSets"] as IDictionary<IConfusion, NameValueCollection>;
-                if (sets != null)
-                    foreach (KeyValuePair<IConfusion, NameValueCollection> kv in sets)
-                        if (kv.Key == cion && (kv.Key.Target & Target.Events) == Target.Events)
-                            mems.Add(evt);
-            }
-            foreach (PropertyDefinition prop in type.Properties)
-            {
-                IDictionary<IConfusion, NameValueCollection> sets = (prop as IAnnotationProvider).Annotations["ConfusionSets"] as IDictionary<IConfusion, NameValueCollection>;
-                if (sets != null)
-                    foreach (KeyValuePair<IConfusion, NameValueCollection> kv in sets)
-                        if (kv.Key == cion && (kv.Key.Target & Target.Properties) == Target.Properties)
-                            mems.Add(prop);
-            }
+            return ret;
         }
 
         internal Dictionary<IMemberDefinition, HelperAttribute> helpers;
-        void MarkObfuscateHelpers(ModuleDefinition mod)
+        void MarkObfuscateHelpers(ModuleSetting mod)
         {
-            TypeDefinition modType = mod.GetType("<Module>");
-            IDictionary<IConfusion, NameValueCollection> sets = (modType as IAnnotationProvider).Annotations["ConfusionSets"] as IDictionary<IConfusion, NameValueCollection>;
+            ObfuscationSettings sets = mod.Members[0].Parameters;
             if (sets == null) return;
-            Dictionary<IConfusion, NameValueCollection> sub = new Dictionary<IConfusion, NameValueCollection>();
+            ObfuscationSettings sub = new ObfuscationSettings();
             foreach (var i in sets)
             {
                 bool ok = true;
@@ -632,9 +739,9 @@ namespace Confuser.Core
             }
             foreach (KeyValuePair<IMemberDefinition, HelperAttribute> def in helpers)
             {
-                if ((def.Key as IAnnotationProvider).Annotations.Contains("ConfusionSets")) continue;
+                if (GetSetting(def.Key) != null) continue;
 
-                Dictionary<IConfusion, NameValueCollection> n = new Dictionary<IConfusion, NameValueCollection>();
+                ObfuscationSettings n = new ObfuscationSettings();
 
                 Target target = 0;
                 if (def.Key is TypeDefinition) target = Target.Types;
@@ -642,13 +749,13 @@ namespace Confuser.Core
                 else if (def.Key is FieldDefinition) target = Target.Fields;
                 else if (def.Key is EventDefinition) target = Target.Events;
                 else if (def.Key is PropertyDefinition) target = Target.Properties;
-                foreach (KeyValuePair<IConfusion, NameValueCollection> s in sub)
+                foreach (var s in sub)
                 {
                     if (s.Key.Target != target || (s.Key.Behaviour & (Behaviour)def.Value) != 0) continue;
                     n.Add(s.Key, s.Value);
                 }
 
-                (def.Key as IAnnotationProvider).Annotations["ConfusionSets"] = n;
+                newAdded.Add(new MemberSetting(def.Key) { Parameters = n, Members = new MemberSetting[0] });
             }
         }
     }

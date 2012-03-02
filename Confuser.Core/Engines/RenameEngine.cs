@@ -156,6 +156,16 @@ System.Resources.ResourceManager
                 }
             }
         }
+        class CustomAttributeReference : IReference
+        {
+            public CustomAttributeReference(TypeReference refer) { this.refer = refer; }
+            TypeReference refer;
+            public void UpdateReference(Identifier old, Identifier @new)
+            {
+                refer.Namespace = @new.scope;
+                refer.Name = @new.name;
+            }
+        }
         class ReflectionReference : IReference
         {
             public ReflectionReference(Instruction ldstr) { this.ldstr = ldstr; }
@@ -334,7 +344,7 @@ System.Resources.ResourceManager
                         internalVis.Add(NormalizeIva((string)attr.ConstructorArguments[0].Value));
                 if (internalVis.Count != 0)
                 {
-                    logger.Log("InternalsVisibleToAttribute found in " + asm.FullName + "!");
+                    logger._Log("InternalsVisibleToAttribute found in " + asm.FullName + "!");
 
                     List<AssemblyDefinition> refAsms = new List<AssemblyDefinition>();
                     foreach (AssemblyDefinition asmm in asms)
@@ -342,9 +352,9 @@ System.Resources.ResourceManager
                             refAsms.Add(asmm);
 
                     if (refAsms.Count == 0)
-                        logger.Log("Internal assemblies NOT found!");
+                        logger._Log("Internal assemblies NOT found!");
                     else
-                        logger.Log("Internal assemblies found!");
+                        logger._Log("Internal assemblies found!");
                     foreach (AssemblyDefinition i in refAsms)
                     {
                         if (!ivtMap.ContainsKey(i)) ivtMap.Add(i, new List<string>());
@@ -357,6 +367,7 @@ System.Resources.ResourceManager
         {
             List<string> ivts = ivtMap[asm];
             ivtRefs.Clear();
+            AnalysisCustomAttributes(asm);
             foreach (ModuleDefinition mod in asm.Modules)
             {
                 foreach (TypeReference typeRef in mod.GetTypeReferences())
@@ -388,6 +399,7 @@ System.Resources.ResourceManager
         }
         void Analysis(ModuleDefinition mod)
         {
+            AnalysisCustomAttributes(mod);
             for (int i = 0; i < mod.Resources.Count; i++)
                 if (mod.Resources[i].Name.EndsWith(".g.resources") && mod.Resources[i] is EmbeddedResource)
                     AnalysisResource(mod, i);
@@ -402,6 +414,10 @@ System.Resources.ResourceManager
                 if (res.Name == type.FullName + ".resources")
                     ((type as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new ResourceReference(res));
 
+            AnalysisCustomAttributes(type);
+            if (type.HasGenericParameters)
+                foreach (var i in type.GenericParameters)
+                    AnalysisCustomAttributes(i);
             foreach (TypeDefinition nType in type.NestedTypes)
                 Analysis(nType);
             foreach (MethodDefinition mtd in type.Methods)
@@ -537,6 +553,14 @@ System.Resources.ResourceManager
                 } while (q.Count != 0);
             }
 
+            AnalysisCustomAttributes(mtd);
+            if (mtd.HasParameters)
+                foreach (var i in mtd.Parameters)
+                    AnalysisCustomAttributes(i);
+            AnalysisCustomAttributes(mtd.MethodReturnType);
+            if (mtd.HasGenericParameters)
+                foreach (var i in mtd.GenericParameters)
+                    AnalysisCustomAttributes(i);
             if (mtd.HasBody)
             {
                 mtd.Body.SimplifyMacros();
@@ -546,19 +570,54 @@ System.Resources.ResourceManager
         }
         void Analysis(FieldDefinition fld)
         {
+            AnalysisCustomAttributes(fld);
             if (fld.IsRuntimeSpecialName || fld.DeclaringType.IsEnum || (IsTypePublic(fld.DeclaringType) &&
                 (fld.IsFamily || fld.IsFamilyAndAssembly || fld.IsFamilyOrAssembly || fld.IsPublic)))
                 (fld as IAnnotationProvider).Annotations["RenOk"] = false;
         }
         void Analysis(PropertyDefinition prop)
         {
+            AnalysisCustomAttributes(prop);
             if (prop.IsRuntimeSpecialName || IsTypePublic(prop.DeclaringType))
                 (prop as IAnnotationProvider).Annotations["RenOk"] = false;
         }
         void Analysis(EventDefinition evt)
         {
+            AnalysisCustomAttributes(evt);
             if (evt.IsRuntimeSpecialName || IsTypePublic(evt.DeclaringType))
                 (evt as IAnnotationProvider).Annotations["RenOk"] = false;
+        }
+        void AnalysisCustomAttributes(ICustomAttributeProvider ca)
+        {
+            if (!ca.HasCustomAttributes) return;
+            foreach (var i in ca.CustomAttributes)
+            {
+                foreach (var arg in i.ConstructorArguments)
+                    AnalysisCustomAttributeArgs(arg);
+                foreach (var arg in i.Fields)
+                    AnalysisCustomAttributeArgs(arg.Argument);
+                foreach (var arg in i.Properties)
+                    AnalysisCustomAttributeArgs(arg.Argument);
+            }
+        }
+        void AnalysisCustomAttributeArgs(CustomAttributeArgument arg)
+        {
+            if (arg.Value is TypeReference)
+            {
+                TypeReference typeRef = arg.Value as TypeReference;
+                bool has = false;
+                foreach (var i in ivtMap)
+                    if (i.Key.Name.Name == typeRef.Scope.Name)
+                    {
+                        has = true;
+                        break;
+                    }
+                if (has)
+                    (((arg.Value as TypeReference).Resolve() as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new CustomAttributeReference(arg.Value as TypeReference));
+            }
+            else if (arg.Value is CustomAttributeArgument[])
+                foreach (var i in arg.Value as CustomAttributeArgument[])
+                    AnalysisCustomAttributeArgs(i);
         }
         void AnalysisResource(ModuleDefinition mod, int resId)
         {
