@@ -595,7 +595,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="controls:CommandLink">
                     <Border Name="Border" CornerRadius="2" BorderBrush="Transparent" BorderThickness="1"
-                  SnapsToDevicePixels="True">
+                  SnapsToDevicePixels="True" Background="Transparent">
                         <Border Name="InnerBorder" CornerRadius="2" BorderBrush="Transparent" BorderThickness="1"
                     SnapsToDevicePixels="True">
                             <StackPanel Margin="7,7,7,7" Orientation="Horizontal">

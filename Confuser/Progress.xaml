@@ -27,7 +27,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="60px"/>
                 <RowDefinition Height="*"/>
-                <RowDefinition Height="20px"/>
+                <RowDefinition Height="30px"/>
             </Grid.RowDefinitions>
             <Grid x:Name="asmLbl" Grid.Row="0" HorizontalAlignment="Center" Height="50">
                 <Grid.ColumnDefinitions>
@@ -42,8 +42,8 @@
                 <Label Grid.Row="0" Grid.Column="1" Content="{Binding Filename}" FontSize="12"/>
                 <Label Grid.Row="1" Grid.Column="1" Content="{Binding Fullname}" FontSize="10" Foreground="#808080"/>
             </Grid>
-            <TextBox x:Name="log" Grid.Row="1" IsReadOnly="True" FontSize="12" FontFamily="Global Monospace" ScrollViewer.VerticalScrollBarVisibility="Visible"/>
-            <ProgressBar x:Name="progress" Grid.Row="2" Maximum="10000"/>
+            <TextBox x:Name="log" Grid.Row="1" IsReadOnly="True" FontSize="12" FontFamily="Global Monospace" ScrollViewer.VerticalScrollBarVisibility="Visible" ScrollViewer.HorizontalScrollBarVisibility="Auto" Margin="5,0,5,5"/>
+            <ProgressBar x:Name="progress" Grid.Row="2" Maximum="10000" Margin="5,0,5,5"/>
         </Grid>
     </Grid>
 </Page>

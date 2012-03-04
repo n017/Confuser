@@ -65,7 +65,7 @@
         <Separator Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"/>
         <Border Grid.Row="4" Padding="5" Grid.Column="0" Grid.ColumnSpan="2">
             <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft" VerticalAlignment="Center">
-                <Button x:Name="next" Content="Next" Width="70" Height="25" Click="next_Click" />
+                <Button x:Name="next" Content="Next" Width="70" Height="25" Click="next_Click" IsDefault="True" />
             </StackPanel>
         </Border>
 
@@ -81,7 +81,7 @@
                     <RowDefinition Height="60px"/>
                 </Grid.RowDefinitions>
                 <Label Grid.Row="0" Grid.Column="0" Content="Preset : " HorizontalAlignment="Right"/>
-                <ComboBox x:Name="preset" Grid.Row="0" Grid.Column="1" ItemsSource="{Binding Source={StaticResource preset}}" SelectedIndex="0"/>
+                <ComboBox x:Name="preset" Grid.Row="0" Grid.Column="1" ItemsSource="{Binding Source={StaticResource preset}}" SelectedIndex="2"/>
                 <CheckBox x:Name="usePacker" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Content="Use Packer" VerticalAlignment="Center" HorizontalAlignment="Stretch" Margin="5"/>
                 <Label Grid.Row="2" Grid.Column="0" Content="Packer : " HorizontalAlignment="Right" IsEnabled="{Binding IsChecked, ElementName=usePacker}"/>
                 <ComboBox x:Name="packer" Grid.Row="2" Grid.Column="1" ItemsSource="{Binding Source={x:Static local:ConfuserDatas.Packers}}" ItemTemplate="{StaticResource packer}" IsEnabled="{Binding IsChecked, ElementName=usePacker}" SelectedIndex="0"/>

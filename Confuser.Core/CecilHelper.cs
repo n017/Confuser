@@ -235,5 +235,24 @@ namespace Confuser.Core
 
             return ret;
         }
+
+        public static string GetNamespace(TypeDefinition typeDef)
+        {
+            while (typeDef.DeclaringType != null) typeDef = typeDef.DeclaringType;
+            return typeDef.Namespace;
+        }
+        public static string GetName(TypeDefinition typeDef)
+        {
+            if (typeDef.DeclaringType == null) return typeDef.Name;
+
+            StringBuilder ret = new StringBuilder();
+            ret.Append(typeDef.Name);
+            while (typeDef.DeclaringType != null)
+            {
+                typeDef = typeDef.DeclaringType;
+                ret.Insert(0, typeDef.Name + "/");
+            }
+            return ret.ToString();
+        }
     }
 }

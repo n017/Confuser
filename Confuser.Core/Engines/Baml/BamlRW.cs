@@ -175,15 +175,11 @@ namespace Confuser.Core.Engines.Baml
                 ret.Add(rec);
                 recs.Add(pos, rec);
             }
-            foreach (BamlRecord rec in ret)
+            for (int i = 0; i < ret.Count; i++)
             {
-                var defer = rec as DeferableContentStartRecord;
+                var defer = ret[i] as IBamlDeferRecord;
                 if (defer != null)
-                {
-                    long newPos = rec.Position + 1 + 4 + defer.size;
-                    defer.EndRecord = recs[newPos];
-                    System.Diagnostics.Debug.Assert(defer.EndRecord != null);
-                }
+                    defer.ReadDefer(ret, i, _ => recs[_]);
             }
 
             return ret;
@@ -206,21 +202,17 @@ namespace Confuser.Core.Engines.Baml
             writer.Write(doc.UpdaterVersion.Major); writer.Write(doc.UpdaterVersion.Minor);
             writer.Write(doc.WriterVersion.Major); writer.Write(doc.WriterVersion.Minor);
 
-            List<DeferableContentStartRecord> defers = new List<DeferableContentStartRecord>();
-            foreach (BamlRecord rec in doc)
+            List<int> defers = new List<int>();
+            for(int i=0;i<doc.Count;i++)
             {
+                BamlRecord rec=doc[i];
                 rec.Position = str.Position;
                 writer.Write((byte)rec.Type);
                 rec.Write(writer);
-                if (rec is DeferableContentStartRecord) defers.Add(rec as DeferableContentStartRecord);
+                if (rec is IBamlDeferRecord) defers.Add(i);
             }
             foreach (var i in defers)
-            {
-                str.Seek(i.Position + 1, SeekOrigin.Begin);
-                writer.Write((uint)(i.EndRecord.Position - i.Position - 5));
-            }
-
-
+                (doc[i] as IBamlDeferRecord).WriteDefer(doc, i, writer);
         }
     }
 }

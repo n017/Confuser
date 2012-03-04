@@ -103,6 +103,16 @@ CreateInstanceFrom[2:TargetType]
 
 System.Resources.ResourceManager
 .ctor[0:TargetResource]
+
+System.Configuration.SettingsBase
+get_Item[0:Type,1:Target]
+set_Item[0:Type,1:Target]
+
+System.Windows.DependencyProperty
+Register[0:Target,2:Type]
+RegisterAttached[0:Target,2:Type]
+RegisterAttachedReadOnly[0:Target,2:Type]
+RegisterReadOnly[0:Target,2:Type]
 =";
     }
 
@@ -192,6 +202,57 @@ System.Resources.ResourceManager
                 typeRec.TypeFullName = string.IsNullOrEmpty(@new.scope) ? @new.name : @new.scope + "." + @new.name;
             }
         }
+        class BamlTypeExtReference : IReference
+        {
+            public BamlTypeExtReference(PropertyWithConverterRecord rec, BamlDocument doc, string assembly)
+            {
+                this.rec = rec;
+                this.doc = doc;
+                this.assembly = assembly;
+            }
+
+            PropertyWithConverterRecord rec;
+            string assembly;
+            BamlDocument doc;
+
+            public void UpdateReference(Identifier old, Identifier @new)
+            {
+                string prefix = rec.Value.Substring(0, rec.Value.IndexOf(':'));
+                if (old.scope != @new.scope)
+                {
+                    string xmlNamespace = "clr-namespace:" + @new.scope;
+                    if (@new.scope == null || !string.IsNullOrEmpty(assembly))
+                        xmlNamespace += ";assembly=" + assembly;
+
+                    for (int i = 0; i < doc.Count; i++)
+                    {
+                        XmlnsPropertyRecord xmlns = doc[i] as XmlnsPropertyRecord;
+                        if (xmlns != null)
+                        {
+                            if (xmlns.XmlNamespace == xmlNamespace)
+                            {
+                                prefix = xmlns.Prefix;
+                                break;
+                            }
+                            else if (xmlns.Prefix == prefix)
+                            {
+                                XmlnsPropertyRecord r = new XmlnsPropertyRecord();
+                                r.AssemblyIds = xmlns.AssemblyIds;
+                                r.Prefix = prefix = ObfuscationHelper.GetNewName(xmlns.Prefix, NameMode.Letters);
+                                r.XmlNamespace = xmlNamespace;
+                                doc.Insert(i, r);
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(prefix))
+                    rec.Value = prefix + ":" + @new.name;
+                else
+                    rec.Value = @new.name;
+            }
+        }
         class BamlAttributeReference : IReference
         {
             public BamlAttributeReference(AttributeInfoRecord attrRec) { this.attrRec = attrRec; }
@@ -212,6 +273,45 @@ System.Resources.ResourceManager
             public void UpdateReference(Identifier old, Identifier @new)
             {
                 propRec.Value = @new.name;
+            }
+        }
+        class BamlPathReference : IReference
+        {
+            public BamlPathReference(BamlRecord rec, int startIdx, int endIdx)
+            {
+                this.rec = rec;
+                this.startIdx = startIdx;
+                this.endIdx = endIdx;
+            }
+
+            BamlRecord rec;
+            int startIdx;
+            int endIdx;
+            internal List<BamlPathReference> refers;
+
+            public void UpdateReference(Identifier old, Identifier @new)
+            {
+                StringBuilder sb;
+                if (rec is TextRecord)
+                    sb = new StringBuilder((rec as TextRecord).Value);
+                else
+                    sb = new StringBuilder((rec as PropertyWithConverterRecord).Value);
+                sb.Remove(startIdx, endIdx - startIdx + 1);
+                sb.Insert(startIdx, @new.name);
+                if (rec is TextRecord)
+                    (rec as TextRecord).Value = sb.ToString();
+                else
+                    (rec as PropertyWithConverterRecord).Value = sb.ToString();
+                int oEndIdx = endIdx;
+                endIdx = startIdx + @new.name.Length - 1;
+                foreach (var i in refers)
+                    if (this != i)
+                    {
+                        if (i.startIdx > this.startIdx)
+                            i.startIdx = i.startIdx + (endIdx - oEndIdx);
+                        if (i.endIdx > this.startIdx)
+                            i.endIdx = i.endIdx + (endIdx - oEndIdx);
+                    }
             }
         }
         class SaveBamlsReference : IReference
@@ -291,6 +391,7 @@ System.Resources.ResourceManager
         }
         void Init(ModuleDefinition mod)
         {
+            (mod as IAnnotationProvider).Annotations["RenMode"] = NameMode.Unreadable;
             foreach (TypeDefinition type in mod.Types)
                 Init(type);
             foreach (Resource res in mod.Resources)
@@ -303,7 +404,7 @@ System.Resources.ResourceManager
         {
             foreach (TypeDefinition nType in type.NestedTypes)
                 Init(nType);
-            (type as IAnnotationProvider).Annotations["RenId"] = new Identifier() { scope = type.Namespace, name = type.Name };
+            (type as IAnnotationProvider).Annotations["RenId"] = new Identifier() { scope = CecilHelper.GetNamespace(type), name = CecilHelper.GetName(type) };
             (type as IAnnotationProvider).Annotations["RenRef"] = new List<IReference>();
             (type as IAnnotationProvider).Annotations["RenOk"] = true;
             foreach (MethodDefinition mtd in type.Methods)
@@ -430,6 +531,33 @@ System.Resources.ResourceManager
                 Analysis(evt);
 
         }
+        string GetTrueName(MemberReference mem)
+        {
+            if (mem is GenericInstanceType)
+            {
+                GenericInstanceType type = mem as GenericInstanceType;
+                StringBuilder sb = new StringBuilder();
+                sb.Append(GetTrueName(type.ElementType));
+                sb.Append("<");
+                for (int i = 0; i < type.GenericArguments.Count; i++)
+                {
+                    if (i != 0) sb.Append(", ");
+                    sb.Append(GetTrueName(type.GenericArguments[i]));
+                }
+                sb.Append(">");
+                return sb.ToString();
+            }
+            else if (mem is TypeReference)
+            {
+                TypeReference type = mem as TypeReference;
+                string ret = mem.FullName;
+                if (type.HasGenericParameters && ret.EndsWith("`" + type.GenericParameters.Count))
+                    ret = ret.Substring(0, ret.Length - ("`" + type.GenericParameters.Count).Length);
+                return ret;
+            }
+            else
+                return null;
+        }
         void Analysis(MethodDefinition mtd)
         {
             if (mtd.DeclaringType.IsInterface || mtd.IsConstructor || (IsTypePublic(mtd.DeclaringType) &&
@@ -474,26 +602,43 @@ System.Resources.ResourceManager
                         else
                             now = null;
                     } while (now != null);
-                    if (ovr != null && (ovr.Module != mtd.Module || IsTypePublic(ovr.DeclaringType) || !(ovr.IsFamily || ovr.IsAssembly || ovr.IsFamilyAndAssembly || ovr.IsFamilyOrAssembly || ovr.IsPublic)))
+                    if (ovr != null && (ovr.Module != mtd.Module || IsTypePublic(ovr.DeclaringType)))
                     {
                         (mtd as IAnnotationProvider).Annotations["RenOk"] = false;
                     }
                 }
 
 
-                Queue<TypeDefinition> q = new Queue<TypeDefinition>();
+                Queue<TypeReference> q = new Queue<TypeReference>();
                 q.Enqueue(bType);
                 if (mtd.DeclaringType.HasInterfaces)
                     foreach (TypeReference i in mtd.DeclaringType.Interfaces)
-                        q.Enqueue(i.Resolve());
+                        q.Enqueue(i);
                 do
                 {
-                    TypeDefinition now = q.Dequeue();
+                    TypeReference nowRefer = q.Dequeue();
+                    TypeDefinition now = nowRefer.Resolve();
                     if (now == null) continue;
                     if (now.HasGenericParameters && now.IsInterface)
                     {
-                        (mtd as IAnnotationProvider).Annotations["RenOk"] = false;
-                        break;
+                        bool contain = false;
+                        string n = mtd.Name;
+                        string t = GetTrueName(nowRefer);
+                        if (n.StartsWith(t))
+                            n = n.Substring(t.Length + 1);
+                        foreach (MethodDefinition bMtd in now.Methods)
+                        {
+                            if (bMtd.Name == n)  //Loose compare
+                            {
+                                contain = true;
+                                break;
+                            }
+                        }
+                        if (contain)
+                        {
+                            (mtd as IAnnotationProvider).Annotations["RenOk"] = false;
+                            break;
+                        }
                     }
                     else if (now.IsInterface)
                     {
@@ -545,10 +690,10 @@ System.Resources.ResourceManager
                     else
                     {
                         if (now.BaseType != null)
-                            q.Enqueue(now.BaseType.Resolve());
+                            q.Enqueue(now.BaseType);
                         if (now.HasInterfaces)
                             foreach (TypeReference i in now.Interfaces)
-                                q.Enqueue(i.Resolve());
+                                q.Enqueue(i);
                     }
                 } while (q.Count != 0);
             }
@@ -619,6 +764,218 @@ System.Resources.ResourceManager
                 foreach (var i in arg.Value as CustomAttributeArgument[])
                     AnalysisCustomAttributeArgs(i);
         }
+
+        Dictionary<AssemblyDefinition, Dictionary<string, List<PropertyDefinition>>> props = new Dictionary<AssemblyDefinition, Dictionary<string, List<PropertyDefinition>>>();
+        void PopulateProperties(TypeDefinition typeDef, Dictionary<string, List<PropertyDefinition>> props)
+        {
+            foreach (var i in typeDef.NestedTypes)
+                PopulateProperties(i, props);
+            foreach (var i in typeDef.Properties)
+            {
+                List<PropertyDefinition> p;
+                if (!props.TryGetValue(i.Name, out p))
+                    p = props[i.Name] = new List<PropertyDefinition>();
+                p.Add(i);
+            }
+        }
+        void PopulateProperties(AssemblyDefinition asm)
+        {
+            Dictionary<string, List<PropertyDefinition>> p = new Dictionary<string, List<PropertyDefinition>>();
+            foreach (var i in asm.Modules)
+                foreach (var j in i.Types)
+                    PopulateProperties(j, p);
+            props[asm] = p;
+        }
+        List<PropertyDefinition> GetProperty(string name, out bool hasImport)
+        {
+            List<PropertyDefinition> ret = new List<PropertyDefinition>();
+            hasImport = false;
+            foreach (var i in props)
+            {
+                List<PropertyDefinition> p;
+                if (i.Value.TryGetValue(name, out p))
+                {
+                    if (!ivtMap.ContainsKey(i.Key))
+                        hasImport = true;
+                    else
+                        ret.AddRange(p);
+                }
+            }
+            return ret.Count == 0 ? null : ret;
+        }
+        string GetBamlAssemblyFullName(AssemblyNameReference asmName)
+        {
+            if (asmName.PublicKeyToken == null || asmName.PublicKeyToken.Length == 0)
+                return string.Format("{0}, Version={1}", asmName.Name, asmName.Version);
+            else
+            {
+                string token = BitConverter.ToString(asmName.PublicKeyToken).Replace("-", "").ToLower();
+                return string.Format("{0}, Version={1}, PublicKeyToken={2}", asmName.Name, asmName.Version, token);
+            }
+        }
+        static void SplitClrNsUri(string xmlNamespace, out string clrNamespace, out string assembly)
+        {
+            clrNamespace = null;
+            assembly = null;
+            int index = xmlNamespace.IndexOf("clr-namespace:", StringComparison.Ordinal);
+            if (index >= 0)
+            {
+                index += "clr-namespace:".Length;
+                if (index < xmlNamespace.Length)
+                {
+                    int startIndex = xmlNamespace.IndexOf(";assembly=", StringComparison.Ordinal);
+                    if (startIndex < index)
+                    {
+                        clrNamespace = xmlNamespace.Substring(index);
+                    }
+                    else
+                    {
+                        clrNamespace = xmlNamespace.Substring(index, startIndex - index);
+                        startIndex += ";assembly=".Length;
+                        if (startIndex < xmlNamespace.Length)
+                        {
+                            assembly = xmlNamespace.Substring(startIndex);
+                        }
+                    }
+                }
+            }
+        }
+        static TypeDefinition ResolveXmlns(string xmlNamespace, string typeName, AssemblyDefinition context, List<AssemblyDefinition> asms)
+        {
+            typeName = typeName.Replace('+', '/');
+            if (xmlNamespace.StartsWith("clr-namespace:"))
+            {
+                string ns, asmName;
+                SplitClrNsUri(xmlNamespace, out ns, out asmName);
+
+                AssemblyDefinition asm;
+                if (asmName == null)
+                    asm = context;
+                else
+                {
+                    asmName = AssemblyNameReference.Parse(asmName).Name;
+                    if (asmName == context.Name.Name)
+                        asm = context;
+                    else
+                        asm = asms.SingleOrDefault(_ => _.Name.Name == asmName);
+                }
+
+                if (asm != null)
+                {
+                    if (string.IsNullOrEmpty(ns))
+                        return asm.MainModule.GetType(typeName);
+                    else
+                        return asm.MainModule.GetType(string.Format("{0}.{1}", ns, typeName));
+                }
+            }
+            else
+            {
+                foreach (var i in asms)
+                {
+                    foreach (var attr in i.CustomAttributes.Where(_ => _.AttributeType.FullName == "System.Windows.Markup.XmlnsDefinitionAttribute"))
+                    {
+                        string uri = attr.ConstructorArguments[0].Value as string;
+                        string clrNs = attr.ConstructorArguments[1].Value as string;
+                        if (uri == xmlNamespace)
+                        {
+                            TypeDefinition typeDef;
+                            if (string.IsNullOrEmpty(clrNs))
+                                typeDef = i.MainModule.GetType(typeName);
+                            else
+                                typeDef = i.MainModule.GetType(string.Format("{0}.{1}", clrNs, typeName));
+                            if (typeDef != null)
+                                return typeDef;
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+        void ProcessProperty(BamlRecord rec, string path)
+        {
+            int idx = -1;
+            List<BamlPathReference> refers = new List<BamlPathReference>();
+            string prev = null;
+            char prevSym = '.';
+            for (int i = 0; i < path.Length; i++)
+            {
+                if (char.IsLetterOrDigit(path[i]))
+                {
+                    if (idx == -1)
+                        idx = i;
+                }
+                else if (i - idx > 0 && idx != -1 && (path[i] == '.' || path[i] == ')'))
+                {
+                    string name = path.Substring(idx, i - idx);
+                    bool hasImport;
+                    var p = GetProperty(name, out hasImport);
+                    if (p != null)
+                        foreach (var prop in p)
+                            (prop as IAnnotationProvider).Annotations["RenOk"] = false;
+                    //if (p != null && prevSym == '.')
+                    //{
+                    //    var specProp = p.SingleOrDefault(_ => _.DeclaringType.Name == prev);
+                    //    if (specProp != null)
+                    //    {
+                    //        BamlPathReference refer = new BamlPathReference(rec, idx, i - 1);
+                    //        refers.Add(refer);
+                    //        ((specProp as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(refer);
+                    //    }
+                    //    else
+                    //        foreach (var prop in p)
+                    //        {
+                    //            BamlPathReference refer = new BamlPathReference(rec, idx, i - 1);
+                    //            refers.Add(refer);
+                    //            ((prop as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(refer);
+                    //        }
+                    //}
+
+                    idx = -1;
+                    prev = name;
+                    prevSym = path[i];
+                }
+                else
+                {
+                    prevSym = path[i];
+                    idx = -1;
+                }
+            }
+            if (idx != -1)
+            {
+                string name = path.Substring(idx);
+                bool hasImport;
+                var p = GetProperty(name, out hasImport);
+                //if (p != null)
+                //    foreach (var prop in p)
+                //    {
+                //        BamlPathReference refer = new BamlPathReference(rec, idx, path.Length - 1);
+                //        refers.Add(refer);
+                //        ((prop as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(refer);
+                //    }
+                if (p != null)
+                    foreach (var prop in p)
+                        (prop as IAnnotationProvider).Annotations["RenOk"] = false;
+            }
+            else
+            {
+                string name = path;
+                bool hasImport;
+                var p = GetProperty(name, out hasImport);
+                //if (p != null)
+                //    foreach (var prop in p)
+                //    {
+                //        BamlPathReference refer = new BamlPathReference(rec, idx, path.Length - 1);
+                //        refers.Add(refer);
+                //        ((prop as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(refer);
+                //    }
+                if (p != null)
+                    foreach (var prop in p)
+                        (prop as IAnnotationProvider).Annotations["RenOk"] = false;
+            }
+
+            foreach (var i in refers)
+                i.refers = refers;
+        }
         void AnalysisResource(ModuleDefinition mod, int resId)
         {
             EmbeddedResource res = mod.Resources[resId] as EmbeddedResource;
@@ -644,26 +1001,48 @@ System.Resources.ResourceManager
                 {
                     cc++;
                     BamlDocument doc = BamlReader.ReadDocument(stream);
+                    (mod as IAnnotationProvider).Annotations["RenMode"] = NameMode.Letters;
+
+                    for (int i = 0; i < doc.Count; i++)
+                    {
+                        if (doc[i] is LineNumberAndPositionRecord || doc[i] is LinePositionRecord)
+                        {
+                            doc.RemoveAt(i); i--;
+                        }
+                    }
 
                     int asmId = -1;
+                    Dictionary<ushort, string> asms = new Dictionary<ushort, string>();
+                    List<AssemblyDefinition> assemblies = new List<AssemblyDefinition>();
+                    props.Clear();
                     foreach (var rec in doc.OfType<AssemblyInfoRecord>())
                     {
                         AssemblyNameReference nameRef = AssemblyNameReference.Parse(rec.AssemblyFullName);
                         if (nameRef.Name == mod.Assembly.Name.Name)
                         {
                             asmId = rec.AssemblyId;
-                            rec.AssemblyFullName = mod.Assembly.FullName;
+                            rec.AssemblyFullName = GetBamlAssemblyFullName(mod.Assembly.Name);
+                            assemblies.Add(mod.Assembly);
+                            PopulateProperties(mod.Assembly);
+                            nameRef = null;
                         }
                         else
                         {
                             foreach (var i in ivtMap)
                                 if (i.Key.Name.Name == nameRef.Name)
                                 {
-                                    rec.AssemblyFullName = i.Key.FullName;
+                                    rec.AssemblyFullName = GetBamlAssemblyFullName(i.Key.Name);
+                                    assemblies.Add(i.Key);
+                                    PopulateProperties(i.Key);
+                                    nameRef = null;
                                     break;
                                 }
                         }
+                        asms.Add(rec.AssemblyId, rec.AssemblyFullName);
+                        if (nameRef != null)
+                            PopulateProperties(GlobalAssemblyResolver.Instance.Resolve(nameRef));
                     }
+
                     Dictionary<ushort, TypeDefinition> types = new Dictionary<ushort, TypeDefinition>();
                     foreach (var rec in doc.OfType<TypeInfoRecord>())
                         if ((rec.AssemblyId & 0xfff) == asmId)
@@ -676,12 +1055,17 @@ System.Resources.ResourceManager
                             }
                         }
 
-                    Dictionary<ushort, PropertyDefinition> ps = new Dictionary<ushort, PropertyDefinition>();
+                    Dictionary<string, string> xmlns = new Dictionary<string, string>();
+                    foreach (var rec in doc.OfType<XmlnsPropertyRecord>())
+                        xmlns[rec.Prefix] = rec.XmlNamespace;
+
+                    Dictionary<ushort, string> ps = new Dictionary<ushort, string>();
                     foreach (var rec in doc.OfType<AttributeInfoRecord>())
+                    {
                         if (types.ContainsKey(rec.OwnerTypeId))
                         {
                             PropertyDefinition prop = types[rec.OwnerTypeId].Properties.FirstOrDefault(p => p.Name == rec.Name);
-                            if (prop != null && types[rec.OwnerTypeId].Fields.FirstOrDefault(fld => fld.Name == prop.Name + "Property") == null)
+                            if (prop != null)
                             {
                                 ((prop as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new BamlAttributeReference(rec));
                             }
@@ -691,6 +1075,48 @@ System.Resources.ResourceManager
                                 ((field as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new BamlAttributeReference(rec));
                             }
                         }
+                        ps.Add(rec.AttributeId, rec.Name);
+                    }
+
+                    foreach (var rec in doc.OfType<PropertyWithConverterRecord>())
+                    {
+                        if (rec.ConverterTypeId == 0xfd4c || ((short)rec.AttributeId > 0 && ps[rec.AttributeId] == "TypeName"))  //TypeExtension
+                        {
+                            string type = rec.Value;
+
+                            string xmlNamespace;
+                            if (type.IndexOf(':') != -1)
+                            {
+                                xmlNamespace = xmlns[type.Substring(0, type.IndexOf(':'))];
+                                type = type.Substring(type.IndexOf(':') + 1, type.Length - type.IndexOf(':') - 1);
+                            }
+                            else
+                            {
+                                xmlNamespace = xmlns[""];
+                            }
+                            TypeDefinition typeDef;
+                            if ((typeDef = ResolveXmlns(xmlNamespace, type, mod.Assembly, assemblies)) != null)
+                            {
+                                ((typeDef as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new BamlTypeExtReference(rec, doc, typeDef.Module.Assembly.Name.Name));
+                            }
+                        }
+                        if (rec.ConverterTypeId == 0xff77 || rec.ConverterTypeId == 0xfe14 || rec.ConverterTypeId == 0xfd99)
+                        {
+                            ProcessProperty(rec, rec.Value);
+                        }
+                    }
+
+                    for (int i = 1; i < doc.Count; i++)
+                    {
+                        ElementStartRecord binding = doc[i - 1] as ElementStartRecord;
+                        ConstructorParametersStartRecord param = doc[i] as ConstructorParametersStartRecord;
+                        if (binding != null && param != null && binding.TypeId == 0xffec)//Binding
+                        {
+                            TextRecord path = doc[i + 1] as TextRecord;
+                            ProcessProperty(path, path.Value);
+                        }
+                    }
+
                     var rootRec = doc.OfType<ElementStartRecord>().FirstOrDefault();
                     if (rootRec != null && types.ContainsKey(rootRec.TypeId))
                     {
@@ -721,6 +1147,7 @@ System.Resources.ResourceManager
             else
                 System.Diagnostics.Debugger.Break();
         }
+
         void AnalysisCodes(MethodDefinition mtd)
         {
             for (int i = 0; i < mtd.Body.Instructions.Count; i++)
@@ -855,6 +1282,8 @@ System.Resources.ResourceManager
                     case Code.Callvirt:
                         {
                             MethodReference target = (inst.Operand as MethodReference);
+                            if (target.Name == "GetTypeFromHandle" && target.DeclaringType.FullName == "System.Type")
+                                break;
                             int cc = -(target.HasThis ? 1 : 0) - target.Parameters.Count;
                             for (int ii = cc; ii != 0; ii++)
                                 stack.Pop();

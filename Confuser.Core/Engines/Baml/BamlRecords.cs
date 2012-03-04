@@ -118,6 +118,12 @@ namespace Confuser.Core.Engines.Baml
         protected abstract void ReadData(BamlBinaryReader reader, int size);
         protected abstract void WriteData(BamlBinaryWriter writer);
     }
+    interface IBamlDeferRecord
+    {
+        BamlRecord Record { get; set; }
+        void ReadDefer(BamlDocument doc, int index, Func<long, BamlRecord> resolve);
+        void WriteDefer(BamlDocument doc, int index, BinaryWriter wtr);
+    }
 
     class XmlnsPropertyRecord : SizedBamlRecord
     {
@@ -304,7 +310,7 @@ namespace Confuser.Core.Engines.Baml
             writer.Write(NameId);
         }
     }
-    class DefAttributeKeyStringRecord : SizedBamlRecord
+    class DefAttributeKeyStringRecord : SizedBamlRecord, IBamlDeferRecord
     {
         public override BamlRecordType Type
         {
@@ -312,23 +318,88 @@ namespace Confuser.Core.Engines.Baml
         }
 
         public ushort ValueId { get; set; }
-        public uint Position { get; set; }
         public bool Shared { get; set; }
         public bool SharedSet { get; set; }
+
+        public BamlRecord Record { get; set; }
+        internal uint pos = 0xffffffff;
 
         protected override void ReadData(BamlBinaryReader reader, int size)
         {
             ValueId = reader.ReadUInt16();
-            Position = reader.ReadUInt32();
+            pos = reader.ReadUInt32();
             Shared = reader.ReadBoolean();
             SharedSet = reader.ReadBoolean();
         }
         protected override void WriteData(BamlBinaryWriter writer)
         {
             writer.Write(ValueId);
-            writer.Write(Position);
+            pos = (uint)writer.BaseStream.Position;
+            writer.Write((uint)0);
             writer.Write(Shared);
             writer.Write(SharedSet);
+        }
+
+        static void NavigateTree(BamlDocument doc, BamlRecordType start, BamlRecordType end, ref int index)
+        {
+            index++;
+            while (true)    //Assume there alway is a end
+            {
+                if (doc[index].Type == start)
+                    NavigateTree(doc, start, end, ref index);
+                else if (doc[index].Type == end)
+                    return;
+                index++;
+            }
+        }
+        public void ReadDefer(BamlDocument doc, int index, Func<long, BamlRecord> resolve)
+        {
+            bool keys = true;
+            do
+            {
+                switch (doc[index].Type)
+                {
+                    case BamlRecordType.DefAttributeKeyString:
+                    case BamlRecordType.DefAttributeKeyType:
+                    case BamlRecordType.OptimizedStaticResource:
+                        keys = true; break;
+                    case BamlRecordType.StaticResourceStart:
+                        NavigateTree(doc, BamlRecordType.StaticResourceStart, BamlRecordType.StaticResourceEnd, ref index);
+                        keys = true; break;
+                    case BamlRecordType.KeyElementStart:
+                        NavigateTree(doc, BamlRecordType.KeyElementStart, BamlRecordType.KeyElementEnd, ref index);
+                        keys = true; break;
+                    default:
+                        keys = false; index--; break;
+                }
+                index++;
+            } while (keys);
+            Record = resolve(doc[index].Position + pos);
+        }
+        public void WriteDefer(BamlDocument doc, int index, BinaryWriter wtr)
+        {
+            bool keys = true;
+            do
+            {
+                switch (doc[index].Type)
+                {
+                    case BamlRecordType.DefAttributeKeyString:
+                    case BamlRecordType.DefAttributeKeyType:
+                    case BamlRecordType.OptimizedStaticResource:
+                        keys = true; break;
+                    case BamlRecordType.StaticResourceStart:
+                        NavigateTree(doc, BamlRecordType.StaticResourceStart, BamlRecordType.StaticResourceEnd, ref index);
+                        keys = true; break;
+                    case BamlRecordType.KeyElementStart:
+                        NavigateTree(doc, BamlRecordType.KeyElementStart, BamlRecordType.KeyElementEnd, ref index);
+                        keys = true; break;
+                    default:
+                        keys = false; index--; break;
+                }
+                index++;
+            } while (keys);
+            wtr.BaseStream.Seek(pos, SeekOrigin.Begin);
+            wtr.Write((uint)(Record.Position - doc[index].Position));
         }
     }
     class TypeInfoRecord : SizedBamlRecord
@@ -716,30 +787,95 @@ namespace Confuser.Core.Engines.Baml
             writer.Write(AttributeId);
         }
     }
-    class DefAttributeKeyTypeRecord : ElementStartRecord
+    class DefAttributeKeyTypeRecord : ElementStartRecord, IBamlDeferRecord
     {
         public override BamlRecordType Type
         {
             get { return BamlRecordType.DefAttributeKeyType; }
         }
 
-        public uint Position { get; set; }
         public bool Shared { get; set; }
         public bool SharedSet { get; set; }
+
+        public BamlRecord Record { get; set; }
+        internal uint pos = 0xffffffff;
 
         public override void Read(BamlBinaryReader reader)
         {
             base.Read(reader);
-            Position = reader.ReadUInt32();
+            pos = reader.ReadUInt32();
             Shared = reader.ReadBoolean();
             SharedSet = reader.ReadBoolean();
         }
         public override void Write(BamlBinaryWriter writer)
         {
             base.Write(writer);
-            writer.Write(Position);
+            pos = (uint)writer.BaseStream.Position;
+            writer.Write((uint)0);
             writer.Write(Shared);
             writer.Write(SharedSet);
+        }
+
+        static void NavigateTree(BamlDocument doc, BamlRecordType start, BamlRecordType end, ref int index)
+        {
+            index++;
+            while (true)    //Assume there alway is a end
+            {
+                if (doc[index].Type == start)
+                    NavigateTree(doc, start, end, ref index);
+                else if (doc[index].Type == end)
+                    return;
+                index++;
+            }
+        }
+        public void ReadDefer(BamlDocument doc, int index, Func<long, BamlRecord> resolve)
+        {
+            bool keys = true;
+            do
+            {
+                switch (doc[index].Type)
+                {
+                    case BamlRecordType.DefAttributeKeyString:
+                    case BamlRecordType.DefAttributeKeyType:
+                    case BamlRecordType.OptimizedStaticResource:
+                        keys = true; break;
+                    case BamlRecordType.StaticResourceStart:
+                        NavigateTree(doc, BamlRecordType.StaticResourceStart, BamlRecordType.StaticResourceEnd, ref index);
+                        keys = true; break;
+                    case BamlRecordType.KeyElementStart:
+                        NavigateTree(doc, BamlRecordType.KeyElementStart, BamlRecordType.KeyElementEnd, ref index);
+                        keys = true; break;
+                    default:
+                        keys = false; index--; break;
+                }
+                index++;
+            } while (keys);
+            Record = resolve(doc[index].Position + pos);
+        }
+        public void WriteDefer(BamlDocument doc, int index, BinaryWriter wtr)
+        {
+            bool keys = true;
+            do
+            {
+                switch (doc[index].Type)
+                {
+                    case BamlRecordType.DefAttributeKeyString:
+                    case BamlRecordType.DefAttributeKeyType:
+                    case BamlRecordType.OptimizedStaticResource:
+                        keys = true; break;
+                    case BamlRecordType.StaticResourceStart:
+                        NavigateTree(doc, BamlRecordType.StaticResourceStart, BamlRecordType.StaticResourceEnd, ref index);
+                        keys = true; break;
+                    case BamlRecordType.KeyElementStart:
+                        NavigateTree(doc, BamlRecordType.KeyElementStart, BamlRecordType.KeyElementEnd, ref index);
+                        keys = true; break;
+                    default:
+                        keys = false; index--; break;
+                }
+                index++;
+            } while (keys);
+            wtr.BaseStream.Seek(pos, SeekOrigin.Begin);
+            wtr.Write((uint)(Record.Position - doc[index].Position));
         }
     }
     class PropertyListStartRecord : PropertyComplexStartRecord
@@ -871,23 +1007,36 @@ namespace Confuser.Core.Engines.Baml
             writer.Write(TypeId);
         }
     }
-    class DeferableContentStartRecord : BamlRecord
+    class DeferableContentStartRecord : BamlRecord, IBamlDeferRecord
     {
         public override BamlRecordType Type
         {
             get { return BamlRecordType.DeferableContentStart; }
         }
 
-        public BamlRecord EndRecord { get; set; }
+        public BamlRecord Record { get; set; }
         internal uint size = 0xffffffff;
+        long pos;
 
         public override void Read(BamlBinaryReader reader)
         {
             size = reader.ReadUInt32();
+            pos = reader.BaseStream.Position;
         }
         public override void Write(BamlBinaryWriter writer)
         {
+            pos = writer.BaseStream.Position;
             writer.Write((uint)0);
+        }
+
+        public void ReadDefer(BamlDocument doc, int index, Func<long, BamlRecord> resolve)
+        {
+            Record = resolve(pos + size);
+        }
+        public void WriteDefer(BamlDocument doc, int index, BinaryWriter wtr)
+        {
+            wtr.BaseStream.Seek(pos, SeekOrigin.Begin);
+            wtr.Write((uint)(Record.Position - (pos + 4)));
         }
     }
     class StaticResourceStartRecord : ElementStartRecord

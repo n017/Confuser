@@ -188,20 +188,20 @@ namespace Confuser.Core
                 System.Reflection.StrongNameKeyPair sn;
                 Initialize(out sn);
 
-                param.Logger._BeginPhase("Obfuscating...");
+                List<Phase> phases = new List<Phase>();
+                foreach (IConfusion cion in param.Confusions)
+                    foreach (Phase phase in cion.Phases)
+                        phases.Add(phase);
+
+                param.Logger._BeginPhase("Obfuscating Phase 1...");
                 List<byte[]> pes = new List<byte[]>();
                 List<ModuleDefinition> mods = new List<ModuleDefinition>();
+
                 for (int i = 0; i < settings.Count; i++)
                 {
                     using (param.Logger._Assembly(settings[i].Assembly))
                     {
                         Log(string.Format("Obfuscating assembly {0}...", settings[i].Assembly.FullName));
-
-                        ObfuscationSettings globalParams = settings[i].GlobalParameters;
-                        List<Phase> phases = new List<Phase>();
-                        foreach (IConfusion cion in param.Confusions)
-                            foreach (Phase phase in cion.Phases)
-                                phases.Add(phase);
 
                         foreach (ModuleSetting mod in settings[i].Modules)
                         {
@@ -210,18 +210,22 @@ namespace Confuser.Core
                             helpers.Clear();
                             helpers.Add(mod.Module.GetType("<Module>").GetStaticConstructor(), HelperAttribute.NoEncrypt);
 
-                            ProcessStructuralPhases(mod, globalParams, phases);
-
-                            MemoryStream final = new MemoryStream();
-                            ProcessMdPePhases(mod, globalParams, phases, final, new WriterParameters() { StrongNameKeyPair = (mod.Module.Attributes & ModuleAttributes.StrongNameSigned) != 0 ? sn : null });
-
-                            pes.Add(final.ToArray());
-                            mods.Add(mod.Module);
-
-                            Log("Module " + mod.Module.Name + " Done.");
+                            ProcessStructuralPhases(mod, settings[i].GlobalParameters, phases);
                         }
                     }
                 }
+
+                param.Logger._BeginPhase("Obfuscating Phase 2...");
+                foreach(var i in settings)
+                    using (param.Logger._Assembly(i.Assembly))
+                        foreach (var j in i.Modules)
+                        {
+                            MemoryStream final = new MemoryStream();
+                            ProcessMdPePhases(j, i.GlobalParameters, phases, final, new WriterParameters() { StrongNameKeyPair = (j.Module.Attributes & ModuleAttributes.StrongNameSigned) != 0 ? sn : null });
+
+                            pes.Add(final.ToArray());
+                            mods.Add(j.Module);
+                        }
 
                 Finalize(mods.ToArray(), pes.ToArray());
 

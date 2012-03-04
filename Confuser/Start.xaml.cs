@@ -72,7 +72,13 @@ namespace Confuser
         ObservableCollection<AsmDesc> asms = new ObservableCollection<AsmDesc>();
         ObservableCollection<AsmDesc> Asms { get { return asms; } }
 
-        bool im = true;
+        bool HasMain()
+        {
+            foreach (var i in asms)
+            {
+                if (i.IsMain) return true;
+            } return false;
+        }
         protected override void OnDrop(DragEventArgs e)
         {
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
@@ -89,11 +95,8 @@ namespace Confuser
                             var desc = new AsmDesc() { Path = i, Parent = this, IsExecutable = img.EntryPointToken != 0 };
                             if (desc.IsExecutable)
                             {
-                                if (im)
-                                {
+                                if (!HasMain())
                                     desc.IsMain = true;
-                                    im = false;
-                                }
                             }
                             asms.Add(desc);
                         }
@@ -111,7 +114,12 @@ namespace Confuser
         {
             if (e.Key == Key.Delete && view.SelectedIndex != -1)
             {
+                int selIdx = view.SelectedIndex;
                 Asms.RemoveAt(view.SelectedIndex);
+                if (selIdx < asms.Count)
+                    view.SelectedIndex = selIdx;
+                else
+                    view.SelectedIndex = asms.Count - 1;
                 CheckCanNext();
             }
         }

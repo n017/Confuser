@@ -17,7 +17,7 @@
         <Separator Grid.Row="3"/>
         <Border Grid.Row="4" Padding="5">
             <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft" VerticalAlignment="Center">
-                <Button x:Name="next" Content="Next" Width="70" Height="25" Click="Button_Click" />
+                <Button x:Name="next" Content="Next" Width="70" Height="25" Click="Button_Click" IsDefault="True" />
             </StackPanel>
         </Border>
 
