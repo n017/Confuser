@@ -14,7 +14,7 @@
         <Label Grid.Row="0" Content="Summary :" FontSize="18" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="10,0,0,0"/>
         <Separator Grid.Row="1"/>
         <Border Grid.Row="3" Padding="5">
-            <controls:CommandLink Content="Confuse!" Note="Yep. Start the confuser." VerticalAlignment="Center" HorizontalAlignment="Center" Margin="10" Click="CommandLink_Click" />
+            <controls:CommandLink Content="Confuse!" Note="Yep. Start the confuser." VerticalAlignment="Center" HorizontalAlignment="Center" Margin="10" Click="CommandLink_Click" IsDefault="True"/>
         </Border>
 
         <Border Grid.Row="2" Padding="5">

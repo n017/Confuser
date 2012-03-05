@@ -46,7 +46,7 @@
         
         <DockPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="3">
             <controls:CommandLink x:Name="advanced" Margin="10" DockPanel.Dock="Right" Content="Select protections" Note="Customize your protection manually (advanced option)"/>
-            <controls:CommandLink x:Name="simple" Margin="10" DockPanel.Dock="Left" Content="Use presets" Note="Choose your protection preset and you're good to go" />
+            <controls:CommandLink x:Name="simple" Margin="10" DockPanel.Dock="Left" Content="Use presets" Note="Choose your protection preset and you're good to go" IsDefault="True"/>
         </DockPanel>
     </Grid>
 </Page>

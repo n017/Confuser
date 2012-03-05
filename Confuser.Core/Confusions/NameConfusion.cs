@@ -122,11 +122,11 @@ namespace Confuser.Core.Confusions
                     {
                         refer.UpdateReference(id, n);
                     }
-                }
 
-                foreach (ParameterDefinition para in mtd.Parameters)
-                {
-                    para.Name = ObfuscationHelper.GetNewName(para.Name, mode);
+                    foreach (ParameterDefinition para in mtd.Parameters)
+                    {
+                        para.Name = ObfuscationHelper.GetNewName(para.Name, mode);
+                    }
                 }
 
                 if (mtd.HasBody)

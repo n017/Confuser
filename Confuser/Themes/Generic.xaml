@@ -658,7 +658,7 @@
                                 <Condition Property="IsEnabled" Value="True" />
                                 <Condition Property="IsDefaulted" Value="True" />
                             </MultiTrigger.Conditions>
-                            <Setter TargetName="Border" Property="BorderBrush" Value="#FFFFFFFF" />
+                            <Setter TargetName="Border" Property="BorderBrush" Value="#10FFFFFF" />
                         </MultiTrigger>
                         <MultiTrigger>
                             <MultiTrigger.Conditions>

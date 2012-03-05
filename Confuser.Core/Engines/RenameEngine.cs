@@ -59,9 +59,21 @@ namespace Confuser.Core.Engines
                     }
                 }
             }
+
+            ExcludeAttributes = new List<string>();
+            using (StringReader rdr = new StringReader(exclude))
+            {
+                while (true)
+                {
+                    string line = rdr.ReadLine();
+                    if (line == "=") break;
+                    ExcludeAttributes.Add(line);
+                }
+            }
         }
 
         public static readonly Dictionary<string, ReflectionMethod> Reflections;
+        public static readonly List<string> ExcludeAttributes;
         const string db =
 @"Microsoft.VisualBasic.CompilerServices.LateBinding
 LateCall[0:This,1:Type,2:Target]
@@ -113,6 +125,11 @@ Register[0:Target,2:Type]
 RegisterAttached[0:Target,2:Type]
 RegisterAttachedReadOnly[0:Target,2:Type]
 RegisterReadOnly[0:Target,2:Type]
+=";
+
+        const string exclude =
+@"System.ServiceModel.ServiceContractAttribute
+System.ServiceModel.OperationContractAttribute
 =";
     }
 
@@ -743,6 +760,9 @@ RegisterReadOnly[0:Target,2:Type]
                     AnalysisCustomAttributeArgs(arg.Argument);
                 foreach (var arg in i.Properties)
                     AnalysisCustomAttributeArgs(arg.Argument);
+
+                if (Database.ExcludeAttributes.Contains(i.AttributeType.FullName) && ca is IAnnotationProvider)
+                    (ca as IAnnotationProvider).Annotations["RenOk"] = false;
             }
         }
         void AnalysisCustomAttributeArgs(CustomAttributeArgument arg)
