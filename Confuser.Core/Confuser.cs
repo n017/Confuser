@@ -216,7 +216,7 @@ namespace Confuser.Core
                 }
 
                 param.Logger._BeginPhase("Obfuscating Phase 2...");
-                foreach(var i in settings)
+                foreach (var i in settings)
                     using (param.Logger._Assembly(i.Assembly))
                         foreach (var j in i.Modules)
                         {
@@ -574,7 +574,7 @@ namespace Confuser.Core
                         globalParam = globalParams[pePhases[i].Confusion];
                     else
                         globalParam = new NameValueCollection();
-                    pePhases[i].Process(globalParam, str);
+                    pePhases[i].Process(globalParam, str, mod.Module);
                     param.Logger._Progress(i, pePhases.Length);
                 }
             });
@@ -726,6 +726,7 @@ namespace Confuser.Core
         internal Dictionary<IMemberDefinition, HelperAttribute> helpers;
         void MarkObfuscateHelpers(ModuleSetting mod)
         {
+            if (mod.Members.Length == 0) return;
             ObfuscationSettings sets = mod.Members[0].Parameters;
             if (sets == null) return;
             ObfuscationSettings sub = new ObfuscationSettings();

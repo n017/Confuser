@@ -183,6 +183,9 @@ namespace Confuser.Core.Confusions
             //
         }
 
+        public void Init() { }
+        public void Deinit() { }
+
         Random rad;
         bool genJunk;
         public override void Process(ConfusionParameter parameter)
@@ -283,7 +286,8 @@ namespace Confuser.Core.Confusions
                 //}
             }
 
-            bdy.OptimizeMacros();
+            //bdy.OptimizeMacros();
+            bdy.ComputeOffsets();
             bdy.PreserveMaxStackSize = true;
         }
 

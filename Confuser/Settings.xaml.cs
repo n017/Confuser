@@ -13,6 +13,7 @@ using System.Windows.Navigation;
 using Mono.Cecil;
 using System.IO;
 using System.Windows.Forms;
+using System.Reflection;
 
 namespace Confuser
 {
@@ -96,6 +97,13 @@ namespace Confuser
             ofd.Filter = "Strong name key file (*.snk)|*.snk|All Files (*.*)|*.*";
             if (ofd.ShowDialog() != DialogResult.Cancel)
                 sn.Text = ofd.FileName;
+        }
+        private void LoadPlugin_Click(object sender, RoutedEventArgs e)
+        {
+            OpenFileDialog ofd = new OpenFileDialog();
+            ofd.Filter = "Plugins (*.dll)|*.dll|All Files (*.*)|*.*";
+            if (ofd.ShowDialog() != DialogResult.Cancel)
+                ConfuserDatas.LoadAssembly(Assembly.LoadFile(ofd.FileName), true);
         }
     }
 }

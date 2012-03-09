@@ -42,10 +42,11 @@ namespace Confuser.Core.Confusions
             public override void Initialize(ModuleDefinition mod)
             {
                 this.mod = mod;
+                cc.txts[mod] = new _Context();
 
-                cc.dats = new List<Data>();
-                cc.idx = 0;
-                cc.dict = new Dictionary<object, int>();
+                cc.txts[mod].dats = new List<Data>();
+                cc.txts[mod].idx = 0;
+                cc.txts[mod].dict = new Dictionary<object, int>();
             }
 
             public override void DeInitialize()
@@ -60,113 +61,116 @@ namespace Confuser.Core.Confusions
                 {
                     ProcessSafe(parameter); return;
                 }
+                _Context txt = cc.txts[mod];
 
                 Random rand = new Random();
                 TypeDefinition modType = mod.GetType("<Module>");
 
                 AssemblyDefinition id = AssemblyDefinition.ReadAssembly(typeof(Iid).Assembly.Location);
-                cc.strer = id.MainModule.GetType("Encryptions").Methods.FirstOrDefault(mtd => mtd.Name == "Constants");
-                cc.strer = CecilHelper.Inject(mod, cc.strer);
-                modType.Methods.Add(cc.strer);
+                txt.strer = id.MainModule.GetType("Encryptions").Methods.FirstOrDefault(mtd => mtd.Name == "Constants");
+                txt.strer = CecilHelper.Inject(mod, txt.strer);
+                modType.Methods.Add(txt.strer);
                 byte[] n = new byte[0x10]; rand.NextBytes(n);
-                cc.strer.Name = Encoding.UTF8.GetString(n);
-                cc.strer.IsAssembly = true;
-                AddHelper(cc.strer, HelperAttribute.NoInjection);
+                txt.strer.Name = Encoding.UTF8.GetString(n);
+                txt.strer.IsAssembly = true;
+                AddHelper(txt.strer, HelperAttribute.NoInjection);
 
-                cc.key0 = (int)(rand.NextDouble() * int.MaxValue);
-                cc.key1 = (int)(rand.NextDouble() * int.MaxValue);
-                cc.key2 = (int)(rand.NextDouble() * int.MaxValue);
-                cc.key3 = (int)(rand.NextDouble() * int.MaxValue);
+                txt.key0 = rand.Next();
+                txt.key1 = rand.Next();
+                txt.key2 = rand.Next();
+                txt.key3 = rand.Next();
 
                 rand.NextBytes(n);
                 byte[] dat = new byte[0x10];
                 rand.NextBytes(dat);
-                rand.NextBytes(cc.types);
-                while (cc.types.Distinct().Count() != 5) rand.NextBytes(cc.types);
+                rand.NextBytes(txt.types);
+                while (txt.types.Distinct().Count() != 5) rand.NextBytes(txt.types);
 
-                cc.strer.Body.SimplifyMacros();
-                foreach (Instruction inst in cc.strer.Body.Instructions)
+                txt.strer.Body.SimplifyMacros();
+                foreach (Instruction inst in txt.strer.Body.Instructions)
                 {
                     if ((inst.Operand as string) == "PADDINGPADDINGPADDING")
                         inst.Operand = Encoding.UTF8.GetString(n);
                     if ((inst.Operand as string) == "PADDINGPADDINGPADDINGPADDING")
                         inst.Operand = Encoding.UTF8.GetString(dat);
                     else if (inst.Operand is int && (int)inst.Operand == 12345678)
-                        inst.Operand = cc.key0;
+                        inst.Operand = txt.key0;
                     else if (inst.Operand is int && (int)inst.Operand == 0x67452301)
-                        inst.Operand = cc.key1;
+                        inst.Operand = txt.key1;
                     else if (inst.Operand is int && (int)inst.Operand == 0x3bd523a0)
-                        inst.Operand = cc.key2;
+                        inst.Operand = txt.key2;
                     else if (inst.Operand is int && (int)inst.Operand == 0x5f6f36c0)
-                        inst.Operand = cc.key3;
+                        inst.Operand = txt.key3;
                     else if (inst.Operand is int && (int)inst.Operand == 11)
-                        inst.Operand = (int)cc.types[0];
+                        inst.Operand = (int)txt.types[0];
                     else if (inst.Operand is int && (int)inst.Operand == 22)
-                        inst.Operand = (int)cc.types[1];
+                        inst.Operand = (int)txt.types[1];
                     else if (inst.Operand is int && (int)inst.Operand == 33)
-                        inst.Operand = (int)cc.types[2];
+                        inst.Operand = (int)txt.types[2];
                     else if (inst.Operand is int && (int)inst.Operand == 44)
-                        inst.Operand = (int)cc.types[3];
+                        inst.Operand = (int)txt.types[3];
                     else if (inst.Operand is int && (int)inst.Operand == 55)
-                        inst.Operand = (int)cc.types[4];
+                        inst.Operand = (int)txt.types[4];
                 }
 
-                cc.resId = Encoding.UTF8.GetString(n);
+                txt.resId = Encoding.UTF8.GetString(n);
             }
             private void ProcessSafe(ConfusionParameter parameter)
             {
+                _Context txt = cc.txts[mod];
+
                 Random rand = new Random();
                 TypeDefinition modType = mod.GetType("<Module>");
 
                 AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(Iid).Assembly.Location);
-                cc.strer = i.MainModule.GetType("Encryptions").Methods.FirstOrDefault(mtd => mtd.Name == "SafeConstants");
-                cc.strer = CecilHelper.Inject(mod, cc.strer);
-                modType.Methods.Add(cc.strer);
+                txt.strer = i.MainModule.GetType("Encryptions").Methods.FirstOrDefault(mtd => mtd.Name == "SafeConstants");
+                txt.strer = CecilHelper.Inject(mod, txt.strer);
+                modType.Methods.Add(txt.strer);
                 byte[] n = new byte[0x10]; rand.NextBytes(n);
-                cc.strer.Name = Encoding.UTF8.GetString(n);
-                cc.strer.IsAssembly = true;
+                txt.strer.Name = Encoding.UTF8.GetString(n);
+                txt.strer.IsAssembly = true;
 
-                cc.key0 = rand.Next();
-                cc.key1 = rand.Next();
-                cc.key2 = rand.Next();
-                cc.key3 = rand.Next();
+                txt.key0 = rand.Next();
+                txt.key1 = rand.Next();
+                txt.key2 = rand.Next();
+                txt.key3 = rand.Next();
 
                 rand.NextBytes(n);
                 byte[] dat = new byte[0x10];
                 rand.NextBytes(dat);
-                rand.NextBytes(cc.types);
-                while (cc.types.Distinct().Count() != 5) rand.NextBytes(cc.types);
+                rand.NextBytes(txt.types);
+                while (txt.types.Distinct().Count() != 5) rand.NextBytes(txt.types);
 
-                cc.strer.Body.SimplifyMacros();
-                foreach (Instruction inst in cc.strer.Body.Instructions)
+                txt.strer.Body.SimplifyMacros();
+                foreach (Instruction inst in txt.strer.Body.Instructions)
                 {
                     if ((inst.Operand as string) == "PADDINGPADDINGPADDING")
                         inst.Operand = Encoding.UTF8.GetString(n);
                     if ((inst.Operand as string) == "PADDINGPADDINGPADDINGPADDING")
                         inst.Operand = Encoding.UTF8.GetString(dat);
                     else if (inst.Operand is int && (int)inst.Operand == 12345678)
-                        inst.Operand = cc.key0;
+                        inst.Operand = txt.key0;
                     else if (inst.Operand is int && (int)inst.Operand == 0x67452301)
-                        inst.Operand = cc.key1;
+                        inst.Operand = txt.key1;
                     else if (inst.Operand is int && (int)inst.Operand == 0x3bd523a0)
-                        inst.Operand = cc.key2;
+                        inst.Operand = txt.key2;
                     else if (inst.Operand is int && (int)inst.Operand == 0x5f6f36c0)
-                        inst.Operand = cc.key3;
+                        inst.Operand = txt.key3;
                     else if (inst.Operand is int && (int)inst.Operand == 11)
-                        inst.Operand = (int)cc.types[0];
+                        inst.Operand = (int)txt.types[0];
                     else if (inst.Operand is int && (int)inst.Operand == 22)
-                        inst.Operand = (int)cc.types[1];
+                        inst.Operand = (int)txt.types[1];
                     else if (inst.Operand is int && (int)inst.Operand == 33)
-                        inst.Operand = (int)cc.types[2];
+                        inst.Operand = (int)txt.types[2];
                     else if (inst.Operand is int && (int)inst.Operand == 44)
-                        inst.Operand = (int)cc.types[3];
+                        inst.Operand = (int)txt.types[3];
                     else if (inst.Operand is int && (int)inst.Operand == 55)
-                        inst.Operand = (int)cc.types[4];
+                        inst.Operand = (int)txt.types[4];
                 }
-                cc.strer.Body.OptimizeMacros();
-                cc.strer.Body.ComputeOffsets();
+                txt.strer.Body.OptimizeMacros();
+                txt.strer.Body.ComputeOffsets();
 
-                cc.resId = Encoding.UTF8.GetString(n);
+                txt.resId = Encoding.UTF8.GetString(n);
             }
         }
         class Phase3 : StructurePhase, IProgressProvider
@@ -200,17 +204,18 @@ namespace Confuser.Core.Confusions
 
             public override void DeInitialize()
             {
+                _Context txt = cc.txts[mod];
                 MemoryStream str = new MemoryStream();
                 using (BinaryWriter wtr = new BinaryWriter(new DeflateStream(str, CompressionMode.Compress)))
                 {
-                    foreach (Data dat in cc.dats)
+                    foreach (Data dat in txt.dats)
                     {
                         wtr.Write(dat.Type);
                         wtr.Write(dat.Dat.Length);
                         wtr.Write(dat.Dat);
                     }
                 }
-                mod.Resources.Add(new EmbeddedResource(cc.resId, ManifestResourceAttributes.Private, str.ToArray()));
+                mod.Resources.Add(new EmbeddedResource(txt.resId, ManifestResourceAttributes.Private, str.ToArray()));
             }
 
             struct Context { public MethodDefinition mtd; public ILProcessor psr; public Instruction str;}
@@ -235,7 +240,7 @@ namespace Confuser.Core.Confusions
                 foreach (var tuple in mtds)
                 {
                     MethodDefinition mtd = tuple.Item1 as MethodDefinition;
-                    if (mtd == cc.strer || !mtd.HasBody) continue;
+                    if (mtd == cc.txts[mod].strer || !mtd.HasBody) continue;
                     var bdy = mtd.Body;
                     bdy.SimplifyMacros();
                     var insts = bdy.Instructions;
@@ -262,27 +267,27 @@ namespace Confuser.Core.Confusions
                 if (operand is double)
                 {
                     ret = BitConverter.GetBytes((double)operand);
-                    type = cc.types[0];
+                    type = cc.txts[mod].types[0];
                 }
                 else if (operand is float)
                 {
                     ret = BitConverter.GetBytes((float)operand);
-                    type = cc.types[1];
+                    type = cc.txts[mod].types[1];
                 }
                 else if (operand is int)
                 {
                     ret = BitConverter.GetBytes((int)operand);
-                    type = cc.types[2];
+                    type = cc.txts[mod].types[2];
                 }
                 else if (operand is long)
                 {
                     ret = BitConverter.GetBytes((long)operand);
-                    type = cc.types[3];
+                    type = cc.txts[mod].types[3];
                 }
                 else
                 {
                     ret = Encoding.UTF8.GetBytes((string)operand);
-                    type = cc.types[4];
+                    type = cc.txts[mod].types[4];
                 }
                 return ret;
             }
@@ -305,7 +310,7 @@ namespace Confuser.Core.Confusions
                     int idx = txts[i].mtd.Body.Instructions.IndexOf(txts[i].str);
                     Instruction now = txts[i].str;
                     if (IsNull(now.Operand)) continue;
-                    Instruction call = Instruction.Create(OpCodes.Call, cc.strer);
+                    Instruction call = Instruction.Create(OpCodes.Call, cc.txts[mod].strer);
                     txts[i].psr.InsertAfter(idx, call);
                     if (now.Operand is int)
                         txts[i].psr.InsertAfter(call, Instruction.Create(OpCodes.Unbox_Any, txts[i].mtd.Module.TypeSystem.Int32));
@@ -340,6 +345,7 @@ namespace Confuser.Core.Confusions
                 {
                     ProcessSafe(parameter); return;
                 }
+                _Context txt = cc.txts[mod];
 
                 List<Context> txts = new List<Context>();
                 ExtractData(parameter.Target as IList<Tuple<IAnnotationProvider, NameValueCollection>>, txts, Array.IndexOf(parameter.GlobalParameters.AllKeys, "numeric") != -1);
@@ -350,28 +356,28 @@ namespace Confuser.Core.Confusions
                 {
                     ids = new int[txts.Count];
                     retry = false;
-                    cc.dict.Clear();
+                    txt.dict.Clear();
                     int seed;
-                    cc.exp = ExpressionGenerator.Generate(5, out seed);
+                    txt.exp = ExpressionGenerator.Generate(5, out seed);
 
                     for (int i = 0; i < txts.Count; i++)
                     {
                         object val = txts[i].str.Operand as object;
                         if (IsNull(val)) continue;
 
-                        if (cc.dict.ContainsKey(val))
-                            ids[i] = (int)(cc.dict[val] ^ ComputeHash(txts[i].mtd.MetadataToken.ToUInt32(), (uint)cc.key0, (uint)cc.key1, (uint)cc.key2, (uint)cc.key3));
+                        if (txt.dict.ContainsKey(val))
+                            ids[i] = (int)(txt.dict[val] ^ ComputeHash(txts[i].mtd.MetadataToken.ToUInt32(), (uint)txt.key0, (uint)txt.key1, (uint)txt.key2, (uint)txt.key3));
                         else
                         {
-                            ids[i] = (int)(cc.idx ^ ComputeHash(txts[i].mtd.MetadataToken.ToUInt32(), (uint)cc.key0, (uint)cc.key1, (uint)cc.key2, (uint)cc.key3));
+                            ids[i] = (int)(txt.idx ^ ComputeHash(txts[i].mtd.MetadataToken.ToUInt32(), (uint)txt.key0, (uint)txt.key1, (uint)txt.key2, (uint)txt.key3));
                             byte t;
                             byte[] ori = GetOperand(val, out t);
 
                             int len;
-                            byte[] dat = Encrypt(ori, cc.exp, out len);
+                            byte[] dat = Encrypt(ori, txt.exp, out len);
                             try
                             {
-                                if (!IsEqual(Decrypt(dat, len, cc.exp), ori))
+                                if (!IsEqual(Decrypt(dat, len, txt.exp), ori))
                                 {
                                     retry = true;
                                     break;
@@ -385,32 +391,31 @@ namespace Confuser.Core.Confusions
                             byte[] final = new byte[dat.Length + 4];
                             Buffer.BlockCopy(dat, 0, final, 4, dat.Length);
                             Buffer.BlockCopy(BitConverter.GetBytes(len), 0, final, 0, 4);
-                            cc.dats.Add(new Data() { Dat = final, Type = t });
-                            cc.dict[val] = cc.idx;
-                            cc.idx += final.Length + 5;
+                            txt.dats.Add(new Data() { Dat = final, Type = t });
+                            txt.dict[val] = txt.idx;
+                            txt.idx += final.Length + 5;
                         }
-                        System.Diagnostics.Debug.WriteLine(cc.dict[val].ToString() + "        " + val.ToString());
                     }
                 } while (retry);
 
-                for (int i = 0; i < cc.strer.Body.Instructions.Count; i++)
+                for (int i = 0; i < txt.strer.Body.Instructions.Count; i++)
                 {
-                    Instruction inst = cc.strer.Body.Instructions[i];
+                    Instruction inst = txt.strer.Body.Instructions[i];
                     if (inst.Operand is MethodReference && ((MethodReference)inst.Operand).Name == "PolyStart")
                     {
                         List<Instruction> insts = new List<Instruction>();
                         int ptr = i + 1;
-                        while (ptr < cc.strer.Body.Instructions.Count)
+                        while (ptr < txt.strer.Body.Instructions.Count)
                         {
-                            Instruction z = cc.strer.Body.Instructions[ptr];
-                            cc.strer.Body.Instructions.Remove(z);
+                            Instruction z = txt.strer.Body.Instructions[ptr];
+                            txt.strer.Body.Instructions.Remove(z);
                             if (z.Operand is MethodReference && ((MethodReference)z.Operand).Name == "PlaceHolder")
                                 break;
                             insts.Add(z);
                         }
 
-                        Instruction[] expInsts = new CecilVisitor(cc.exp, true, insts.ToArray(), false).GetInstructions();
-                        ILProcessor psr = cc.strer.Body.GetILProcessor();
+                        Instruction[] expInsts = new CecilVisitor(txt.exp, true, insts.ToArray(), false).GetInstructions();
+                        ILProcessor psr = txt.strer.Body.GetILProcessor();
                         psr.Replace(inst, expInsts[0]);
                         for (int ii = 1; ii < expInsts.Length; ii++)
                         {
@@ -418,13 +423,15 @@ namespace Confuser.Core.Confusions
                         }
                     }
                 }
-                cc.strer.Body.OptimizeMacros();
-                cc.strer.Body.ComputeOffsets();
+                txt.strer.Body.OptimizeMacros();
+                txt.strer.Body.ComputeOffsets();
 
                 FinalizeBodies(txts, ids);
             }
             void ProcessSafe(ConfusionParameter parameter)
             {
+                _Context txt = cc.txts[mod];
+
                 List<Context> txts = new List<Context>();
                 ExtractData(parameter.Target as IList<Tuple<IAnnotationProvider, NameValueCollection>>, txts, Array.IndexOf(parameter.GlobalParameters.AllKeys, "numeric") != -1);
 
@@ -435,18 +442,18 @@ namespace Confuser.Core.Confusions
                     object val = txts[i].str.Operand;
                     if (IsNull(val)) continue;
 
-                    if (cc.dict.ContainsKey(val))
-                        ids[i] = (int)(cc.dict[val] ^ ComputeHash(txts[i].mtd.MetadataToken.ToUInt32(), (uint)cc.key0, (uint)cc.key1, (uint)cc.key2, (uint)cc.key3));
+                    if (txt.dict.ContainsKey(val))
+                        ids[i] = (int)(txt.dict[val] ^ ComputeHash(txts[i].mtd.MetadataToken.ToUInt32(), (uint)txt.key0, (uint)txt.key1, (uint)txt.key2, (uint)txt.key3));
                     else
                     {
                         byte t;
                         byte[] ori = GetOperand(val, out t);
-                        byte[] dat = EncryptSafe(ori, cc.key0 ^ cc.idx);
-                        ids[i] = (int)(cc.idx ^ ComputeHash(txts[i].mtd.MetadataToken.ToUInt32(), (uint)cc.key0, (uint)cc.key1, (uint)cc.key2, (uint)cc.key3));
+                        byte[] dat = EncryptSafe(ori, txt.key0 ^ txt.idx);
+                        ids[i] = (int)(txt.idx ^ ComputeHash(txts[i].mtd.MetadataToken.ToUInt32(), (uint)txt.key0, (uint)txt.key1, (uint)txt.key2, (uint)txt.key3));
 
-                        cc.dats.Add(new Data() { Dat = dat, Type = t });
-                        cc.dict[val] = cc.idx;
-                        cc.idx += dat.Length + 5;
+                        txt.dats.Add(new Data() { Dat = dat, Type = t });
+                        txt.dict[val] = txt.idx;
+                        txt.idx += dat.Length + 5;
                     }
                 }
 
@@ -466,19 +473,23 @@ namespace Confuser.Core.Confusions
             public byte[] Dat;
             public byte Type;
         }
-        List<Data> dats;
-        Dictionary<object, int> dict;
-        int idx = 0;
+        class _Context
+        {
+            public List<Data> dats;
+            public Dictionary<object, int> dict;
+            public int idx = 0;
 
-        string resId;
-        int key0;
-        int key1;
-        int key2;
-        int key3;
-        byte[] types = new byte[5];
-        MethodDefinition strer;
+            public string resId;
+            public int key0;
+            public int key1;
+            public int key2;
+            public int key3;
+            public byte[] types = new byte[5];
+            public MethodDefinition strer;
 
-        Expression exp;
+            public Expression exp;
+        }
+        Dictionary<ModuleDefinition, _Context> txts = new Dictionary<ModuleDefinition, _Context>();
 
         public string ID
         {
@@ -523,6 +534,9 @@ namespace Confuser.Core.Confusions
                 return ps;
             }
         }
+
+        public void Init() { txts.Clear(); }
+        public void Deinit() { txts.Clear(); }
 
         static void Write7BitEncodedInt(BinaryWriter wtr, int value)
         {

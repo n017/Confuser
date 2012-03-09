@@ -363,8 +363,7 @@ namespace Confuser.Core
                 ret.Members = typeSettings.ToArray();
             }
 
-            if (!ret.Parameters.IsEmpty() || ret.Members.Length != 0)
-                settings.Add(ret);
+            settings.Add(ret);
 
             mark.LeaveLevel();
         }

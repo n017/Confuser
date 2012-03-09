@@ -39,6 +39,9 @@ namespace Confuser.Core.Confusions
             get { return new Phase[] { this }; }
         }
 
+        public void Init() { }
+        public void Deinit() { }
+
 
         public override IConfusion Confusion
         {

@@ -7,6 +7,7 @@ using System.IO;
 using Mono.Cecil;
 using Confuser.Core;
 using System.Reflection;
+using System.Windows;
 
 namespace Confuser
 {
@@ -14,20 +15,34 @@ namespace Confuser
     {
         static ConfuserDatas()
         {
-            LoadAssembly(typeof(IConfusion).Assembly);
+            LoadAssembly(typeof(IConfusion).Assembly, false);
         }
 
         public static readonly ObservableCollection<IConfusion> Confusions = new ObservableCollection<IConfusion>();
         public static readonly ObservableCollection<Packer> Packers = new ObservableCollection<Packer>();
-        public static void LoadAssembly(Assembly asm)
+        public static void LoadAssembly(Assembly asm, bool interact)
         {
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("Loaded type :");
+            bool h = false;
             foreach (Type type in asm.GetTypes())
             {
                 if (typeof(Core.IConfusion).IsAssignableFrom(type) && type != typeof(Core.IConfusion))
+                {
                     Confusions.Add(Activator.CreateInstance(type) as Core.IConfusion);
+                    sb.AppendLine(type.FullName);
+                    h = true;
+                }
                 if (typeof(Core.Packer).IsAssignableFrom(type) && type != typeof(Core.Packer))
+                {
                     Packers.Add(Activator.CreateInstance(type) as Core.Packer);
+                    sb.AppendLine(type.FullName);
+                    h = true;
+                }
             }
+            if (!h) sb.AppendLine("NONE!");
+            if (interact)
+                MessageBox.Show(sb.ToString(), "Confuser", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
 

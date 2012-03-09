@@ -88,6 +88,18 @@
         </Border>
 
         <Grid x:Name="panel" Grid.Row="2" Grid.Column="1" IsEnabled="False">
+            <Grid.Background>
+                <SolidColorBrush x:Name="background" Color="#00FFFFFF"/>
+            </Grid.Background>
+            <Grid.Resources>
+                <Storyboard x:Key="indicate">
+                    <ColorAnimationUsingKeyFrames Storyboard.TargetName="background" 
+                                                  Storyboard.TargetProperty="Color">
+                        <DiscreteColorKeyFrame Value="#20FFFFFF" KeyTime="0:0:0"/>
+                        <LinearColorKeyFrame Value="#00FFFFFF" KeyTime="0:0:0.5"/>
+                    </ColorAnimationUsingKeyFrames>
+                </Storyboard>
+            </Grid.Resources>
             <Grid.RowDefinitions>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="150px"/>
@@ -113,7 +125,13 @@
                 <Button Grid.Row="1" Grid.Column="0" Content="Add" Margin="5" Click="Add_Click"/>
                 <Button Grid.Row="1" Grid.Column="1" Content="Remove" Margin="5" Click="Remove_Click"/>
                 <Button Grid.Row="1" Grid.Column="2" Content="Clear" Margin="5" Click="Clear_Click"/>
-                <Button Grid.Row="1" Grid.Column="3" Grid.ColumnSpan="2" Content="Apply To Members" Margin="5" Click="ApplyToMembers_Click"/>
+                <Button Grid.Row="1" Grid.Column="3" Grid.ColumnSpan="2" Content="Apply To Members" Margin="5" Click="ApplyToMembers_Click">
+                    <Button.Triggers>
+                        <EventTrigger RoutedEvent="Button.Click">
+                            <BeginStoryboard Storyboard="{StaticResource indicate}"/>
+                        </EventTrigger>
+                    </Button.Triggers>
+                </Button>
                 <ComboBox x:Name="preset" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" ItemsSource="{Binding Source={StaticResource preset}}" SelectedIndex="2" Margin="5"/>
                 <Button Grid.Row="2" Grid.Column="3" Grid.ColumnSpan="2" Content="Apply Preset" Margin="5" Click="ApplyPreset_Click"/>
             </Grid>

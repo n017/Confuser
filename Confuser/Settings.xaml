@@ -13,6 +13,7 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="30px"/>
             <RowDefinition Height="30px"/>
+            <RowDefinition Height="30px"/>
             <RowDefinition Height="100px"/>
         </Grid.RowDefinitions>
         <ScrollViewer Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3" MaxHeight="300" Focusable="False" Margin="10,0,10,0">
@@ -44,7 +45,9 @@
         <TextBox Grid.Row="2" Grid.Column="1" Margin="5" x:Name="sn" TextChanged="TextChanged"></TextBox>
         <Button Grid.Row="2" Grid.Column="2" Margin="5" Click="SnSel_Click">...</Button>
         
-        <DockPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="3">
+        <Button Grid.Row="3" Grid.Column="0" Margin="5" Click="LoadPlugin_Click">+ Plugins</Button>
+
+        <DockPanel Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="3">
             <controls:CommandLink x:Name="advanced" Margin="10" DockPanel.Dock="Right" Content="Select protections" Note="Customize your protection manually (advanced option)"/>
             <controls:CommandLink x:Name="simple" Margin="10" DockPanel.Dock="Left" Content="Use presets" Note="Choose your protection preset and you're good to go" IsDefault="True"/>
         </DockPanel>

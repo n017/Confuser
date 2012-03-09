@@ -52,6 +52,7 @@ namespace Mono.Cecil {
 
         public static bool Equals<T>(this T[] self, T[] array)
         {
+            if (self.Length != array.Length) return false;
             for (int i = 0; i < self.Length; i++)
                 if (!self[i].Equals(array[i])) return false;
             return true;

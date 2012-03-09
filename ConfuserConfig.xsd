@@ -1,0 +1,66 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="http://confuser.codeplex.com/Config"
+           xmlns="http://confuser.codeplex.com/Config"
+           attributeFormDefault="unqualified"
+           elementFormDefault="qualified" >
+
+  <xs:complexType name="argument">
+    <xs:attribute name="name" type="xs:string" use="required" />
+    <xs:attribute name="value" type="xs:boolean" use="required" />
+  </xs:complexType>
+
+  <xs:complexType name="confusion">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:element name="argument" type="argument"/>
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:string" use="required" />
+  </xs:complexType>
+
+  <xs:complexType name="settings">
+    <xs:sequence maxOccurs="unbounded" >
+      <xs:element name="confusion" type="confusion" />
+    </xs:sequence>
+    <xs:attribute name="exclude" type="xs:boolean" use="required" />
+    <xs:attribute name="applytomembers" type="xs:boolean" use="required" />
+  </xs:complexType>
+
+  <xs:complexType name="type">
+    <xs:sequence minOccurs="0" maxOccurs="1">
+      <xs:element name="settings" type="settings"/>
+    </xs:sequence>
+    <xs:attribute name="name" type="xs:string" use="required" />
+  </xs:complexType>
+
+  <xs:complexType name="module">
+    <xs:sequence>
+      <xs:element name="settings" type="settings" minOccurs="0" maxOccurs="1"/>
+      <xs:element name="type" type="type" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="name" type="xs:string" use="required" />
+  </xs:complexType>
+
+  <xs:complexType name="packer">
+    <xs:sequence>
+      <xs:element name="argument" type="argument" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:string" use="required" />
+  </xs:complexType>
+
+  <xs:complexType name="assembly">
+    <xs:sequence>
+      <xs:element name="settings" type="settings" minOccurs="0" maxOccurs="1"/>
+      <xs:element name="module" type="module" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="packer" type="packer" minOccurs="0" maxOccurs="1"/>
+    </xs:sequence>
+    <xs:attribute name="path" type="xs:string" use="required" />
+  </xs:complexType>
+
+  <xs:element name="configuration">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="assembly" type="assembly" minOccurs="1" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

@@ -37,6 +37,7 @@ namespace Confuser.Core
                     mark.CurrentConfusions.Add(i.Key, i.Value);
                 //ret.Packer = origin.Packer;
                 //ret.PackerParameters = origin.PackerParameters;
+                mark.StartLevel();
                 exclude = false;
                 return ret;
             }
@@ -46,6 +47,7 @@ namespace Confuser.Core
                 ModuleSetting ret = new ModuleSetting(mod);
                 foreach (var i in origin.Modules[0].Parameters)
                     mark.CurrentConfusions.Add(i.Key, i.Value);
+                mark.StartLevel();
                 exclude = false;
                 return ret;
             }
@@ -107,12 +109,12 @@ namespace Confuser.Core
             Confuser cr = new Confuser();
             ConfuserParameter par = new ConfuserParameter();
             par.SourceAssemblies = new string[] { tmp + asm.MainModule.Name };
-            tmp = Path.GetTempPath() + "\\" + Path.GetRandomFileName() + "\\";
+            tmp = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + "\\");
             par.DestinationPath = tmp;
             par.Confusions = crParam.Confusions;
             par.DefaultPreset = crParam.DefaultPreset;
             par.StrongNameKeyPath = crParam.StrongNameKeyPath;
-            par.Marker = new PackerMarker(cr.settings[0]);
+            par.Marker = new PackerMarker(this.cr.settings[0]);
             cr.Confuse(par);
 
             return Directory.GetFiles(tmp);

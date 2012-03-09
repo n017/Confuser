@@ -41,15 +41,17 @@ namespace Confuser.Core.Confusions
             public override void Initialize(ModuleDefinition mod)
             {
                 this.mod = mod;
+                cion.txts[mod] = new _Context();
                 Random rand = new Random();
                 byte[] dat = new byte[25];
                 rand.NextBytes(dat);
-                cion.key0 = BitConverter.ToInt32(dat, 0);
-                cion.key1 = BitConverter.ToInt64(dat, 4);
-                cion.key2 = BitConverter.ToInt32(dat, 12);
-                cion.key3 = BitConverter.ToInt32(dat, 16);
-                cion.key4 = BitConverter.ToInt32(dat, 20);
-                cion.key5 = dat[24];
+                var txt = cion.txts[mod];
+                txt.key0 = BitConverter.ToInt32(dat, 0);
+                txt.key1 = BitConverter.ToInt64(dat, 4);
+                txt.key2 = BitConverter.ToInt32(dat, 12);
+                txt.key3 = BitConverter.ToInt32(dat, 16);
+                txt.key4 = BitConverter.ToInt32(dat, 20);
+                txt.key5 = dat[24];
             }
             public override void DeInitialize()
             {
@@ -59,13 +61,14 @@ namespace Confuser.Core.Confusions
             ModuleDefinition mod;
             public override void Process(ConfusionParameter parameter)
             {
+                var txt = cion.txts[mod];
                 AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(Iid).Assembly.Location);
-                cion.root = CecilHelper.Inject(mod, i.MainModule.GetType("AntiTamper"));
-                mod.Types.Add(cion.root);
+                txt.root = CecilHelper.Inject(mod, i.MainModule.GetType("AntiTamper"));
+                mod.Types.Add(txt.root);
                 MethodDefinition cctor = mod.GetType("<Module>").GetStaticConstructor();
-                cctor.Body.GetILProcessor().InsertBefore(0, Instruction.Create(OpCodes.Call, cion.root.Methods.FirstOrDefault(mtd => mtd.Name == "Initalize")));
+                cctor.Body.GetILProcessor().InsertBefore(0, Instruction.Create(OpCodes.Call, txt.root.Methods.FirstOrDefault(mtd => mtd.Name == "Initalize")));
 
-                MethodDefinition init = cion.root.Methods.FirstOrDefault(mtd => mtd.Name == "Initalize");
+                MethodDefinition init = txt.root.Methods.FirstOrDefault(mtd => mtd.Name == "Initalize");
                 foreach (Instruction inst in init.Body.Instructions)
                 {
                     if (inst.Operand is int)
@@ -73,27 +76,27 @@ namespace Confuser.Core.Confusions
                         switch ((int)inst.Operand)
                         {
                             case 0x11111111:
-                                inst.Operand = cion.key0; break;
+                                inst.Operand = txt.key0; break;
                             case 0x33333333:
-                                inst.Operand = cion.key2; break;
+                                inst.Operand = txt.key2; break;
                             case 0x44444444:
-                                inst.Operand = cion.key3; break;
+                                inst.Operand = txt.key3; break;
                             case 0x55555555:
-                                inst.Operand = cion.key4; break;
+                                inst.Operand = txt.key4; break;
                         }
                     }
                     else if (inst.Operand is long && (long)inst.Operand == 0x2222222222222222)
-                        inst.Operand = cion.key1;
+                        inst.Operand = txt.key1;
                 }
-                MethodDefinition dec = cion.root.Methods.FirstOrDefault(mtd => mtd.Name == "Decrypt");
+                MethodDefinition dec = txt.root.Methods.FirstOrDefault(mtd => mtd.Name == "Decrypt");
                 foreach (Instruction inst in dec.Body.Instructions)
                     if (inst.Operand is int && (int)inst.Operand == 0x11111111)
-                        inst.Operand = (int)cion.key5;
+                        inst.Operand = (int)txt.key5;
 
-                cion.root.Name = ObfuscationHelper.GetNewName("AntiTamperModule" + Guid.NewGuid().ToString());
-                cion.root.Namespace = "";
-                AddHelper(cion.root, HelperAttribute.NoInjection);
-                foreach (MethodDefinition mtdDef in cion.root.Methods)
+                txt.root.Name = ObfuscationHelper.GetNewName("AntiTamperModule" + Guid.NewGuid().ToString());
+                txt.root.Namespace = "";
+                AddHelper(txt.root, HelperAttribute.NoInjection);
+                foreach (MethodDefinition mtdDef in txt.root.Methods)
                 {
                     mtdDef.Name = ObfuscationHelper.GetNewName(mtdDef.Name + Guid.NewGuid().ToString());
                     AddHelper(mtdDef, HelperAttribute.NoInjection);
@@ -133,15 +136,16 @@ namespace Confuser.Core.Confusions
             ModuleDefinition mod;
             public override void Process(ConfusionParameter parameter)
             {
+                var txt = cion.txts[mod];
                 Queue<TypeDefinition> q = new Queue<TypeDefinition>();
-                cion.excludes = new List<int>();
-                cion.excludes.Add((int)mod.GetType("<Module>").GetStaticConstructor().MetadataToken.RID - 1);
-                q.Enqueue(cion.root);
+                txt.excludes = new List<int>();
+                txt.excludes.Add((int)mod.GetType("<Module>").GetStaticConstructor().MetadataToken.RID - 1);
+                q.Enqueue(txt.root);
                 while (q.Count != 0)
                 {
                     TypeDefinition typeDef = q.Dequeue();
                     foreach (MethodDefinition mtd in typeDef.Methods)
-                        cion.excludes.Add((int)mtd.MetadataToken.RID - 1);
+                        txt.excludes.Add((int)mtd.MetadataToken.RID - 1);
                     foreach (TypeDefinition t in typeDef.NestedTypes)
                         q.Enqueue(t);
                 }
@@ -166,14 +170,15 @@ namespace Confuser.Core.Confusions
 
             public override void Process(NameValueCollection parameters, MetadataProcessor.MetadataAccessor accessor)
             {
+                var txt = cion.txts[accessor.Module];
                 MethodTable tbl = accessor.TableHeap.GetTable<MethodTable>(Table.Method);
-                cion.rvas = new uint[tbl.Length];
-                cion.ptrs = new uint[tbl.Length];
-                cion.codes = new byte[tbl.Length][];
+                txt.rvas = new uint[tbl.Length];
+                txt.ptrs = new uint[tbl.Length];
+                txt.codes = new byte[tbl.Length][];
                 for (int i = 0; i < tbl.Length; i++)
                 {
-                    if (cion.excludes.Contains(i)) continue;
-                    cion.rvas[i] = tbl[i].Col1;
+                    if (txt.excludes.Contains(i)) continue;
+                    txt.rvas[i] = tbl[i].Col1;
                 }
             }
         }
@@ -222,10 +227,10 @@ namespace Confuser.Core.Confusions
             }
             public override int PhaseID
             {
-                get { return 3; }
+                get { return 5; }
             }
 
-            void ExtractCodes(Stream stream, out uint csOffset, out uint sn, out uint snLen)
+            void ExtractCodes(_Context txt, Stream stream, out uint csOffset, out uint sn, out uint snLen)
             {
                 Random rand = new Random();
                 int rvaOffset = -1;
@@ -240,7 +245,7 @@ namespace Confuser.Core.Confusions
                 csOffset = offset + 0x40;
                 stream.Seek(offset = offset + (pe32 ? 0xE0U : 0xF0U), SeekOrigin.Begin);   //sections
                 uint sampleRva = 0xffffffff;
-                foreach (uint i in cion.rvas)
+                foreach (uint i in txt.rvas)
                     if (i != 0) { sampleRva = i; break; }
                 uint[] vAdrs = new uint[sections];
                 uint[] vSizes = new uint[sections];
@@ -260,11 +265,11 @@ namespace Confuser.Core.Confusions
                     }
                 }
 
-                for (int i = 0; i < cion.rvas.Length; i++)
+                for (int i = 0; i < txt.rvas.Length; i++)
                 {
-                    if (cion.rvas[i] == 0) continue;
-                    long ptr = cion.rvas[i] + rvaOffset;
-                    cion.ptrs[i] = (uint)ptr;
+                    if (txt.rvas[i] == 0) continue;
+                    long ptr = txt.rvas[i] + rvaOffset;
+                    txt.ptrs[i] = (uint)ptr;
                     stream.Seek(ptr, SeekOrigin.Begin);
                     byte b = rdr.ReadByte();
                     if ((b & 0x3) == 0x2)
@@ -302,7 +307,7 @@ namespace Confuser.Core.Confusions
                     }
                     long len = stream.Position - ptr;
                     stream.Seek(ptr, SeekOrigin.Begin);
-                    cion.codes[i] = rdr.ReadBytes((int)len);
+                    txt.codes[i] = rdr.ReadBytes((int)len);
                     stream.Seek(ptr, SeekOrigin.Begin);
                     byte[] bs = new byte[len];
                     //rand.NextBytes(bs);
@@ -368,13 +373,14 @@ namespace Confuser.Core.Confusions
                 }
                 return ret;
             }
-            public override void Process(NameValueCollection parameters, Stream stream)
+            public override void Process(NameValueCollection parameters, Stream stream, ModuleDefinition mod)
             {
+                var txt = cion.txts[mod];
                 stream.Seek(0, SeekOrigin.Begin);
                 uint csOffset;
                 uint sn;
                 uint snLen;
-                ExtractCodes(stream, out csOffset, out sn, out snLen);
+                ExtractCodes(txt, stream, out csOffset, out sn, out snLen);
                 stream.Position = 0;
                 Image img = ImageReader.ReadImageFrom(stream);
 
@@ -382,14 +388,14 @@ namespace Confuser.Core.Confusions
                 ms.WriteByte(0xd6);
                 ms.WriteByte(0x6f);
                 BinaryWriter wtr = new BinaryWriter(ms);
-                wtr.Write((uint)cion.codes.Length);
-                for (int i = 0; i < cion.codes.Length; i++)
+                wtr.Write((uint)txt.codes.Length);
+                for (int i = 0; i < txt.codes.Length; i++)
                 {
-                    wtr.Write((int)(cion.ptrs[i] ^ cion.key4));
-                    if (cion.ptrs[i] == 0) continue;
-                    wtr.Write((int)(cion.rvas[i] ^ cion.key4));
-                    wtr.Write(cion.codes[i].Length);
-                    wtr.Write(cion.codes[i]);
+                    wtr.Write((int)(txt.ptrs[i] ^ txt.key4));
+                    if (txt.ptrs[i] == 0) continue;
+                    wtr.Write((int)(txt.rvas[i] ^ txt.key4));
+                    wtr.Write(txt.codes[i].Length);
+                    wtr.Write(txt.codes[i]);
                 }
 
                 byte[] buff;
@@ -420,36 +426,40 @@ namespace Confuser.Core.Confusions
                 }
 
                 byte[] iv;
-                byte[] dat = Encrypt(buff, ms.ToArray(), out iv, cion.key5);
+                byte[] dat = Encrypt(buff, ms.ToArray(), out iv, txt.key5);
 
                 byte[] md5 = MD5.Create().ComputeHash(buff);
                 long checkSum = BitConverter.ToInt64(md5, 0) ^ BitConverter.ToInt64(md5, 8);
                 wtr = new BinaryWriter(stream);
                 stream.Seek(csOffset, SeekOrigin.Begin);
-                wtr.Write(img.Metadata.VirtualAddress ^ (uint)cion.key0);
+                wtr.Write(img.Metadata.VirtualAddress ^ (uint)txt.key0);
                 stream.Seek(img.GetSection(".confuse").PointerToRawData, SeekOrigin.Begin);
-                wtr.Write(checkSum ^ cion.key1);
+                wtr.Write(checkSum ^ txt.key1);
                 wtr.Write(sn);
                 wtr.Write(snLen);
-                wtr.Write(iv.Length ^ cion.key2);
+                wtr.Write(iv.Length ^ txt.key2);
                 wtr.Write(iv);
-                wtr.Write(dat.Length ^ cion.key3);
+                wtr.Write(dat.Length ^ txt.key3);
                 wtr.Write(dat);
             }
         }
 
-        TypeDefinition root;
-        int key0;
-        long key1;
-        int key2;
-        int key3;
-        int key4;
-        byte key5;
-        List<int> excludes;
-        uint[] rvas;
-        uint[] ptrs;
-        byte[][] codes;
-        uint sectRaw;
+        class _Context
+        {
+            public TypeDefinition root;
+            public int key0;
+            public long key1;
+            public int key2;
+            public int key3;
+            public int key4;
+            public byte key5;
+            public List<int> excludes;
+            public uint[] rvas;
+            public uint[] ptrs;
+            public byte[][] codes;
+            public uint sectRaw;
+        }
+        Dictionary<ModuleDefinition, _Context> txts = new Dictionary<ModuleDefinition, _Context>();
 
         public string Name
         {
@@ -489,5 +499,8 @@ namespace Confuser.Core.Confusions
         {
             get { if (phases == null)phases = new Phase[] { new Phase1(this), new Phase2(this), new Phase3(this), new Phase4(this), new Phase5(this) }; return phases; }
         }
+
+        public void Init() { txts.Clear(); }
+        public void Deinit() { txts.Clear(); }
     }
 }

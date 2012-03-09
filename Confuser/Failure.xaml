@@ -135,7 +135,7 @@
         <Label Grid.Row="0" Content="Failure!" FontSize="18" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="10,0,0,0"/>
         <Separator Grid.Row="1"/>
         <Border Grid.Row="2" Padding="5">
-            <TextBox x:Name="log" IsReadOnly="True" FontSize="12" FontFamily="Global Monospace" ScrollViewer.VerticalScrollBarVisibility="Visible" Background="Transparent"/>
+            <TextBox x:Name="log" IsReadOnly="True" FontSize="12" FontFamily="Global Monospace" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Visible" Background="Transparent"/>
         </Border>
     </Grid>
 </Page>

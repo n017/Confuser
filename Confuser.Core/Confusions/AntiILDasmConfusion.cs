@@ -86,5 +86,8 @@ namespace Confuser.Core.Confusions
             if (!has)
                 mod.CustomAttributes.Add(new CustomAttribute(ctor));
         }
+
+        public void Init() { }
+        public void Deinit() { }
     }
 }

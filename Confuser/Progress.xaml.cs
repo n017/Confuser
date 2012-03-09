@@ -50,6 +50,15 @@ namespace Confuser
             thread = cr.ConfuseAsync(parameter);
             btn.Content = "Cancel";
             host.DisabledNavigation = true;
+
+            Action check = null;
+            check = new Action(() =>
+            {
+                progress.Value = p;
+                if (p != -1)
+                    Dispatcher.BeginInvoke(check, System.Windows.Threading.DispatcherPriority.Background);
+            });
+            check();
         }
 
         class AsmData
@@ -82,6 +91,7 @@ namespace Confuser
             ex = null;
             btn.Content = "Next";
             host.DisabledNavigation = false;
+            p = -1;
         }
         Exception ex = null;
         void Logger_Fault(object sender, ExceptionEventArgs e)
@@ -112,21 +122,18 @@ namespace Confuser
             ex = e.Exception;
             btn.Content = "Next";
             host.DisabledNavigation = false;
+            p = -1;
         }
+        double p;
         void Logger_Progress(object sender, ProgressEventArgs e)
         {
-            if (!CheckAccess())
-            {
-                Dispatcher.Invoke(new EventHandler<ProgressEventArgs>(Logger_Progress), sender, e);
-                return;
-            }
-            progress.Value = e.Progress * 10000 / e.Total;
+            p = e.Progress * 10000 / e.Total;
         }
         void Logger_Log(object sender, LogEventArgs e)
         {
             if (!CheckAccess())
             {
-                Dispatcher.Invoke(new EventHandler<LogEventArgs>(Logger_Log), sender, e);
+                Dispatcher.BeginInvoke(new EventHandler<LogEventArgs>(Logger_Log), sender, e);
                 return;
             }
             log.AppendText(e.Message + "\r\n");
@@ -136,7 +143,7 @@ namespace Confuser
         {
             if (!CheckAccess())
             {
-                Dispatcher.Invoke(new EventHandler<LogEventArgs>(Logger_Phase), sender, e);
+                Dispatcher.BeginInvoke(new EventHandler<LogEventArgs>(Logger_Phase), sender, e);
                 return;
             }
             asmLbl.DataContext = new AsmData()
@@ -152,7 +159,7 @@ namespace Confuser
         {
             if (!CheckAccess())
             {
-                Dispatcher.Invoke(new EventHandler<AssemblyEventArgs>(Logger_EndAssembly), sender, e);
+                Dispatcher.BeginInvoke(new EventHandler<AssemblyEventArgs>(Logger_EndAssembly), sender, e);
                 return;
             }
         }
@@ -160,7 +167,7 @@ namespace Confuser
         {
             if (!CheckAccess())
             {
-                Dispatcher.Invoke(new EventHandler<AssemblyEventArgs>(Logger_BeginAssembly), sender, e);
+                Dispatcher.BeginInvoke(new EventHandler<AssemblyEventArgs>(Logger_BeginAssembly), sender, e);
                 return;
             }
             asmLbl.DataContext = new AsmData()

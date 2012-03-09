@@ -79,6 +79,9 @@ namespace Confuser.Core
         bool StandardCompatible { get; }
         bool SupportLateAddition { get; }
         Behaviour Behaviour { get; }
+
+        void Init();
+        void Deinit();
     }
 
     public abstract class Phase
@@ -121,7 +124,7 @@ namespace Confuser.Core
     }
     public abstract class PePhase : Phase
     {
-        public abstract void Process(NameValueCollection parameters, Stream stream);
+        public abstract void Process(NameValueCollection parameters, Stream stream, ModuleDefinition mod);
         public override sealed void Initialize(ModuleDefinition mod) { }
         public override sealed void DeInitialize() { }
         public override sealed bool WholeRun { get { return true; } }

@@ -119,5 +119,8 @@ namespace Confuser.Core.Confusions
                 }
             }
         }
+
+        public void Init() { }
+        public void Deinit() { }
     }
 }

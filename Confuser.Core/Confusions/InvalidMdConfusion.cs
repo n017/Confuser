@@ -111,7 +111,7 @@ namespace Confuser.Core.Confusions
                 get { return 2; }
             }
 
-            public override void Process(NameValueCollection parameters, Stream stream)
+            public override void Process(NameValueCollection parameters, Stream stream, ModuleDefinition mod)
             {
                 Random rand = new Random();
                 BinaryReader rdr = new BinaryReader(stream);
@@ -193,5 +193,8 @@ namespace Confuser.Core.Confusions
         {
             get { if (phases == null)phases = new Phase[] { new Phase1(this), new Phase2(this), new Phase3(this) }; return phases; }
         }
+
+        public void Init() { }
+        public void Deinit() { }
     }
 }

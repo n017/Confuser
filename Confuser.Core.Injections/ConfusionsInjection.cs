@@ -395,7 +395,6 @@ static class Encryptions
 
                 byte[] f;
                 int len;
-                Console.WriteLine();
                 using (BinaryReader r = new BinaryReader(new MemoryStream(bs)))
                 {
                     len = r.ReadInt32();
@@ -529,6 +528,7 @@ static class AntiTamper
         Module mod = typeof(AntiTamper).Module;
         IntPtr modPtr = Marshal.GetHINSTANCE(mod);
         if (modPtr == (IntPtr)(-1)) Environment.FailFast("Module error");
+        bool mapped = mod.FullyQualifiedName != "<Unknown>";
         Stream stream;
         stream = new UnmanagedMemoryStream((byte*)modPtr.ToPointer(), 0xfffffff, 0xfffffff, FileAccess.ReadWrite);
 
@@ -556,6 +556,27 @@ static class AntiTamper
             if (md == 0x11111111)
                 Environment.FailFast("Broken file");
 
+            stream.Seek(offset = offset + optSize, SeekOrigin.Begin);  //sect hdr
+            uint datLoc = 0;
+            for (int i = 0; i < sections; i++)
+            {
+                string str = "";
+                for (int j = 0; j < 8; j++)
+                {
+                    byte chr = rdr.ReadByte();
+                    if (chr != 0) str += (char)chr;
+                }
+                uint vSize = rdr.ReadUInt32();
+                uint vLoc = rdr.ReadUInt32();
+                uint rSize = rdr.ReadUInt32();
+                uint rLoc = rdr.ReadUInt32();
+                if (str.GetHashCode() == 0x03d46cda)
+                    datLoc = mapped ? vLoc : rLoc;
+                if (!mapped && md > vLoc && md < vLoc + vSize)
+                    md = md - vLoc + rLoc;
+                stream.Seek(0x10, SeekOrigin.Current);
+            }
+
             stream.Seek(md, SeekOrigin.Begin);
             using (MemoryStream str = new MemoryStream())
             {
@@ -582,24 +603,6 @@ static class AntiTamper
                 buff = str.ToArray();
             }
 
-            stream.Seek(offset = offset + optSize, SeekOrigin.Begin);  //sect hdr
-            uint datLoc = 0;
-            for (int i = 0; i < sections; i++)
-            {
-                string str = "";
-                for (int j = 0; j < 8; j++)
-                {
-                    byte chr = rdr.ReadByte();
-                    if (chr != 0) str += (char)chr;
-                }
-                uint vSize = rdr.ReadUInt32();
-                uint vLoc = rdr.ReadUInt32();
-                uint rSize = rdr.ReadUInt32();
-                uint rLoc = rdr.ReadUInt32();
-                if (str.GetHashCode() == 0x03d46cda)
-                    datLoc = vLoc;
-                stream.Seek(0x10, SeekOrigin.Current);
-            }
             stream.Seek(datLoc, SeekOrigin.Begin);
             checkSum = rdr.ReadUInt64() ^ 0x2222222222222222;
             sn = rdr.ReadInt32();
@@ -631,7 +634,7 @@ static class AntiTamper
                 uint rva = rdr.ReadUInt32() ^ 0x55555555;
                 byte[] cDat = rdr.ReadBytes(rdr.ReadInt32());
                 uint old;
-                IntPtr ptr = (IntPtr)((uint)modPtr + rva);
+                IntPtr ptr = (IntPtr)((uint)modPtr + (mapped ? rva : pos));
                 VirtualProtect(ptr, (uint)cDat.Length, 0x04, out old);
                 Marshal.Copy(cDat, 0, ptr, cDat.Length);
                 VirtualProtect(ptr, (uint)cDat.Length, old, out old);

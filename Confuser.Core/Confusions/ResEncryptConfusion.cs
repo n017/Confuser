@@ -40,6 +40,7 @@ namespace Confuser.Core.Confusions
             public override void Initialize(ModuleDefinition mod)
             {
                 this.mod = mod;
+                rc.txts[mod] = new _Context();
             }
             public override void DeInitialize()
             {
@@ -47,46 +48,47 @@ namespace Confuser.Core.Confusions
             }
             public override void Process(ConfusionParameter parameter)
             {
-                rc.dats = new List<KeyValuePair<string, byte[]>>();
+                _Context txt = rc.txts[mod];
+                txt.dats = new List<KeyValuePair<string, byte[]>>();
 
                 TypeDefinition modType = mod.GetType("<Module>");
 
                 AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(Iid).Assembly.Location);
-                rc.reso = i.MainModule.GetType("Encryptions").Methods.FirstOrDefault(mtd => mtd.Name == "Resources");
-                rc.reso = CecilHelper.Inject(mod, rc.reso);
-                modType.Methods.Add(rc.reso);
+                txt.reso = i.MainModule.GetType("Encryptions").Methods.FirstOrDefault(mtd => mtd.Name == "Resources");
+                txt.reso = CecilHelper.Inject(mod, txt.reso);
+                modType.Methods.Add(txt.reso);
                 byte[] n = Guid.NewGuid().ToByteArray();
-                rc.reso.Name = Encoding.UTF8.GetString(n);
-                rc.reso.IsAssembly = true;
-                AddHelper(rc.reso, HelperAttribute.NoInjection);
+                txt.reso.Name = Encoding.UTF8.GetString(n);
+                txt.reso.IsAssembly = true;
+                AddHelper(txt.reso, HelperAttribute.NoInjection);
 
                 n = Guid.NewGuid().ToByteArray();
-                rc.key0 = rc.key1 = n[0];
+                txt.key0 = txt.key1 = n[0];
                 for (int x = 0; x < n.Length; x++)
                     if (n[x] != 0)
                     {
-                        rc.key1 = n[x];
+                        txt.key1 = n[x];
                         break;
                     }
 
                 n = Guid.NewGuid().ToByteArray();
 
-                rc.reso.Body.SimplifyMacros();
-                foreach (Instruction inst in rc.reso.Body.Instructions)
+                txt.reso.Body.SimplifyMacros();
+                foreach (Instruction inst in txt.reso.Body.Instructions)
                 {
                     if ((inst.Operand as string) == "PADDINGPADDINGPADDING")
                         inst.Operand = Encoding.UTF8.GetString(n);
                     else if (inst.Operand is int && (int)inst.Operand == 0x11)
-                        inst.Operand = (int)rc.key0;
+                        inst.Operand = (int)txt.key0;
                     else if (inst.Operand is int && (int)inst.Operand == 0x22)
-                        inst.Operand = (int)rc.key1;
+                        inst.Operand = (int)txt.key1;
                     else if (inst.Operand is TypeReference && (inst.Operand as TypeReference).FullName == "System.Exception")
                         inst.Operand = modType;
                 }
-                rc.reso.Body.OptimizeMacros();
-                rc.reso.Body.ComputeOffsets();
+                txt.reso.Body.OptimizeMacros();
+                txt.reso.Body.ComputeOffsets();
 
-                rc.resId = Encoding.UTF8.GetString(n);
+                txt.resId = Encoding.UTF8.GetString(n);
 
                 MethodDefinition cctor = mod.GetType("<Module>").GetStaticConstructor();
                 MethodBody bdy = cctor.Body as MethodBody;
@@ -94,7 +96,7 @@ namespace Confuser.Core.Confusions
                 ILProcessor psr = bdy.GetILProcessor();
                 psr.Emit(OpCodes.Call, mod.Import(typeof(AppDomain).GetProperty("CurrentDomain").GetGetMethod()));
                 psr.Emit(OpCodes.Ldnull);
-                psr.Emit(OpCodes.Ldftn, rc.reso);
+                psr.Emit(OpCodes.Ldftn, txt.reso);
                 psr.Emit(OpCodes.Newobj, mod.Import(typeof(ResolveEventHandler).GetConstructor(new Type[] { typeof(object), typeof(IntPtr) })));
                 psr.Emit(OpCodes.Callvirt, mod.Import(typeof(AppDomain).GetEvent("ResourceResolve").GetAddMethod()));
                 psr.Emit(OpCodes.Ret);
@@ -118,39 +120,41 @@ namespace Confuser.Core.Confusions
             }
             public override void Process(NameValueCollection parameters, MetadataProcessor.MetadataAccessor accessor)
             {
+                _Context txt = rc.txts[accessor.Module];
+
                 ModuleDefinition mod = accessor.Module;
                 for (int i = 0; i < mod.Resources.Count; i++)
                     if (mod.Resources[i] is EmbeddedResource)
                     {
-                        rc.dats.Add(new KeyValuePair<string, byte[]>(mod.Resources[i].Name, (mod.Resources[i] as EmbeddedResource).GetResourceData()));
+                        txt.dats.Add(new KeyValuePair<string, byte[]>(mod.Resources[i].Name, (mod.Resources[i] as EmbeddedResource).GetResourceData()));
                         mod.Resources.RemoveAt(i);
                         i--;
                     }
 
-                if (rc.dats.Count > 0)
+                if (txt.dats.Count > 0)
                 {
                     MemoryStream ms = new MemoryStream();
                     BinaryWriter wtr = new BinaryWriter(new DeflateStream(ms, CompressionMode.Compress, true));
 
                     MemoryStream ms1 = new MemoryStream();
                     BinaryWriter wtr1 = new BinaryWriter(new DeflateStream(ms1, CompressionMode.Compress, true));
-                    byte[] asm = GetAsm();
+                    byte[] asm = GetAsm(txt.dats);
                     wtr1.Write(asm.Length);
                     wtr1.Write(asm);
                     wtr1.BaseStream.Dispose();
 
-                    byte[] dat = Encrypt(ms1.ToArray(), rc.key0, rc.key1);
+                    byte[] dat = Encrypt(ms1.ToArray(), txt.key0, txt.key1);
                     wtr.Write(dat.Length);
                     wtr.Write(dat);
                     wtr.BaseStream.Dispose();
 
-                    mod.Resources.Add(new EmbeddedResource(rc.resId, ManifestResourceAttributes.Private, ms.ToArray()));
+                    mod.Resources.Add(new EmbeddedResource(txt.resId, ManifestResourceAttributes.Private, ms.ToArray()));
                 }
             }
-            byte[] GetAsm()
+            byte[] GetAsm(List<KeyValuePair<string, byte[]>> dats)
             {
                 AssemblyDefinition asm = AssemblyDefinition.CreateAssembly(new AssemblyNameDefinition(ObfuscationHelper.GetNewName(Guid.NewGuid().ToString()), new Version()), ObfuscationHelper.GetNewName(Guid.NewGuid().ToString()), ModuleKind.Dll);
-                foreach (KeyValuePair<string, byte[]> i in rc.dats)
+                foreach (KeyValuePair<string, byte[]> i in dats)
                     asm.MainModule.Resources.Add(new EmbeddedResource(i.Key, ManifestResourceAttributes.Public, i.Value));
                 MemoryStream ms = new MemoryStream();
                 asm.Write(ms);
@@ -200,13 +204,19 @@ namespace Confuser.Core.Confusions
             get { return Behaviour.Inject | Behaviour.AlterCode | Behaviour.Encrypt; }
         }
 
+        public void Init() { txts.Clear(); }
+        public void Deinit() { txts.Clear(); }
 
-        List<KeyValuePair<string, byte[]>> dats;
+        class _Context
+        {
+            public List<KeyValuePair<string, byte[]>> dats;
 
-        string resId;
-        byte key0;
-        byte key1;
-        MethodDefinition reso;
+            public string resId;
+            public byte key0;
+            public byte key1;
+            public MethodDefinition reso;
+        }
+        Dictionary<ModuleDefinition, _Context> txts = new Dictionary<ModuleDefinition, _Context>();
 
         static byte[] Encrypt(byte[] res, byte key0, byte key1)
         {

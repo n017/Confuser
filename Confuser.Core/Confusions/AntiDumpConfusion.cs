@@ -92,5 +92,8 @@ namespace Confuser.Core.Confusions
                 AddHelper(mtdDef, HelperAttribute.NoInjection);
             }
         }
+
+        public void Init() { }
+        public void Deinit() { }
     }
 }

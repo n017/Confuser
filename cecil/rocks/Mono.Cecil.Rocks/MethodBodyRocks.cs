@@ -327,22 +327,21 @@ namespace Mono.Cecil.Rocks {
 
 		static void OptimizeBranches (MethodBody body)
 		{
-			ComputeOffsets (body);
+			ComputeOffsets (body.instructions[0], 0);
 
 			foreach (var instruction in body.Instructions) {
 				if (instruction.OpCode.OperandType != OperandType.InlineBrTarget)
 					continue;
 
-				if (OptimizeBranch (instruction))
-					ComputeOffsets (body);
+				OptimizeBranch (instruction);
 			}
 		}
 
-		static bool OptimizeBranch (Instruction instruction)
+		static void OptimizeBranch (Instruction instruction)
 		{
 			var offset = ((Instruction) instruction.Operand).Offset - (instruction.Offset + instruction.OpCode.Size + 4);
 			if (!(offset >= -128 && offset <= 127))
-				return false;
+				return;
 
 			switch (instruction.OpCode.Code) {
 			case Code.Br:
@@ -389,7 +388,8 @@ namespace Mono.Cecil.Rocks {
 				break;
 			}
 
-			return true;
+			Instruction first = offset >= 0 ? instruction : (Instruction)instruction.Operand;
+			ComputeOffsets (first, first.Offset);
 		}
 
 		static void ComputeOffsets (MethodBody body)
@@ -399,6 +399,15 @@ namespace Mono.Cecil.Rocks {
 				instruction.Offset = offset;
 				offset += instruction.GetSize ();
 			}
+		}
+
+		static void ComputeOffsets (Instruction instr, int offset)
+		{
+			do {
+				instr.Offset = offset;
+				offset += instr.GetSize ();
+				instr = instr.Next;
+			} while (instr != null);
 		}
 	}
 }
