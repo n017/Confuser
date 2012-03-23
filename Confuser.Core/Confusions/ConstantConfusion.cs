@@ -601,14 +601,17 @@ namespace Confuser.Core.Confusions
         }
         private static byte[] EncryptSafe(byte[] bytes, int key)
         {
-            Random rand = new Random(key);
-            byte[] k = new byte[bytes.Length];
-            rand.NextBytes(k);
-            System.Collections.BitArray arr = new System.Collections.BitArray(bytes);
-            arr.Xor(new System.Collections.BitArray(k));
-            arr.CopyTo(k, 0);
-
-            return k;
+            ushort _m = (ushort)(key >> 16);
+            ushort _c = (ushort)(key & 0xffff);
+            ushort m = _c; ushort c = _m;
+            byte[] ret = (byte[])bytes.Clone();
+            for (int i = 0; i < ret.Length; i++)
+            {
+                ret[i] ^= (byte)((key * m + c) % 0x100);
+                m = (ushort)((key * m + _m) % 0x10000);
+                c = (ushort)((key * c + _c) % 0x10000);
+            }
+            return ret;
         }
 
 

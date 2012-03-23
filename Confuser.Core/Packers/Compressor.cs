@@ -95,11 +95,10 @@ namespace Confuser.Core
             RijndaelManaged rijn = new RijndaelManaged();
             rijn.GenerateIV(); rijn.GenerateKey();
             MemoryStream dat = new MemoryStream();
-            using (CryptoStream s = new CryptoStream(dat, rijn.CreateEncryptor(), CryptoStreamMode.Write))
+            using (var s = new DeflateStream(new CryptoStream(dat, rijn.CreateEncryptor(), CryptoStreamMode.Write), CompressionMode.Compress))
             {
                 s.Write(BitConverter.GetBytes(asm.Length), 0, 4);
                 s.Write(asm, 0, asm.Length);
-                s.FlushFinalBlock();
             }
             byte[] key = rijn.Key;
             for (int j = 0; j < key.Length; j += 4)
@@ -110,7 +109,7 @@ namespace Confuser.Core
                 key[j + 3] ^= (byte)((key0 & 0xff000000) >> 24);
             }
             MemoryStream str = new MemoryStream();
-            using (BinaryWriter wtr = new BinaryWriter(new DeflateStream(str, CompressionMode.Compress)))
+            using (BinaryWriter wtr = new BinaryWriter(str))
             {
                 byte[] b = dat.ToArray();
                 wtr.Write(b.Length);

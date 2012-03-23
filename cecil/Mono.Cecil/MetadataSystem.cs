@@ -33,7 +33,7 @@ using Mono.Cecil.Metadata;
 
 namespace Mono.Cecil {
 
-	struct Range {
+	public struct Range {
 		public uint Start;
 		public uint Length;
 

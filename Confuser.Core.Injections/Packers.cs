@@ -37,10 +37,9 @@ static class CompressShell
     static byte[] Decrypt(byte[] asm)
     {
         byte[] dat;
-        DeflateStream str = new DeflateStream(new MemoryStream(asm), CompressionMode.Decompress);
         byte[] iv;
         byte[] key;
-        using (BinaryReader rdr = new BinaryReader(str))
+        using (BinaryReader rdr = new BinaryReader(new MemoryStream(asm)))
         {
             dat = rdr.ReadBytes(rdr.ReadInt32());
             iv = rdr.ReadBytes(rdr.ReadInt32());
@@ -55,7 +54,7 @@ static class CompressShell
             key[j + 3] ^= (byte)((key0 & 0xff000000) >> 24);
         }
         RijndaelManaged rijn = new RijndaelManaged();
-        using (CryptoStream s = new CryptoStream(new MemoryStream(dat), rijn.CreateDecryptor(key, iv), CryptoStreamMode.Read))
+        using (var s = new DeflateStream(new CryptoStream(new MemoryStream(dat), rijn.CreateDecryptor(key, iv), CryptoStreamMode.Read), CompressionMode.Decompress))
         {
             byte[] l = new byte[4];
             s.Read(l, 0, 4);

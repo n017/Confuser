@@ -136,14 +136,7 @@ namespace Confuser.Core.Confusions
                     MemoryStream ms = new MemoryStream();
                     BinaryWriter wtr = new BinaryWriter(new DeflateStream(ms, CompressionMode.Compress, true));
 
-                    MemoryStream ms1 = new MemoryStream();
-                    BinaryWriter wtr1 = new BinaryWriter(new DeflateStream(ms1, CompressionMode.Compress, true));
-                    byte[] asm = GetAsm(txt.dats);
-                    wtr1.Write(asm.Length);
-                    wtr1.Write(asm);
-                    wtr1.BaseStream.Dispose();
-
-                    byte[] dat = Encrypt(ms1.ToArray(), txt.key0, txt.key1);
+                    byte[] dat = Transform(GetAsm(txt.dats), txt.key0, txt.key1);
                     wtr.Write(dat.Length);
                     wtr.Write(dat);
                     wtr.BaseStream.Dispose();
@@ -218,22 +211,14 @@ namespace Confuser.Core.Confusions
         }
         Dictionary<ModuleDefinition, _Context> txts = new Dictionary<ModuleDefinition, _Context>();
 
-        static byte[] Encrypt(byte[] res, byte key0, byte key1)
+        static byte[] Transform(byte[] res, byte key0, byte key1)
         {
-            byte[] ret = new byte[res.Length * 2];
+            byte[] ret = new byte[res.Length];
+            byte k = key0;
             for (int i = 0; i < res.Length; i++)
             {
-                ret[i * 2] = (byte)((res[i] % key1) ^ key0);
-                ret[i * 2 + 1] = (byte)((res[i] / key1) ^ key0);
-            }
-            return ret;
-        }
-        static byte[] Decrypt(byte[] res, byte key0, byte key1)
-        {
-            byte[] ret = new byte[res.Length / 2];
-            for (int i = 0; i < res.Length; i += 2)
-            {
-                ret[i / 2] = (byte)((res[i + 1] ^ key0) * key1 + (res[i] ^ key0));
+                ret[i] = (byte)(res[i] ^ k);
+                k = (byte)((k * key1) % 0x100);
             }
             return ret;
         }

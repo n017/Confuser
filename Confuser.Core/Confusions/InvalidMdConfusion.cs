@@ -82,10 +82,10 @@ namespace Confuser.Core.Confusions
                             uint type = (uint)accessor.TableHeap.GetTable<TypeDefTable>(Table.TypeDef).AddRow(new Row<TypeAttributes, uint, uint, uint, uint, uint>(0, 0x7fffffff, i, 0x3FFFD, fldLen, mtdLen));
                             accessor.TableHeap.GetTable<NestedClassTable>(Table.NestedClass).AddRow(new Row<uint, uint>(nested, type));
                         }
+                        foreach (Row<ParameterAttributes, ushort, uint> r in accessor.TableHeap.GetTable<ParamTable>(Table.Param))
+                            if (r != null)
+                                r.Col3 = 0x7fffffff;
                     }
-                    foreach (Row<ParameterAttributes, ushort, uint> r in accessor.TableHeap.GetTable<ParamTable>(Table.Param))
-                        if (r != null)
-                            r.Col3 = 0x7fffffff;
                 }
                 accessor.TableHeap.GetTable<ModuleTable>(Table.Module).AddRow(accessor.StringHeap.GetStringIndex(Guid.NewGuid().ToString()));
 

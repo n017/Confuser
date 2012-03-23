@@ -12,7 +12,6 @@ using System.Security.Cryptography;
 using Mono.Cecil.Cil;
 using Mono.Cecil.PE;
 
-//TODO: Implement better version by JIT hooking
 namespace Confuser.Core.Confusions
 {
     public class AntiTamperConfusion : IConfusion
@@ -50,8 +49,8 @@ namespace Confuser.Core.Confusions
                 txt.key1 = BitConverter.ToInt64(dat, 4);
                 txt.key2 = BitConverter.ToInt32(dat, 12);
                 txt.key3 = BitConverter.ToInt32(dat, 16);
-                txt.key4 = BitConverter.ToInt32(dat, 20);
-                txt.key5 = dat[24];
+                txt.key4 = dat[24];
+                txt.sectName = Convert.ToBase64String(MD5.Create().ComputeHash(dat)).Substring(0, 8);
             }
             public override void DeInitialize()
             {
@@ -82,7 +81,7 @@ namespace Confuser.Core.Confusions
                             case 0x44444444:
                                 inst.Operand = txt.key3; break;
                             case 0x55555555:
-                                inst.Operand = txt.key4; break;
+                                inst.Operand = (int)txt.sectName.ToCharArray().Sum(_ => (int)_); break;
                         }
                     }
                     else if (inst.Operand is long && (long)inst.Operand == 0x2222222222222222)
@@ -91,14 +90,14 @@ namespace Confuser.Core.Confusions
                 MethodDefinition dec = txt.root.Methods.FirstOrDefault(mtd => mtd.Name == "Decrypt");
                 foreach (Instruction inst in dec.Body.Instructions)
                     if (inst.Operand is int && (int)inst.Operand == 0x11111111)
-                        inst.Operand = (int)txt.key5;
+                        inst.Operand = (int)txt.key4;
 
-                txt.root.Name = ObfuscationHelper.GetNewName("AntiTamperModule" + Guid.NewGuid().ToString());
+                //txt.root.Name = ObfuscationHelper.GetNewName("AntiTamperModule" + Guid.NewGuid().ToString());
                 txt.root.Namespace = "";
                 AddHelper(txt.root, HelperAttribute.NoInjection);
                 foreach (MethodDefinition mtdDef in txt.root.Methods)
                 {
-                    mtdDef.Name = ObfuscationHelper.GetNewName(mtdDef.Name + Guid.NewGuid().ToString());
+                    //mtdDef.Name = ObfuscationHelper.GetNewName(mtdDef.Name + Guid.NewGuid().ToString());
                     AddHelper(mtdDef, HelperAttribute.NoInjection);
                 }
             }
@@ -165,20 +164,76 @@ namespace Confuser.Core.Confusions
             }
             public override int PhaseID
             {
-                get { return 3; }
+                get { return 2; }
             }
 
+            static void Crypt(byte[] buff, uint idx, uint len, uint key)
+            {
+                byte[] keyBuff = BitConverter.GetBytes(key);
+                for (uint i = idx; i < idx + len; i++)
+                    buff[i] ^= keyBuff[(i - idx) % 4];
+            }
             public override void Process(NameValueCollection parameters, MetadataProcessor.MetadataAccessor accessor)
             {
                 var txt = cion.txts[accessor.Module];
                 MethodTable tbl = accessor.TableHeap.GetTable<MethodTable>(Table.Method);
-                txt.rvas = new uint[tbl.Length];
-                txt.ptrs = new uint[tbl.Length];
-                txt.codes = new byte[tbl.Length][];
+
+                accessor.Codes.Position = 0;
+                txt.codes = accessor.Codes.ReadBytes(accessor.Codes.Length);
+                accessor.Codes.Reset(null);
+                accessor.Codes.Position = 0;
+
+                Random rand = new Random();
+                byte[] randBuff = new byte[4];
+                uint bas = accessor.Codebase;
                 for (int i = 0; i < tbl.Length; i++)
                 {
-                    if (txt.excludes.Contains(i)) continue;
-                    txt.rvas[i] = tbl[i].Col1;
+                    tbl[i].Col2 |= MethodImplAttributes.NoInlining;
+                    if (tbl[i].Col1 == 0) continue;
+                    if (txt.excludes.Contains(i))
+                    {
+                        tbl[i].Col1 = (uint)accessor.Codes.Position + bas;
+
+                        Range range = accessor.BodyRanges[new MetadataToken(TokenType.Method, i + 1)];
+                        byte[] buff = new byte[range.Length];
+                        Buffer.BlockCopy(txt.codes, (int)(range.Start - bas), buff, 0, buff.Length);
+                        accessor.Codes.WriteBytes(buff);
+                        accessor.Codes.WriteBytes(((accessor.Codes.Position + 3) & ~3) - accessor.Codes.Position);
+                    }
+                    else
+                    {
+                        uint ptr = tbl[i].Col1 - bas;
+                        rand.NextBytes(randBuff);
+                        uint key = BitConverter.ToUInt32(randBuff, 0);
+                        tbl[i].Col1 = (uint)accessor.Codes.Position + bas;
+
+                        Range range = accessor.BodyRanges[new MetadataToken(TokenType.Method, i + 1)];
+                        Crypt(txt.codes, range.Start - bas, range.Length, key);
+
+                        accessor.Codes.WriteByte(0x46); //flags
+                        accessor.Codes.WriteByte(0x21); //ldc.i8
+                        accessor.Codes.WriteUInt64(((ulong)key << 32) | (ptr ^ key));
+                        accessor.Codes.WriteByte(0x20); //ldc.i4
+                        accessor.Codes.WriteUInt32(~range.Length ^ key);
+                        accessor.Codes.WriteByte(0x26);
+
+                        accessor.BlobHeap.Position = (int)tbl[i].Col5;
+                        accessor.BlobHeap.ReadCompressedUInt32();
+                        byte flags = accessor.BlobHeap.ReadByte();
+                        if ((flags & 0x10) != 0) accessor.BlobHeap.ReadCompressedUInt32();
+                        accessor.BlobHeap.ReadCompressedUInt32();
+                        bool hasRet = false;
+                        do
+                        {
+                            byte t = accessor.BlobHeap.ReadByte();
+                            if (t == 0x1f || t == 0x20) continue;
+                            hasRet = t != 0x01;
+                        } while (false);
+
+                        accessor.Codes.WriteByte(hasRet ? (byte)0x00 : (byte)0x26);
+                        accessor.Codes.WriteByte(0x2a); //ret
+                        accessor.Codes.WriteBytes(((accessor.Codes.Position + 3) & ~3) - accessor.Codes.Position);
+                    }
                 }
             }
         }
@@ -199,17 +254,12 @@ namespace Confuser.Core.Confusions
                 get { return 4; }
             }
 
-            uint EstimateSize(MetadataProcessor.ImageAccessor accessor)
-            {
-                uint size = accessor.Sections.Single(_ => _.Name == ".text").SizeOfRawData;
-                size += 24 + 16;
-                return size;
-            }
             public override void Process(NameValueCollection parameters, MetadataProcessor.ImageAccessor accessor)
             {
-                uint size = EstimateSize(accessor);
+                var txt = cion.txts[accessor.Module];
+                uint size = (((uint)txt.codes.Length + 2 + 0x7f) & ~0x7fu) + 0x28;
                 Section prev = accessor.Sections[accessor.Sections.Count - 1];
-                Section sect = accessor.CreateSection(".confuse", size, 0x40000040, prev);
+                Section sect = accessor.CreateSection(txt.sectName, size, 0x40000040, prev);
                 accessor.Sections.Add(sect);
             }
         }
@@ -230,10 +280,8 @@ namespace Confuser.Core.Confusions
                 get { return 5; }
             }
 
-            void ExtractCodes(_Context txt, Stream stream, out uint csOffset, out uint sn, out uint snLen)
+            void ExtractOffsets(_Context txt, Stream stream, out uint csOffset, out uint sn, out uint snLen)
             {
-                Random rand = new Random();
-                int rvaOffset = -1;
                 BinaryReader rdr = new BinaryReader(stream);
                 stream.Seek(0x3c, SeekOrigin.Begin);
                 uint offset = rdr.ReadUInt32();
@@ -244,9 +292,6 @@ namespace Confuser.Core.Confusions
                 bool pe32 = (rdr.ReadUInt16() == 0x010b);
                 csOffset = offset + 0x40;
                 stream.Seek(offset = offset + (pe32 ? 0xE0U : 0xF0U), SeekOrigin.Begin);   //sections
-                uint sampleRva = 0xffffffff;
-                foreach (uint i in txt.rvas)
-                    if (i != 0) { sampleRva = i; break; }
                 uint[] vAdrs = new uint[sections];
                 uint[] vSizes = new uint[sections];
                 uint[] dAdrs = new uint[sections];
@@ -258,60 +303,6 @@ namespace Confuser.Core.Confusions
                     uint dSize = rdr.ReadUInt32();
                     uint dAdr = dAdrs[i] = rdr.ReadUInt32();
                     stream.Seek(0x10, SeekOrigin.Current);
-                    if (sampleRva > vAdr && sampleRva < (vAdr + vSize))
-                    {
-                        rvaOffset = (int)dAdr - (int)vAdr;
-                        break;
-                    }
-                }
-
-                for (int i = 0; i < txt.rvas.Length; i++)
-                {
-                    if (txt.rvas[i] == 0) continue;
-                    long ptr = txt.rvas[i] + rvaOffset;
-                    txt.ptrs[i] = (uint)ptr;
-                    stream.Seek(ptr, SeekOrigin.Begin);
-                    byte b = rdr.ReadByte();
-                    if ((b & 0x3) == 0x2)
-                    {
-                        stream.Seek((uint)b >> 2, SeekOrigin.Current);
-                    }
-                    else
-                    {
-                        stream.Seek(-1, SeekOrigin.Current);
-                        ushort f = rdr.ReadUInt16();
-                        stream.Seek(2, SeekOrigin.Current);
-                        uint size = rdr.ReadUInt32();
-                        stream.Seek(4 + size, SeekOrigin.Current);
-                        if ((f & 0x80) != 0)
-                        {
-                            stream.Seek((stream.Position + 3) & ~3, SeekOrigin.Begin);
-                            bool more;
-                            do
-                            {
-                                byte fl = rdr.ReadByte();
-                                more = ((fl & 0x80) != 0);
-                                if ((fl & 0x40) != 0)
-                                {
-                                    stream.Seek(-1, SeekOrigin.Current);
-                                    uint sectLen = rdr.ReadUInt32() >> 8;
-                                    stream.Seek(-4 + sectLen, SeekOrigin.Current);
-                                }
-                                else
-                                {
-                                    byte sectLen = rdr.ReadByte();
-                                    stream.Seek(-1 + sectLen, SeekOrigin.Current);
-                                }
-                            } while (more);
-                        }
-                    }
-                    long len = stream.Position - ptr;
-                    stream.Seek(ptr, SeekOrigin.Begin);
-                    txt.codes[i] = rdr.ReadBytes((int)len);
-                    stream.Seek(ptr, SeekOrigin.Begin);
-                    byte[] bs = new byte[len];
-                    //rand.NextBytes(bs);
-                    stream.Write(bs, 0, (int)len);
                 }
 
                 stream.Seek(offset - 16, SeekOrigin.Begin);
@@ -380,7 +371,7 @@ namespace Confuser.Core.Confusions
                 uint csOffset;
                 uint sn;
                 uint snLen;
-                ExtractCodes(txt, stream, out csOffset, out sn, out snLen);
+                ExtractOffsets(txt, stream, out csOffset, out sn, out snLen);
                 stream.Position = 0;
                 Image img = ImageReader.ReadImageFrom(stream);
 
@@ -388,15 +379,7 @@ namespace Confuser.Core.Confusions
                 ms.WriteByte(0xd6);
                 ms.WriteByte(0x6f);
                 BinaryWriter wtr = new BinaryWriter(ms);
-                wtr.Write((uint)txt.codes.Length);
-                for (int i = 0; i < txt.codes.Length; i++)
-                {
-                    wtr.Write((int)(txt.ptrs[i] ^ txt.key4));
-                    if (txt.ptrs[i] == 0) continue;
-                    wtr.Write((int)(txt.rvas[i] ^ txt.key4));
-                    wtr.Write(txt.codes[i].Length);
-                    wtr.Write(txt.codes[i]);
-                }
+                wtr.Write(txt.codes);
 
                 byte[] buff;
                 BinaryReader sReader = new BinaryReader(stream);
@@ -426,14 +409,14 @@ namespace Confuser.Core.Confusions
                 }
 
                 byte[] iv;
-                byte[] dat = Encrypt(buff, ms.ToArray(), out iv, txt.key5);
+                byte[] dat = Encrypt(buff, ms.ToArray(), out iv, txt.key4);
 
                 byte[] md5 = MD5.Create().ComputeHash(buff);
                 long checkSum = BitConverter.ToInt64(md5, 0) ^ BitConverter.ToInt64(md5, 8);
                 wtr = new BinaryWriter(stream);
                 stream.Seek(csOffset, SeekOrigin.Begin);
                 wtr.Write(img.Metadata.VirtualAddress ^ (uint)txt.key0);
-                stream.Seek(img.GetSection(".confuse").PointerToRawData, SeekOrigin.Begin);
+                stream.Seek(img.GetSection(txt.sectName).PointerToRawData, SeekOrigin.Begin);
                 wtr.Write(checkSum ^ txt.key1);
                 wtr.Write(sn);
                 wtr.Write(snLen);
@@ -451,13 +434,10 @@ namespace Confuser.Core.Confusions
             public long key1;
             public int key2;
             public int key3;
-            public int key4;
-            public byte key5;
+            public byte key4;
+            public string sectName;
             public List<int> excludes;
-            public uint[] rvas;
-            public uint[] ptrs;
-            public byte[][] codes;
-            public uint sectRaw;
+            public byte[] codes;
         }
         Dictionary<ModuleDefinition, _Context> txts = new Dictionary<ModuleDefinition, _Context>();
 

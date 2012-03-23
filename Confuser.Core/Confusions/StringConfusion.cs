@@ -500,13 +500,23 @@ namespace Confuser.Core.Confusions
 
         private static byte[] EncryptSafe(string str, int key)
         {
-            Random rand = new Random(key);
+            ushort _m = (ushort)(key >> 16);
+            ushort _c = (ushort)(key & 0xffff);
+            ushort m = _c; ushort c = _m;
+            byte[] z = new byte[b.Length];
+            for (int i = 0; i < k.Length; i++)
+            {
+                z[i] = (byte)((key * m + c) % 0x100);
+                m = (ushort)((key * m + _m) % 0x10000);
+                c = (ushort)((key * c + _c) % 0x10000);
+            }
+
             byte[] bs = Encoding.UTF8.GetBytes(str);
 
             int k = 0;
             for (int i = 0; i < bs.Length; i++)
             {
-                bs[i] = (byte)(bs[i] ^ (rand.Next() & k));
+                bs[i] = (byte)(bs[i] ^ (k / z[i]));
                 k += bs[i];
             }
 

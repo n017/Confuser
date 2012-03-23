@@ -44,6 +44,7 @@ namespace Mono.Cecil.Cil {
 
 		readonly RVA code_base;
 		internal readonly MetadataBuilder metadata;
+		internal readonly Dictionary<MetadataToken, Range> code_tokens;
 		readonly Dictionary<uint, MetadataToken> standalone_signatures;
 
 		RVA current;
@@ -56,12 +57,14 @@ namespace Mono.Cecil.Cil {
 			this.current = code_base;
 			this.metadata = metadata;
 			this.standalone_signatures = new Dictionary<uint, MetadataToken> ();
+			this.code_tokens = new Dictionary<MetadataToken, Range> ();
 		}
 
         public RVA WriteMethodBody(MethodDefinition method)
         {
             var rva = BeginMethod();
 
+            var pos = (uint)position;
             if (IsUnresolved(method))
             {
                 if (method.rva == 0)
@@ -77,6 +80,7 @@ namespace Mono.Cecil.Cil {
                 WriteResolvedMethodBody(method);
             }
 
+            code_tokens.Add(method.MetadataToken, new Range(rva, (uint)position - pos));
             Align(4);
 
             EndMethod();

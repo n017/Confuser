@@ -89,8 +89,8 @@ namespace Mono.Cecil {
         public void ClearSearchDirectories()
         {
             directories.Clear();
-            directories.Add(".");
-            directories.Add( "bin");
+            //directories.Add(".");
+            //directories.Add( "bin");
         }
 
 		public string [] GetSearchDirectories ()

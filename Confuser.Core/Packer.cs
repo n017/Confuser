@@ -90,7 +90,7 @@ namespace Confuser.Core
                             if (s.Name == ".text") { accessor.Sections.Insert(accessor.Sections.IndexOf(s) + 1, sect); break; }
                     }
                     sect.VirtualSize = oldRsrc.VirtualSize;
-                    sect.SizeOfRawData = oldRsrc.PointerToRawData;
+                    sect.SizeOfRawData = oldRsrc.SizeOfRawData;
                     int idx = accessor.Sections.IndexOf(sect);
                     sect.VirtualAddress = accessor.Sections[idx - 1].VirtualAddress + ((accessor.Sections[idx - 1].VirtualSize + 0x2000U - 1) & ~(0x2000U - 1));
                     sect.PointerToRawData = accessor.Sections[idx - 1].PointerToRawData + accessor.Sections[idx - 1].SizeOfRawData;
