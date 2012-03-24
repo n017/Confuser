@@ -176,6 +176,7 @@ namespace Confuser
         Packer _packer;
         ConfuserDatas Load()
         {
+            System.Threading.Thread.Sleep(500);
             var dat = SerializeAsm();
 
             StringBuilder summary = new StringBuilder();

@@ -230,7 +230,6 @@
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Background" Value="{StaticResource DisabledBackgroundBrush}" TargetName="Border" />
                             <Setter Property="BorderBrush" Value="{StaticResource DisabledForegroundBrush}" TargetName="Border" />
                         </Trigger>
                     </ControlTemplate.Triggers>

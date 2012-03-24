@@ -73,6 +73,7 @@ namespace Confuser
             adorner = new UIElementAdorner(Root, new Loading());
             adorner.Width = this.ActualWidth;
             adorner.Height = this.ActualHeight;
+            frame.IsEnabled = false;
             AdornerLayer.GetAdornerLayer(Root).Add(adorner);
 
             load.BeginInvoke(Complete<T>, new LoadData<T>() { load = load, page = page });
@@ -89,6 +90,7 @@ namespace Confuser
                 Dispatcher.Invoke(new AsyncCallback(Complete<T>), ar);
                 return;
             }
+            frame.IsEnabled = true;
             AdornerLayer.GetAdornerLayer(Root).Remove(adorner);
             adorner = null;
 

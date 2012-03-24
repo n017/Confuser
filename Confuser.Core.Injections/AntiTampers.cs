@@ -140,6 +140,7 @@ static class AntiTamper
         return ret;
     }
 
+    static bool hasLinkInfo;
     [StructLayout(LayoutKind.Sequential)]
     unsafe struct ICorJitInfo
     {
@@ -148,7 +149,8 @@ static class AntiTamper
 
         public static ICorDynamicInfo* ICorDynamicInfo(ICorJitInfo* ptr)
         {
-            return (ICorDynamicInfo*)((byte*)&ptr->vbptr + ptr->vbptr[IntPtr.Size == 8 && !ver ? 10 : 9]);
+            hasLinkInfo = ptr->vbptr[10] > 0 && ptr->vbptr[10] >> 16 == 0;//!=0 and hiword byte ==0
+            return (ICorDynamicInfo*)((byte*)&ptr->vbptr + ptr->vbptr[hasLinkInfo ? 10 : 9]);
         }
     }
 
@@ -160,7 +162,7 @@ static class AntiTamper
 
         public static ICorStaticInfo* ICorStaticInfo(ICorDynamicInfo* ptr)
         {
-            return (ICorStaticInfo*)((byte*)&ptr->vbptr + ptr->vbptr[IntPtr.Size == 8 && !ver ? 9 : 8]);
+            return (ICorStaticInfo*)((byte*)&ptr->vbptr + ptr->vbptr[hasLinkInfo ? 9 : 8]);
         }
     }
 
@@ -200,7 +202,7 @@ static class AntiTamper
         }
         public static ICorErrorInfo* ICorErrorInfo(ICorStaticInfo* ptr)
         {
-            return (ICorErrorInfo*)((byte*)&ptr->vbptr + ptr->vbptr[IntPtr.Size == 8 && !ver ? 8 : 7]);
+            return (ICorErrorInfo*)((byte*)&ptr->vbptr + ptr->vbptr[hasLinkInfo ? 8 : 7]);
         }
     }
 
@@ -556,6 +558,7 @@ static class AntiTamper
             info->vfptr = oriVfTbl;
         }
 
+        static int ehNum = -1;
         public static CorInfoHook Hook(ICorJitInfo* comp, IntPtr ftn, CORINFO_EH_CLAUSE[] clauses)
         {
             ICorMethodInfo* mtdInfo = ICorStaticInfo.ICorMethodInfo(ICorDynamicInfo.ICorStaticInfo(ICorJitInfo.ICorDynamicInfo(comp)));
@@ -563,8 +566,24 @@ static class AntiTamper
             IntPtr* newVfTbl = (IntPtr*)Marshal.AllocHGlobal(0x19 * IntPtr.Size);
             for (int i = 0; i < 0x19; i++)
                 newVfTbl[i] = vfTbl[i];
-
-            int ehNum = ver || IntPtr.Size == 8 ? 10 : 8;
+            if (ehNum == -1)
+                for (int i = 0; i < 0x19; i++)
+                {
+                    bool isEh = true;
+                    for (byte* func = (byte*)vfTbl[i]; *func != 0xe9; func++)
+                        if (IntPtr.Size == 8 ?
+                            (*func == 0x48 && *(func + 1) == 0x81 && *(func + 2) == 0xe9) :
+                             (*func == 0x83 && *(func + 1) == 0xe9))
+                        {
+                            isEh = false;
+                            break;
+                        }
+                    if (isEh)
+                    {
+                        ehNum = i;
+                        break;
+                    }
+                }
 
             CorInfoHook ret = new CorInfoHook() { ftn = ftn, clauses = clauses, newVfTbl = newVfTbl, oriVfTbl = vfTbl, info = mtdInfo };
             ret.h_getEHinfo = new getEHinfo(ret.hookEHInfo);
@@ -771,13 +790,10 @@ static class AntiTamper
             {
                 arr[i] ^= kBuff[i % 4];
             }
-
             CORINFO_EH_CLAUSE[] ehs;
             Parse(arr, info, comp, out ehs);
             if (ehs != null)
-            {
                 hook = CorInfoHook.Hook(comp, info->ftn, ehs);
-            }
         }
 
         uint ret = originalDelegate(self, comp, info, flags, nativeEntry, nativeSizeOfCode);
