@@ -10,8 +10,33 @@ using System.Security.Cryptography;
 
 static class CompressShell
 {
-    public static Assembly DecryptAsm(object sender, ResolveEventArgs e)
+    static Assembly DecryptAsm(object sender, ResolveEventArgs e)
     {
+        Console.WriteLine(e.Name);
+        byte[] b = Encoding.UTF8.GetBytes(e.Name);
+        for (int i = 0; i < b.Length; i++)
+            b[i] = (byte)(b[i] ^ 0x12345678 ^ i);
+        string resName = Encoding.UTF8.GetString(b);
+        Stream str = typeof(CompressShell).Assembly.GetManifestResourceStream(resName);
+        if (str != null)
+        {
+            byte[] asmDat;
+            using (BinaryReader rdr = new BinaryReader(str))
+            {
+                asmDat = rdr.ReadBytes((int)str.Length);
+            }
+            asmDat = Decrypt(asmDat);
+            var asm = Assembly.Load(asmDat);
+            byte[] over = new byte[asmDat.Length];
+            Buffer.BlockCopy(over, 0, asmDat, 0, asmDat.Length);
+
+            return asm;
+        }
+        return null;
+    }
+    static Assembly ResolveResource(object sender, ResolveEventArgs e)
+    {
+        Console.WriteLine(e.Name);
         byte[] b = Encoding.UTF8.GetBytes(e.Name);
         for (int i = 0; i < b.Length; i++)
             b[i] = (byte)(b[i] ^ 0x12345678 ^ i);
@@ -73,25 +98,42 @@ static class CompressShell
     }
 
     static string Res = "fcc78551-8e82-4fd6-98dd-7ce4fcb0a59f";
+    static ulong Rid = 0x1234567812345678;
+    static Module Mod;
 
+    static ulong modPow(ulong bas, ulong pow, ulong mod)
+    {
+        ulong m = 1;
+        while (pow > 0)
+        {
+            if ((pow & 1) != 0)
+                m = (m * bas) % mod;
+            pow = pow >> 1;
+            bas = (bas * bas) % mod;
+        }
+        return m;
+    }
     [STAThread]
     static int Main(string[] args)
     {
-        Stream str = Assembly.GetEntryAssembly().GetManifestResourceStream(Res);
+        Assembly asm = Assembly.GetEntryAssembly();
+        Stream str = asm.GetManifestResourceStream(Res);
         byte[] asmDat;
         using (BinaryReader rdr = new BinaryReader(str))
-        {
             asmDat = rdr.ReadBytes((int)str.Length);
-        }
         asmDat = Decrypt(asmDat);
-        var asm = Assembly.Load(asmDat);
+
+        Mod = asm.LoadModule("___.netmodule", asmDat);
         byte[] over = new byte[asmDat.Length];
         Buffer.BlockCopy(over, 0, asmDat, 0, asmDat.Length);
+
+        AppDomain.CurrentDomain.AssemblyResolve += DecryptAsm;
+        MethodBase m = Mod.ResolveMethod(0x06000000 | (int)modPow(Rid, 0x47, 0x1234567812345678UL));
         object ret;
-        if (asm.EntryPoint.GetParameters().Length == 1)
-            ret = asm.EntryPoint.Invoke(null, new object[] { args });
+        if (m.GetParameters().Length == 1)
+            ret = m.Invoke(null, new object[] { args });
         else
-            ret = asm.EntryPoint.Invoke(null, null);
+            ret = m.Invoke(null, null);
         if (ret is int)
             return (int)ret;
         else

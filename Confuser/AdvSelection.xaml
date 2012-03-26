@@ -60,7 +60,7 @@
             <RowDefinition Height="40px"/>
         </Grid.RowDefinitions>
 
-        <Label Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Content="Choose protection preset :" FontSize="18" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="10,0,0,0"/>
+        <Label Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Content="Select protections :" FontSize="18" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="10,0,0,0"/>
         <Separator Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"/>
         <Separator Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"/>
         <Border Grid.Row="4" Padding="5" Grid.Column="0" Grid.ColumnSpan="2">

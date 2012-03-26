@@ -66,6 +66,7 @@ namespace Confuser.Core.Confusions
 
             public override void Process(NameValueCollection parameters, MetadataProcessor.MetadataAccessor accessor)
             {
+                accessor.TableHeap.GetTable<TypeDefTable>(Table.TypeDef)[0].Col2 = 0xffff;
                 if (Array.IndexOf(parameters.AllKeys, "hasreflection") == -1)
                 {
                     if (accessor.Module.Runtime != TargetRuntime.Net_4_0)

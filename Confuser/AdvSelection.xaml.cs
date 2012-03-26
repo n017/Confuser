@@ -16,6 +16,7 @@ using System.Collections.ObjectModel;
 using Confuser.Core;
 using Confuser.AsmSelector;
 using System.Collections.Specialized;
+using System.Windows.Media.Animation;
 
 namespace Confuser
 {
@@ -176,7 +177,6 @@ namespace Confuser
         Packer _packer;
         ConfuserDatas Load()
         {
-            System.Threading.Thread.Sleep(500);
             var dat = SerializeAsm();
 
             StringBuilder summary = new StringBuilder();
@@ -201,6 +201,7 @@ namespace Confuser
         }
         private void next_Click(object sender, RoutedEventArgs e)
         {
+            (panel.FindResource("indicate") as Storyboard).Stop();
             if (usePacker.IsChecked.GetValueOrDefault())
                 _packer = (Packer)packer.SelectedValue;
             else

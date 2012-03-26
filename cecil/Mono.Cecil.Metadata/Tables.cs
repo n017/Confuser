@@ -131,6 +131,11 @@ namespace Mono.Cecil.Metadata {
             get { return rows[idx]; }
             set { rows[idx] = value; }
         }
+
+        public void Clear ()
+        {
+            length = 0;
+        }
     }
 
 	public abstract class SortedTable<TRow> : MetadataTable<TRow>, IComparer<TRow> {

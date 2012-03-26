@@ -133,6 +133,9 @@ namespace Confuser.Core
 
         Marker mkr = new Marker();
         public Marker Marker { get { return mkr; } set { mkr = value; } }
+
+        internal MetadataProcessor.MetadataProcess ProcessMetadata;
+        internal MetadataProcessor.ImageProcess ProcessImage;
     }
 
     public struct Tuple<T1, T2>
@@ -341,6 +344,14 @@ namespace Confuser.Core
             mkrSettings = mkr.MarkAssemblies(assemblies, param.DefaultPreset, this, (sender, e) => Log(e.Message));
             settings = mkrSettings.Assemblies.ToList();
 
+            if (mkrSettings.Packer != null && (
+                settings[0].Assembly.MainModule.Kind == ModuleKind.Dll ||
+                settings[0].Assembly.MainModule.Kind == ModuleKind.NetModule))
+            {
+                Log("Warning: Cannot pack a library or net module!");
+                mkrSettings.Packer = null;
+            }
+
             Dictionary<string, string> repl = new Dictionary<string, string>();
             foreach (var i in assemblies)
             {
@@ -428,6 +439,10 @@ namespace Confuser.Core
         }
         void ProcessStructuralPhases(ModuleSetting mod, ObfuscationSettings globalParams, IEnumerable<Phase> phases)
         {
+            if (mkrSettings.Packer != null)
+                mkrSettings.Packer.ProcessModulePhase1(mod.Module, 
+                    mod.Module.IsMain && mkrSettings.Assemblies[0].Assembly == mod.Module.Assembly);
+
             ConfusionParameter cParam = new ConfusionParameter();
             bool end1 = false;
             foreach (StructurePhase i in from i in phases where (i is StructurePhase) orderby (int)i.Priority + i.PhaseID * 10 ascending select i)
@@ -488,6 +503,10 @@ namespace Confuser.Core
                 }
                 i.DeInitialize();
             }
+
+            if (mkrSettings.Packer != null)
+                mkrSettings.Packer.ProcessModulePhase3(mod.Module,
+                    mod.Module.IsMain && mkrSettings.Assemblies[0].Assembly == mod.Module.Assembly);
         }
         void ProcessMdPePhases(ModuleSetting mod, ObfuscationSettings globalParams, IEnumerable<Phase> phases, Stream stream, WriterParameters parameters)
         {
@@ -509,6 +528,10 @@ namespace Confuser.Core
                     i.Process(globalParam, accessor);
                     param.Logger._Progress(now1, total1); now1++;
                 }
+
+                if (mkrSettings.Packer != null)
+                    mkrSettings.Packer.ProcessMetadataPhase1(accessor,
+                        mod.Module.IsMain && mkrSettings.Assemblies[0].Assembly == mod.Module.Assembly);
             });
             psr.BeforeWriteTables += new MetadataProcessor.MetadataProcess(delegate(MetadataProcessor.MetadataAccessor accessor)
             {
@@ -525,9 +548,15 @@ namespace Confuser.Core
                     i.Process(globalParam, accessor);
                     param.Logger._Progress(now1, total1); now1++;
                 }
+
+                if (mkrSettings.Packer != null)
+                    mkrSettings.Packer.ProcessMetadataPhase2(accessor,
+                        mod.Module.IsMain && mkrSettings.Assemblies[0].Assembly == mod.Module.Assembly);
+                if (param.ProcessMetadata != null)
+                    param.ProcessMetadata(accessor);
             });
             psr.AfterWriteTables += new MetadataProcessor.MetadataProcess(delegate(MetadataProcessor.MetadataAccessor accessor)
-            {
+            {               
                 foreach (MetadataPhase i in from i in phases where (i is MetadataPhase) && i.PhaseID == 3 orderby i.Priority ascending select i)
                 {
                     if (GetTargets(mod, i.Confusion).Count == 0) continue;
@@ -545,6 +574,13 @@ namespace Confuser.Core
             psr.ProcessImage += new MetadataProcessor.ImageProcess(delegate(MetadataProcessor.ImageAccessor accessor)
             {
                 Log(string.Format("Obfuscating Image of module {0}...", mod.Module.Name));
+
+                if (mkrSettings.Packer != null)
+                    mkrSettings.Packer.ProcessImage(accessor,
+                        mod.Module.IsMain && mkrSettings.Assemblies[0].Assembly == mod.Module.Assembly);
+                if (param.ProcessImage != null)
+                    param.ProcessImage(accessor);
+               
                 ImagePhase[] imgPhases = (from i in phases where (i is ImagePhase) orderby (int)i.Priority + i.PhaseID * 10 ascending select (ImagePhase)i).ToArray();
                 for (int i = 0; i < imgPhases.Length; i++)
                 {
@@ -585,13 +621,6 @@ namespace Confuser.Core
         {
             param.Logger._BeginPhase("Finalizing...");
             Packer packer = mkrSettings.Packer;
-            if (packer != null && (
-                settings[0].Assembly.MainModule.Kind == ModuleKind.Dll ||
-                settings[0].Assembly.MainModule.Kind == ModuleKind.NetModule))
-            {
-                Log("Warning: Cannot pack a library or net module!");
-                packer = null;
-            }
             if (packer != null)
             {
                 if (!Directory.Exists(param.DestinationPath))
@@ -756,7 +785,7 @@ namespace Confuser.Core
                 else if (def.Key is PropertyDefinition) target = Target.Properties;
                 foreach (var s in sub)
                 {
-                    if (s.Key.Target != target || (s.Key.Behaviour & (Behaviour)def.Value) != 0) continue;
+                    if ((s.Key.Target & target) == 0 || (s.Key.Behaviour & (Behaviour)def.Value) != 0) continue;
                     n.Add(s.Key, s.Value);
                 }
 

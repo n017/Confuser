@@ -5,6 +5,10 @@ using System.Reflection;
 using System.IO;
 using System.Security.Cryptography;
 using System.Runtime.CompilerServices;
+using System.Reflection.Emit;
+using System.Security;
+using System.Security.Permissions;
+using System.Collections.Generic;
 
 static class AntiTamper
 {
@@ -15,8 +19,9 @@ static class AntiTamper
         Module mod = typeof(AntiTamper).Module;
         IntPtr modPtr = Marshal.GetHINSTANCE(mod);
         s = (ulong)modPtr.ToInt64();
-        if (modPtr == (IntPtr)(-1)) Environment.FailFast("Module error");
-        bool mapped = mod.FullyQualifiedName != "<Unknown>";
+        if (modPtr == (IntPtr)(-1)) Environment.FailFast(null);
+        string fq = mod.FullyQualifiedName;
+        bool mapped = fq.Length != 9 || fq[0] != '<' || fq[8] != '>'; //<Unknown>
         Stream stream;
         stream = new UnmanagedMemoryStream((byte*)modPtr.ToPointer(), 0xfffffff, 0xfffffff, FileAccess.ReadWrite);
 
@@ -105,13 +110,16 @@ static class AntiTamper
 
         byte[] md5 = MD5.Create().ComputeHash(buff);
         ulong tCs = BitConverter.ToUInt64(md5, 0) ^ BitConverter.ToUInt64(md5, 8);
+        ulong* msg = stackalloc ulong[2];
+        msg[0] = 0x6574707572726f43;    //Corrupte
+        msg[1] = 0x0021656c69662064;    //d file!.
         if (tCs != checkSum)
-            Environment.FailFast("Broken file");
+            Environment.FailFast(new string((sbyte*)msg));
 
         byte[] b = Decrypt(buff, iv, dats);
         Buffer.BlockCopy(new byte[buff.Length], 0, buff, 0, buff.Length);
         if (b[0] != 0xd6 || b[1] != 0x6f)
-            Environment.FailFast("Broken file");
+            Environment.FailFast(new string((sbyte*)msg));
         byte[] dat = new byte[b.Length - 2];
         Buffer.BlockCopy(b, 2, dat, 0, dat.Length);
 
@@ -436,6 +444,16 @@ static class AntiTamper
         public InfoAccessModule accessModule;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    struct MethodData
+    {
+        public uint ILCodeSize;
+        public uint MaxStack;
+        public uint EHCount;
+        public uint LocalVars;
+        public uint Options;
+    }
+
     [UnmanagedFunctionPointer(CallingConvention.ThisCall)]
     unsafe delegate uint compileMethod(IntPtr self, ICorJitInfo* comp, CORINFO_METHOD_INFO* info, uint flags, byte** nativeEntry, uint* nativeSizeOfCode);
 
@@ -443,6 +461,8 @@ static class AntiTamper
     unsafe delegate void findSig(IntPtr self, IntPtr module, uint sigTOK, IntPtr context, void* sig);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
     unsafe delegate void getEHinfo(IntPtr self, IntPtr ftn, uint EHnumber, CORINFO_EH_CLAUSE* clause);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    unsafe delegate InfoAccessType constructStringLiteral(IntPtr self, IntPtr module, uint metaTok, IntPtr ppobj);
 
 
     [DllImport("kernel32.dll")]
@@ -466,32 +486,46 @@ static class AntiTamper
     static unsafe void Init(bool ver)
     {
         AntiTamper.ver = ver;
-        IntPtr jit = LoadLibrary(ver ? "clrjit.dll" : "mscorjit.dll");
-        getJit get = (getJit)Marshal.GetDelegateForFunctionPointer(GetProcAddress(jit, "getJit"), typeof(getJit));
+        ulong* ptr = stackalloc ulong[2];
+        if (ver)
+        {
+            ptr[0] = 0x642e74696a726c63;    //clrjit.d
+            ptr[1] = 0x0000000000006c6c;    //ll......
+        }
+        else
+        {
+            ptr[0] = 0x74696a726f63736d;    //mscorjit
+            ptr[1] = 0x000000006c6c642e;    //.dll....
+        }
+        IntPtr jit = LoadLibrary(new string((sbyte*)ptr));
+        ptr[0] = 0x000074694a746567;    //getJit
+        getJit get = (getJit)Marshal.GetDelegateForFunctionPointer(GetProcAddress(jit, new string((sbyte*)ptr)), typeof(getJit));
         hookPosition = Marshal.ReadIntPtr(get());
         original = Marshal.ReadIntPtr(hookPosition);
 
         IntPtr trampoline;
         if (IntPtr.Size == 8)
         {
-            trampoline = Marshal.AllocHGlobal(12);
-            byte[] dat = Convert.FromBase64String("SLj////////////g");
+            trampoline = Marshal.AllocHGlobal(16);
+            ulong* tptr = (ulong*)trampoline;
+            tptr[0] = 0xffffffffffffb848;
+            tptr[1] = 0x90909090e0ffffff;
 
             uint oldPl;
             VirtualProtect(trampoline, 12, 0x40, out oldPl);
-            Marshal.Copy(dat, 0, trampoline, 12);
             Marshal.WriteIntPtr(trampoline, 2, original);
         }
         else
         {
-            trampoline = Marshal.AllocHGlobal(7);
-            byte[] dat = Convert.FromBase64String("uP//////4A==");
+            trampoline = Marshal.AllocHGlobal(8);
+            ulong* tptr = (ulong*)trampoline;
+            tptr[0] = 0x90e0ffffffffffb8;
 
             uint oldPl;
             VirtualProtect(trampoline, 7, 0x40, out oldPl);
-            Marshal.Copy(dat, 0, trampoline, 7);
             Marshal.WriteIntPtr(trampoline, 1, original);
         }
+
         originalDelegate = (compileMethod)Marshal.GetDelegateForFunctionPointer(trampoline, typeof(compileMethod));
         RuntimeHelpers.PrepareDelegate(originalDelegate);
     }
@@ -534,15 +568,18 @@ static class AntiTamper
         if (hooked) UnHook();
     }
 
-    unsafe class CorInfoHook
+    unsafe class CorMethodInfoHook
     {
         public IntPtr ftn;
-        public CORINFO_EH_CLAUSE[] clauses;
-        public getEHinfo od_getEHinfo;
-        public getEHinfo h_getEHinfo;
         public ICorMethodInfo* info;
+        public ICorJitInfo* comp;
         public IntPtr* oriVfTbl;
         public IntPtr* newVfTbl;
+
+        public CORINFO_EH_CLAUSE[] clauses;
+        public getEHinfo o_getEHinfo;
+        public getEHinfo n_getEHinfo;
+
         void hookEHInfo(IntPtr self, IntPtr ftn, uint EHnumber, CORINFO_EH_CLAUSE* clause)
         {
             if (ftn == this.ftn)
@@ -550,8 +587,11 @@ static class AntiTamper
                 *clause = clauses[EHnumber];
             }
             else
-                od_getEHinfo(self, ftn, EHnumber, clause);
+            {
+                o_getEHinfo(self, ftn, EHnumber, clause);
+            }
         }
+
         public void Dispose()
         {
             Marshal.FreeHGlobal((IntPtr)newVfTbl);
@@ -559,7 +599,7 @@ static class AntiTamper
         }
 
         static int ehNum = -1;
-        public static CorInfoHook Hook(ICorJitInfo* comp, IntPtr ftn, CORINFO_EH_CLAUSE[] clauses)
+        public static CorMethodInfoHook Hook(ICorJitInfo* comp, IntPtr ftn, CORINFO_EH_CLAUSE[] clauses)
         {
             ICorMethodInfo* mtdInfo = ICorStaticInfo.ICorMethodInfo(ICorDynamicInfo.ICorStaticInfo(ICorJitInfo.ICorDynamicInfo(comp)));
             IntPtr* vfTbl = mtdInfo->vfptr;
@@ -585,11 +625,111 @@ static class AntiTamper
                     }
                 }
 
-            CorInfoHook ret = new CorInfoHook() { ftn = ftn, clauses = clauses, newVfTbl = newVfTbl, oriVfTbl = vfTbl, info = mtdInfo };
-            ret.h_getEHinfo = new getEHinfo(ret.hookEHInfo);
-            ret.od_getEHinfo = Marshal.GetDelegateForFunctionPointer(vfTbl[ehNum], typeof(getEHinfo)) as getEHinfo;
-            newVfTbl[ehNum] = Marshal.GetFunctionPointerForDelegate(ret.h_getEHinfo);
+            CorMethodInfoHook ret = new CorMethodInfoHook()
+            {
+                ftn = ftn,
+                info = mtdInfo,
+                comp = comp,
+                clauses = clauses,
+                newVfTbl = newVfTbl,
+                oriVfTbl = vfTbl
+            };
+
+            ret.n_getEHinfo = new getEHinfo(ret.hookEHInfo);
+            ret.o_getEHinfo = Marshal.GetDelegateForFunctionPointer(vfTbl[ehNum], typeof(getEHinfo)) as getEHinfo;
+            newVfTbl[ehNum] = Marshal.GetFunctionPointerForDelegate(ret.n_getEHinfo);
+
             mtdInfo->vfptr = newVfTbl;
+            return ret;
+        }
+    }
+    unsafe class CorDynamicInfoHook
+    {
+        public ICorDynamicInfo* info;
+        public ICorJitInfo* comp;
+        public IntPtr* oriVfTbl;
+        public IntPtr* newVfTbl;
+
+        public constructStringLiteral o_constructStringLiteral;
+        public constructStringLiteral n_constructStringLiteral;
+
+        static IntPtr Obj2Ptr(object obj) { return (IntPtr)0; }    //Placeholder
+
+        Dictionary<uint, GCHandle> gcHnds = new Dictionary<uint, GCHandle>();
+        InfoAccessType hookConstructStr(IntPtr self, IntPtr module, uint metaTok, IntPtr ppobj)
+        {
+            if ((metaTok & 0x00800000) != 0)
+            {
+                Console.WriteLine(Convert.ToString((int)metaTok, 16));
+                uint offset = metaTok & 0x007FFFFF;
+
+                if (!gcHnds.ContainsKey(offset))
+                {
+                    uint length = (uint)(BitConverter.ToUInt32(data, (int)offset) & ~1);
+                    if (length < 1)
+                        gcHnds[offset] = GCHandle.Alloc(string.Empty, GCHandleType.Pinned);
+
+                    var chars = new char[length / 2];
+
+                    for (uint i = offset + 4, j = 0; i < offset + 4 + length; i += 2)
+                        chars[j++] = (char)(data[i] | (data[i + 1] << 8));
+
+                    string c = new string(chars);
+                    gcHnds[offset] = GCHandle.Alloc(string.Intern(c), GCHandleType.Pinned);
+                }
+                Marshal.WriteIntPtr(ppobj, Obj2Ptr(gcHnds[offset].Target));
+                return InfoAccessType.VALUE;
+            }
+            InfoAccessType ret = o_constructStringLiteral(self, module, metaTok, ppobj);
+            return ret;
+        }
+
+        public void Dispose()
+        {
+            Marshal.FreeHGlobal((IntPtr)newVfTbl);
+            info->vfptr = oriVfTbl;
+        }
+
+        static int ctNum = -1;
+        public static CorDynamicInfoHook Hook(ICorJitInfo* comp)
+        {
+            ICorDynamicInfo* dynInfo = ICorJitInfo.ICorDynamicInfo(comp);
+            IntPtr* vfTbl = dynInfo->vfptr;
+            IntPtr* newVfTbl = (IntPtr*)Marshal.AllocHGlobal(0x27 * IntPtr.Size);
+            for (int i = 0; i < 0x27; i++)
+                newVfTbl[i] = vfTbl[i];
+            if (ctNum == -1)
+                for (int i = 0; i < 0x27; i++)
+                {
+                    bool overrided = true;
+                    for (byte* func = (byte*)vfTbl[i]; *func != 0xe9; func++)
+                        if (IntPtr.Size == 8 ?
+                            (*func == 0x48 && *(func + 1) == 0x81 && *(func + 2) == 0xe9) :
+                             (*func == 0x83 && *(func + 1) == 0xe9))
+                        {
+                            overrided = false;
+                            break;
+                        }
+                    if (overrided)
+                    {
+                        ctNum = i + 8;
+                        break;
+                    }
+                }
+
+            CorDynamicInfoHook ret = new CorDynamicInfoHook()
+            {
+                info = dynInfo,
+                comp = comp,
+                newVfTbl = newVfTbl,
+                oriVfTbl = vfTbl
+            };
+
+            ret.n_constructStringLiteral = new constructStringLiteral(ret.hookConstructStr);
+            ret.o_constructStringLiteral = Marshal.GetDelegateForFunctionPointer(vfTbl[ctNum], typeof(constructStringLiteral)) as constructStringLiteral;
+            newVfTbl[ctNum] = Marshal.GetFunctionPointerForDelegate(ret.n_constructStringLiteral);
+
+            dynInfo->vfptr = newVfTbl;
             return ret;
         }
     }
@@ -656,118 +796,116 @@ static class AntiTamper
             sigInfox86->args = args;
         }
     }
-    static unsafe void Parse(byte* body, CORINFO_METHOD_INFO* info, ICorJitInfo* comp, out CORINFO_EH_CLAUSE[] ehs)
-    {
-        //Refer to SSCLI
-        if ((*body & 0x3) == 0x2)
-        {
-            if (ver)
-            {
-                *((uint*)(info + 1) + 0) = 8;   //maxstack
-                *((uint*)(info + 1) + 1) = 0;   //ehcount
-            }
-            else
-            {
-                *((ushort*)(info + 1) + 0) = 8;
-                *((ushort*)(info + 1) + 1) = 0;
-            }
-            info->ILCode = body + 1;
-            info->ILCodeSize = (uint)(*body >> 2);
-            ehs = null;
-            return;
-        }
-        else
-        {
-            ushort flags = *(ushort*)body;
-            if (ver)    //maxstack
-                *((uint*)(info + 1) + 0) = *(ushort*)(body + 2);
-            else
-                *((ushort*)(info + 1) + 0) = *(ushort*)(body + 2);
-            info->ILCodeSize = *(uint*)(body + 4);
-            var localVarTok = *(uint*)(body + 8);
-            if ((flags & 0x10) != 0)
-            {
-                if (ver)    //options
-                    *((uint*)(info + 1) + 2) |= (uint)CorInfoOptions.OPT_INIT_LOCALS;
-                else
-                    *((uint*)(info + 1) + 1) |= (ushort)CorInfoOptions.OPT_INIT_LOCALS;
-            }
-            info->ILCode = body + 12;
+    //static unsafe void Parse(byte* body, CORINFO_METHOD_INFO* info, ICorJitInfo* comp, out CORINFO_EH_CLAUSE[] ehs)
+    //{
+    //    //Refer to SSCLI
+    //    if ((*body & 0x3) == 0x2)
+    //    {
+    //        if (ver)
+    //        {
+    //            *((uint*)(info + 1) + 0) = 8;   //maxstack
+    //            *((uint*)(info + 1) + 1) = 0;   //ehcount
+    //        }
+    //        else
+    //        {
+    //            *((ushort*)(info + 1) + 0) = 8;
+    //            *((ushort*)(info + 1) + 1) = 0;
+    //        }
+    //        info->ILCode = body + 1;
+    //        info->ILCodeSize = (uint)(*body >> 2);
+    //        ehs = null;
+    //        return;
+    //    }
+    //    else
+    //    {
+    //        ushort flags = *(ushort*)body;
+    //        if (ver)    //maxstack
+    //            *((uint*)(info + 1) + 0) = *(ushort*)(body + 2);
+    //        else
+    //            *((ushort*)(info + 1) + 0) = *(ushort*)(body + 2);
+    //        info->ILCodeSize = *(uint*)(body + 4);
+    //        var localVarTok = *(uint*)(body + 8);
+    //        if ((flags & 0x10) != 0)
+    //        {
+    //            if (ver)    //options
+    //                *((uint*)(info + 1) + 2) |= (uint)CorInfoOptions.OPT_INIT_LOCALS;
+    //            else
+    //                *((uint*)(info + 1) + 1) |= (ushort)CorInfoOptions.OPT_INIT_LOCALS;
+    //        }
+    //        info->ILCode = body + 12;
 
-            if (localVarTok != 0)
-                ParseLocalVars(info, comp, localVarTok);
+    //        if (localVarTok != 0)
+    //            ParseLocalVars(info, comp, localVarTok);
 
-            if ((flags & 0x8) != 0)
-            {
-                body = body + 12 + info->ILCodeSize;
-                var list = new ArrayList();
-                byte f;
-                do
-                {
-                    body = (byte*)(((uint)body + 3) & ~3);
-                    f = *body;
-                    uint count;
-                    bool isSmall = (f & 0x40) == 0;
-                    if (isSmall)
-                        count = *(body + 1) / 12u;
-                    else
-                        count = (*(uint*)body >> 8) / 24;
-                    body += 4;
+    //        if ((flags & 0x8) != 0)
+    //        {
+    //            body = body + 12 + info->ILCodeSize;
+    //            var list = new ArrayList();
+    //            byte f;
+    //            do
+    //            {
+    //                body = (byte*)(((uint)body + 3) & ~3);
+    //                f = *body;
+    //                uint count;
+    //                bool isSmall = (f & 0x40) == 0;
+    //                if (isSmall)
+    //                    count = *(body + 1) / 12u;
+    //                else
+    //                    count = (*(uint*)body >> 8) / 24;
+    //                body += 4;
 
-                    for (int i = 0; i < count; i++)
-                    {
-                        var clause = new CORINFO_EH_CLAUSE();
-                        clause.Flags = (CORINFO_EH_CLAUSE_FLAGS)(*body & 0x7);
-                        body += isSmall ? 2 : 4;
+    //                for (int i = 0; i < count; i++)
+    //                {
+    //                    var clause = new CORINFO_EH_CLAUSE();
+    //                    clause.Flags = (CORINFO_EH_CLAUSE_FLAGS)(*body & 0x7);
+    //                    body += isSmall ? 2 : 4;
 
-                        clause.TryOffset = isSmall ? *(ushort*)body : *(uint*)body;
-                        body += isSmall ? 2 : 4;
-                        clause.TryLength = isSmall ? *(byte*)body : *(uint*)body;
-                        body += isSmall ? 1 : 4;
+    //                    clause.TryOffset = isSmall ? *(ushort*)body : *(uint*)body;
+    //                    body += isSmall ? 2 : 4;
+    //                    clause.TryLength = isSmall ? *(byte*)body : *(uint*)body;
+    //                    body += isSmall ? 1 : 4;
 
-                        clause.HandlerOffset = isSmall ? *(ushort*)body : *(uint*)body;
-                        body += isSmall ? 2 : 4;
-                        clause.HandlerLength = isSmall ? *(byte*)body : *(uint*)body;
-                        body += isSmall ? 1 : 4;
+    //                    clause.HandlerOffset = isSmall ? *(ushort*)body : *(uint*)body;
+    //                    body += isSmall ? 2 : 4;
+    //                    clause.HandlerLength = isSmall ? *(byte*)body : *(uint*)body;
+    //                    body += isSmall ? 1 : 4;
 
-                        clause.ClassTokenOrFilterOffset = *(uint*)body;
-                        body += 4;
+    //                    clause.ClassTokenOrFilterOffset = *(uint*)body;
+    //                    body += 4;
 
-                        if ((clause.ClassTokenOrFilterOffset & 0xff000000) == 0x1b000000)
-                        {
-                            if (ver)    //options
-                                *((uint*)(info + 1) + 2) |= (uint)CorInfoOptions.GENERICS_CTXT_KEEP_ALIVE;
-                            else
-                                *((uint*)(info + 1) + 1) |= (ushort)CorInfoOptions.GENERICS_CTXT_KEEP_ALIVE;
-                        }
+    //                    if ((clause.ClassTokenOrFilterOffset & 0xff000000) == 0x1b000000)
+    //                    {
+    //                        if (ver)    //options
+    //                            *((uint*)(info + 1) + 2) |= (uint)CorInfoOptions.GENERICS_CTXT_KEEP_ALIVE;
+    //                        else
+    //                            *((uint*)(info + 1) + 1) |= (ushort)CorInfoOptions.GENERICS_CTXT_KEEP_ALIVE;
+    //                    }
 
-                        list.Add(clause);
-                    }
-                }
-                while ((f & 0x80) != 0);
-                ehs = new CORINFO_EH_CLAUSE[list.Count];
-                for (int i = 0; i < ehs.Length; i++)
-                    ehs[i] = (CORINFO_EH_CLAUSE)list[i];
-                if (ver)    //ehcount
-                    *((uint*)(info + 1) + 1) = (ushort)ehs.Length;
-                else
-                    *((ushort*)(info + 1) + 1) = (ushort)ehs.Length;
-            }
-            else
-            {
-                ehs = null;
-                if (ver)    //ehcount
-                    *((uint*)(info + 1) + 1) = 0;
-                else
-                    *((ushort*)(info + 1) + 1) = 0;
-            }
-        }
-    }
+    //                    list.Add(clause);
+    //                }
+    //            }
+    //            while ((f & 0x80) != 0);
+    //            ehs = new CORINFO_EH_CLAUSE[list.Count];
+    //            for (int i = 0; i < ehs.Length; i++)
+    //                ehs[i] = (CORINFO_EH_CLAUSE)list[i];
+    //            if (ver)    //ehcount
+    //                *((uint*)(info + 1) + 1) = (ushort)ehs.Length;
+    //            else
+    //                *((ushort*)(info + 1) + 1) = (ushort)ehs.Length;
+    //        }
+    //        else
+    //        {
+    //            ehs = null;
+    //            if (ver)    //ehcount
+    //                *((uint*)(info + 1) + 1) = 0;
+    //            else
+    //                *((ushort*)(info + 1) + 1) = 0;
+    //        }
+    //    }
+    //}
     static unsafe uint Interop(IntPtr self, ICorJitInfo* comp, CORINFO_METHOD_INFO* info, uint flags, byte** nativeEntry, uint* nativeSizeOfCode)
     {
         if (self == IntPtr.Zero) return 0;
-
-        CorInfoHook hook = null;
 
         if (info != null &&
             (ulong)info->ILCode > s &&
@@ -781,27 +919,75 @@ static class AntiTamper
             uint key = (uint)(num >> 32);
             uint ptr = (uint)(num & 0xFFFFFFFF) ^ key;
             uint len = ~*(uint*)(info->ILCode + 10) ^ key;
-            byte* arr = stackalloc byte[(int)len];
-            Marshal.Copy(data, (int)ptr, (IntPtr)arr, (int)len);
 
-            byte* kBuff = stackalloc byte[4];
-            *(uint*)kBuff = key;
-            for (uint i = 0; i < len; i++)
+            byte[] buff = new byte[len];
+            fixed (byte* arr = buff)
             {
-                arr[i] ^= kBuff[i % 4];
+                Marshal.Copy(data, (int)ptr, (IntPtr)arr, (int)len);
+
+                byte* kBuff = stackalloc byte[4];
+                *(uint*)kBuff = key;
+                for (uint i = 0; i < len; i++)
+                {
+                    arr[i] ^= kBuff[i % 4];
+                }
+                MethodData* dat = (MethodData*)arr;
+                info->ILCodeSize = dat->ILCodeSize;
+                if (ver)
+                {
+                    *((uint*)(info + 1) + 0) = dat->MaxStack;
+                    *((uint*)(info + 1) + 1) = dat->EHCount;
+                    *((uint*)(info + 1) + 2) = dat->Options & 0xff;
+                }
+                else
+                {
+                    *((ushort*)(info + 1) + 0) = (ushort)dat->MaxStack;
+                    *((ushort*)(info + 1) + 1) = (ushort)dat->EHCount;
+                    *((uint*)(info + 1) + 1) = dat->Options & 0xff;
+                }
+                if (dat->LocalVars != 0)
+                    ParseLocalVars(info, comp, dat->LocalVars);
+
+                CORINFO_EH_CLAUSE[] ehs;
+                byte* body = (byte*)(dat + 1);
+                if ((dat->Options >> 8) == 0)
+                {
+                    info->ILCode = body;
+                    body += info->ILCodeSize;
+                    ehs = new CORINFO_EH_CLAUSE[dat->EHCount];
+                    CORINFO_EH_CLAUSE* ehPtr = (CORINFO_EH_CLAUSE*)body;
+                    for (int i = 0; i < dat->EHCount; i++)
+                    {
+                        ehs[i] = *ehPtr;
+                        *ehPtr = new CORINFO_EH_CLAUSE();
+                        ehPtr++;
+                    }
+                }
+                else
+                {
+                    ehs = new CORINFO_EH_CLAUSE[dat->EHCount];
+                    CORINFO_EH_CLAUSE* ehPtr = (CORINFO_EH_CLAUSE*)body;
+                    for (int i = 0; i < dat->EHCount; i++)
+                    {
+                        ehs[i] = *ehPtr;
+                        *ehPtr = new CORINFO_EH_CLAUSE();
+                        ehPtr++;
+                    }
+                    info->ILCode = (byte*)ehPtr;
+                }
+
+                *((ulong*)dat) = 0;
+                *((ulong*)dat + 1) = 0;
+                *((uint*)dat + 4) = 0;
+
+                var hook1 = CorMethodInfoHook.Hook(comp, info->ftn, ehs);
+                var hook2 = CorDynamicInfoHook.Hook(comp);
+                uint ret = originalDelegate(self, comp, info, flags, nativeEntry, nativeSizeOfCode);
+                hook2.Dispose(); hook1.Dispose();
+                return ret;
             }
-            CORINFO_EH_CLAUSE[] ehs;
-            Parse(arr, info, comp, out ehs);
-            if (ehs != null)
-                hook = CorInfoHook.Hook(comp, info->ftn, ehs);
         }
-
-        uint ret = originalDelegate(self, comp, info, flags, nativeEntry, nativeSizeOfCode);
-
-        if (hook != null)
-        {
-            hook.Dispose();
-        }
-        return ret;
+        else
+            return originalDelegate(self, comp, info, flags, nativeEntry, nativeSizeOfCode);
     }
 }

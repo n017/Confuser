@@ -11,6 +11,8 @@ using System.Security.Permissions;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
 using System.Security.Cryptography;
+using Mono.Cecil.Metadata;
+using Mono.Cecil.PE;
 
 namespace Confuser.Core
 {
@@ -30,18 +32,118 @@ namespace Confuser.Core
         }
         public override bool StandardCompatible
         {
-            get { return true;  }
+            get { return true; }
         }
 
+        uint entryPoint;
+        ModuleKind oKind;
+        List<Tuple<string, ManifestResourceAttributes, uint>> res;
+        protected internal override void ProcessModulePhase3(ModuleDefinition mod, bool isMain)
+        {
+            if (isMain)
+            {
+                mod.Name = "___.netmodule";
+                entryPoint = mod.Assembly.EntryPoint.MetadataToken.RID;
+                mod.Assembly.EntryPoint = null;
+                res = new List<Tuple<string, ManifestResourceAttributes, uint>>();
+            }
+        }
+        protected internal override void ProcessMetadataPhase2(MetadataProcessor.MetadataAccessor accessor, bool isMain)
+        {
+            if (isMain)
+            {
+                oKind = accessor.Module.Kind;
+                accessor.Module.Kind = ModuleKind.NetModule;
+
+                accessor.TableHeap.GetTable<AssemblyTable>(Table.Assembly).Clear();
+                foreach (Row<uint, ManifestResourceAttributes, uint, uint> i in
+                    accessor.TableHeap.GetTable<ManifestResourceTable>(Table.ManifestResource))
+                    res.Add(new Tuple<string, ManifestResourceAttributes, uint>(
+                        accessor.StringHeap.GetString(i.Col3), 
+                        i.Col2,
+                        i.Col1));
+            }
+        }
+
+        ByteBuffer hash;
+        protected internal override void PostProcessMetadata(MetadataProcessor.MetadataAccessor accessor)
+        {
+            int rid = accessor.TableHeap.GetTable<FileTable>(Table.File).AddRow(
+                        new Row<Mono.Cecil.FileAttributes, uint, uint>(
+                            Mono.Cecil.FileAttributes.ContainsMetaData,
+                            accessor.StringHeap.GetStringIndex("___.netmodule"),
+                            accessor.BlobHeap.GetBlobIndex(hash)));
+
+            var resTbl = accessor.TableHeap.GetTable<ManifestResourceTable>(Table.ManifestResource);
+            foreach (var i in res)
+                resTbl.AddRow(new Row<uint, ManifestResourceAttributes, uint, uint>(
+                    i.Item3, i.Item2, accessor.StringHeap.GetStringIndex(i.Item1),
+                    CodedIndex.Implementation.CompressMetadataToken(
+                        new MetadataToken(TokenType.File, rid))));
+        }
+
+        static bool isPrime(ulong n)
+        {
+            ulong max = (ulong)Math.Sqrt(n);
+            for (ulong i = 2; i <= max; i++)
+                if (n % i == 0)
+                    return false;
+            return true;
+        }
+        static ulong modPow(ulong bas, ulong pow, ulong mod)
+        {
+            ulong m = 1;
+            while (pow > 0)
+            {
+                if ((pow & 1) != 0)
+                    m = (m * bas) % mod;
+                pow = pow >> 1;
+                bas = (bas * bas) % mod;
+            }
+            return m;
+        }
+        static ulong modInv(ulong num, ulong mod)
+        {
+            ulong a = mod, b = num % mod;
+            ulong p0 = 0, p1 = 1;
+            while (b != 0)
+            {
+                if (b == 1) return p1;
+                p0 += (a / b) * p1;
+                a = a % b;
+
+                if (a == 0) break;
+                if (a == 1) return mod - p0;
+
+                p1 += (b / a) * p0;
+                b = b % a;
+            }
+            return 0;
+        }
         protected override void PackCore(out AssemblyDefinition asm, PackerParameter parameter)
         {
             ModuleDefinition originMain = parameter.Modules[0];
-            asm = AssemblyDefinition.CreateAssembly(originMain.Assembly.Name, originMain.Name, new ModuleParameters() { Architecture = originMain.Architecture, Kind = originMain.Kind, Runtime = originMain.Runtime });
+            asm = AssemblyDefinition.CreateAssembly(originMain.Assembly.Name, "Stub.exe", new ModuleParameters() { Architecture = originMain.Architecture, Kind = oKind, Runtime = originMain.Runtime });
             ModuleDefinition mod = asm.MainModule;
+            hash = new ByteBuffer(SHA1Managed.Create().ComputeHash(parameter.PEs[0]));
 
             Random rand = new Random();
             int key0 = rand.Next(0, 0xff);
             int key1 = rand.Next(0, 0xff);
+
+
+            ulong e = 0x47;
+            ulong p = (ulong)rand.Next(0x1000, 0x10000);
+            while (!isPrime(p) || (p - 1) % e == 0) p = (ulong)rand.Next(0x1000, 0x10000);
+            ulong q = (ulong)rand.Next(0x1000, 0x10000);
+            while (!isPrime(q) || (q - 1) % e == 0) q = (ulong)rand.Next(0x1000, 0x10000);
+            ulong n = p * q;
+            ulong n_ = (p - 1) * (q - 1);
+            ulong d = modInv(e, n_);
+
+
+
+
             EmbeddedResource res = new EmbeddedResource(Encoding.UTF8.GetString(Guid.NewGuid().ToByteArray()), ManifestResourceAttributes.Private, Encrypt(parameter.PEs[0], key0));
             mod.Resources.Add(res);
             for (int i = 1; i < parameter.Modules.Length; i++)
@@ -53,32 +155,39 @@ namespace Confuser.Core
             AssemblyDefinition ldrC = AssemblyDefinition.ReadAssembly(typeof(Iid).Assembly.Location);
             TypeDefinition t = CecilHelper.Inject(mod, ldrC.MainModule.GetType("CompressShell"));
             foreach (Instruction inst in t.GetStaticConstructor().Body.Instructions)
+            {
                 if (inst.Operand is string)
                     inst.Operand = res.Name;
+                else if (inst.Operand is long && (long)inst.Operand == 0x1234567812345678)
+                    inst.Operand = (long)modPow(entryPoint, d, n);
+            }
             foreach (Instruction inst in t.Methods.FirstOrDefault(mtd => mtd.Name == "Decrypt").Body.Instructions)
                 if (inst.Operand is int && (int)inst.Operand == 0x12345678)
                     inst.Operand = key0;
             foreach (Instruction inst in t.Methods.FirstOrDefault(mtd => mtd.Name == "DecryptAsm").Body.Instructions)
                 if (inst.Operand is int && (int)inst.Operand == 0x12345678)
                     inst.Operand = key1;
+            foreach (Instruction inst in t.Methods.FirstOrDefault(mtd => mtd.Name == "Main").Body.Instructions)
+                if (inst.Operand is long && (long)inst.Operand == 0x1234567812345678)
+                    inst.Operand = (long)n;
             t.Namespace = "";
             t.DeclaringType = null;
             t.IsNestedPrivate = false;
             t.IsNotPublic = true;
             mod.Types.Add(t);
 
-            MethodDefinition cctor = new MethodDefinition(".cctor", MethodAttributes.Private | MethodAttributes.HideBySig |
-                                                            MethodAttributes.SpecialName | MethodAttributes.RTSpecialName |
-                                                            MethodAttributes.Static, mod.TypeSystem.Void);
-            mod.GetType("<Module>").Methods.Add(cctor);
-            MethodBody bdy = cctor.Body = new MethodBody(cctor);
-            ILProcessor psr = bdy.GetILProcessor();
-            psr.Emit(OpCodes.Call, mod.Import(typeof(AppDomain).GetProperty("CurrentDomain").GetGetMethod()));
-            psr.Emit(OpCodes.Ldnull);
-            psr.Emit(OpCodes.Ldftn, t.Methods.FirstOrDefault(mtd => mtd.Name == "DecryptAsm"));
-            psr.Emit(OpCodes.Newobj, mod.Import(typeof(ResolveEventHandler).GetConstructor(new Type[] { typeof(object), typeof(IntPtr) })));
-            psr.Emit(OpCodes.Callvirt, mod.Import(typeof(AppDomain).GetEvent("AssemblyResolve").GetAddMethod()));
-            psr.Emit(OpCodes.Ret);
+            //MethodDefinition cctor = new MethodDefinition(".cctor", MethodAttributes.Private | MethodAttributes.HideBySig |
+            //                                                MethodAttributes.SpecialName | MethodAttributes.RTSpecialName |
+            //                                                MethodAttributes.Static, mod.TypeSystem.Void);
+            //mod.GetType("<Module>").Methods.Add(cctor);
+            //MethodBody bdy = cctor.Body = new MethodBody(cctor);
+            //ILProcessor psr = bdy.GetILProcessor();
+            //psr.Emit(OpCodes.Call, mod.Import(typeof(AppDomain).GetProperty("CurrentDomain").GetGetMethod()));
+            //psr.Emit(OpCodes.Ldnull);
+            //psr.Emit(OpCodes.Ldftn, t.Methods.FirstOrDefault(mtd => mtd.Name == "DecryptAsm"));
+            //psr.Emit(OpCodes.Newobj, mod.Import(typeof(ResolveEventHandler).GetConstructor(new Type[] { typeof(object), typeof(IntPtr) })));
+            //psr.Emit(OpCodes.Callvirt, mod.Import(typeof(AppDomain).GetEvent("AssemblyResolve").GetAddMethod()));
+            //psr.Emit(OpCodes.Ret);
 
             MethodDefinition main = t.Methods.FirstOrDefault(mtd => mtd.Name == "Main");
             mod.EntryPoint = main;

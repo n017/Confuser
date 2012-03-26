@@ -61,6 +61,15 @@ namespace Confuser.Core
         internal Confuser Confuser { get { return cr; } set { cr = value; } }
         protected void Log(string message) { cr.Log(message); }
 
+        internal protected virtual void ProcessModulePhase1(ModuleDefinition mod, bool isMain) { }
+        internal protected virtual void ProcessModulePhase3(ModuleDefinition mod, bool isMain) { }
+        internal protected virtual void ProcessMetadataPhase1(MetadataProcessor.MetadataAccessor accessor, bool isMain) { }
+        internal protected virtual void ProcessMetadataPhase2(MetadataProcessor.MetadataAccessor accessor, bool isMain) { }
+        internal protected virtual void ProcessImage(MetadataProcessor.ImageAccessor accessor, bool isMain) { }
+        internal protected virtual void PostProcessMetadata(MetadataProcessor.MetadataAccessor accessor) { }
+        internal protected virtual void PostProcessImage(MetadataProcessor.ImageAccessor accessor) { }
+
+
         public string[] Pack(ConfuserParameter crParam, PackerParameter param)
         {
             AssemblyDefinition asm;
@@ -104,17 +113,19 @@ namespace Confuser.Core
                     sect.Data = buff.GetBuffer();
                 };
             }
-            psr.Process(asm.MainModule, tmp + asm.MainModule.Name);
+            psr.Process(asm.MainModule, tmp + Path.GetFileName(param.Modules[0].FullyQualifiedName));
 
             Confuser cr = new Confuser();
             ConfuserParameter par = new ConfuserParameter();
-            par.SourceAssemblies = new string[] { tmp + asm.MainModule.Name };
+            par.SourceAssemblies = new string[] { tmp + Path.GetFileName(param.Modules[0].FullyQualifiedName) };
             tmp = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + "\\");
             par.DestinationPath = tmp;
             par.Confusions = crParam.Confusions;
             par.DefaultPreset = crParam.DefaultPreset;
             par.StrongNameKeyPath = crParam.StrongNameKeyPath;
             par.Marker = new PackerMarker(this.cr.settings[0]);
+            par.ProcessMetadata = PostProcessMetadata;
+            par.ProcessImage = PostProcessImage;
             cr.Confuse(par);
 
             return Directory.GetFiles(tmp);

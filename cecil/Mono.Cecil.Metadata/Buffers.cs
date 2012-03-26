@@ -298,6 +298,14 @@ namespace Mono.Cecil.Metadata {
 			return index;
 		}
 
+        public string GetString(uint idx)
+        {
+            foreach (var i in strings)
+                if (i.Value == idx)
+                    return i.Key;
+            return null;
+        }
+
 		protected virtual void WriteString (string @string)
 		{
 			WriteBytes (Encoding.UTF8.GetBytes (@string));
