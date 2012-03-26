@@ -56,18 +56,20 @@ namespace Confuser.Core
                 accessor.Module.Kind = ModuleKind.NetModule;
 
                 accessor.TableHeap.GetTable<AssemblyTable>(Table.Assembly).Clear();
-                foreach (Row<uint, ManifestResourceAttributes, uint, uint> i in
-                    accessor.TableHeap.GetTable<ManifestResourceTable>(Table.ManifestResource))
+                var resTbl = accessor.TableHeap.GetTable<ManifestResourceTable>(Table.ManifestResource);
+                for (int i = 0; i < resTbl.Length; i++)
                     res.Add(new Tuple<string, ManifestResourceAttributes, uint>(
-                        accessor.StringHeap.GetString(i.Col3), 
-                        i.Col2,
-                        i.Col1));
+                        accessor.StringHeap.GetString(resTbl[i].Col3),
+                        resTbl[i].Col2,
+                        resTbl[i].Col1));
             }
         }
 
         ByteBuffer hash;
         protected internal override void PostProcessMetadata(MetadataProcessor.MetadataAccessor accessor)
         {
+            accessor.StringHeap.Position = accessor.StringHeap.Length;
+            accessor.BlobHeap.Position = accessor.BlobHeap.Length;
             int rid = accessor.TableHeap.GetTable<FileTable>(Table.File).AddRow(
                         new Row<Mono.Cecil.FileAttributes, uint, uint>(
                             Mono.Cecil.FileAttributes.ContainsMetaData,

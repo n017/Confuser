@@ -75,9 +75,9 @@ namespace Confuser.Core.Confusions
                 txt.root = CecilHelper.Inject(mod, i.MainModule.GetType("AntiTamper"));
                 mod.Types.Add(txt.root);
                 MethodDefinition cctor = mod.GetType("<Module>").GetStaticConstructor();
-                cctor.Body.GetILProcessor().InsertBefore(0, Instruction.Create(OpCodes.Call, txt.root.Methods.FirstOrDefault(mtd => mtd.Name == "Initalize")));
+                cctor.Body.GetILProcessor().InsertBefore(0, Instruction.Create(OpCodes.Call, txt.root.Methods.FirstOrDefault(mtd => mtd.Name == "Initialize")));
 
-                MethodDefinition init = txt.root.Methods.FirstOrDefault(mtd => mtd.Name == "Initalize");
+                MethodDefinition init = txt.root.Methods.FirstOrDefault(mtd => mtd.Name == "Initialize");
                 foreach (Instruction inst in init.Body.Instructions)
                 {
                     if (inst.Operand is int)
@@ -102,18 +102,18 @@ namespace Confuser.Core.Confusions
                     if (inst.Operand is int && (int)inst.Operand == 0x11111111)
                         inst.Operand = (int)txt.key4;
 
-                //txt.root.Name = ObfuscationHelper.GetNewName("AntiTamperModule" + Guid.NewGuid().ToString());
+                txt.root.Name = ObfuscationHelper.GetNewName("AntiTamperModule" + Guid.NewGuid().ToString());
                 txt.root.Namespace = "";
                 AddHelper(txt.root, HelperAttribute.NoInjection);
                 foreach (MethodDefinition mtdDef in txt.root.Methods)
                 {
                     if (mtdDef.IsConstructor) continue;
-                    //mtdDef.Name = ObfuscationHelper.GetNewName(mtdDef.Name + Guid.NewGuid().ToString());
+                    mtdDef.Name = ObfuscationHelper.GetNewName(mtdDef.Name + Guid.NewGuid().ToString());
                     AddHelper(mtdDef, HelperAttribute.NoInjection);
                 }
                 foreach (FieldDefinition fldDef in txt.root.Fields)
                 {
-                    //fldDef.Name = ObfuscationHelper.GetNewName(fldDef.Name + Guid.NewGuid().ToString());
+                    fldDef.Name = ObfuscationHelper.GetNewName(fldDef.Name + Guid.NewGuid().ToString());
                     AddHelper(fldDef, HelperAttribute.NoInjection);
                 }
                 foreach (TypeDefinition nested in txt.root.NestedTypes)
@@ -131,7 +131,7 @@ namespace Confuser.Core.Confusions
                             nested.Fields.Add(f);
                     }
 
-                    //nested.Name = ObfuscationHelper.GetNewName(nested.Name + Guid.NewGuid().ToString());
+                    nested.Name = ObfuscationHelper.GetNewName(nested.Name + Guid.NewGuid().ToString());
                     AddHelper(nested, HelperAttribute.NoInjection);
                     foreach (MethodDefinition mtdDef in nested.Methods)
                     {
@@ -142,12 +142,12 @@ namespace Confuser.Core.Confusions
                             mtdDef.Body.Instructions.Add(Instruction.Create(OpCodes.Ldarg_0));
                             mtdDef.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
                         }
-                        //mtdDef.Name = ObfuscationHelper.GetNewName(mtdDef.Name + Guid.NewGuid().ToString());
+                        mtdDef.Name = ObfuscationHelper.GetNewName(mtdDef.Name + Guid.NewGuid().ToString());
                         AddHelper(mtdDef, HelperAttribute.NoInjection);
                     }
                     foreach (FieldDefinition fldDef in nested.Fields)
                     {
-                        //fldDef.Name = ObfuscationHelper.GetNewName(fldDef.Name + Guid.NewGuid().ToString());
+                        fldDef.Name = ObfuscationHelper.GetNewName(fldDef.Name + Guid.NewGuid().ToString());
                         AddHelper(fldDef, HelperAttribute.NoInjection);
                     }
                 }
@@ -253,9 +253,13 @@ namespace Confuser.Core.Confusions
 
             static void Crypt(byte[] buff, uint key)
             {
-                byte[] keyBuff = BitConverter.GetBytes(key);
+                uint k = key;
                 for (uint i = 0; i < buff.Length; i++)
-                    buff[i] ^= keyBuff[i % 4];
+                {
+                    byte o = buff[i];
+                    buff[i] ^= (byte)(k&0xff);
+                    k = (k * o + key) % 0xff;
+                }
             }
 
             class MethodData

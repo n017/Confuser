@@ -145,6 +145,7 @@ namespace Confuser.Core
             }
             foreach (FieldDefinition fld in type.Fields)
             {
+                if (fld.IsLiteral) continue;
                 FieldDefinition n = new FieldDefinition(fld.Name, fld.Attributes, mod.TypeSystem.Void);
                 mems.Add(fld.MetadataToken, n);
                 ret.Fields.Add(n);
@@ -171,6 +172,7 @@ namespace Confuser.Core
             }
             foreach (FieldDefinition fld in type.Fields)
             {
+                if (fld.IsLiteral) continue;
                 (mems[fld.MetadataToken] as FieldDefinition).FieldType = ImportType(fld.FieldType, mod, mems);
             }
             foreach (MethodDefinition mtd in type.Methods)

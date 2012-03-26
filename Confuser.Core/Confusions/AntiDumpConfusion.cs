@@ -81,7 +81,7 @@ namespace Confuser.Core.Confusions
             mod.Types.Add(type);
             TypeDefinition modType = mod.GetType("<Module>");
             ILProcessor psr = modType.GetStaticConstructor().Body.GetILProcessor();
-            psr.InsertBefore(psr.Body.Instructions.Count - 1, Instruction.Create(OpCodes.Call, type.Methods.FirstOrDefault(mtd => mtd.Name == "Initalize")));
+            psr.InsertBefore(psr.Body.Instructions.Count - 1, Instruction.Create(OpCodes.Call, type.Methods.FirstOrDefault(mtd => mtd.Name == "Initialize")));
 
             type.Name = ObfuscationHelper.GetNewName("AntiDumping" + Guid.NewGuid().ToString());
             type.Namespace = "";

@@ -14,7 +14,7 @@ static class AntiTamper
 {
     static ulong s;
     static ulong l;
-    public static unsafe void Initalize()
+    public static unsafe void Initialize()
     {
         Module mod = typeof(AntiTamper).Module;
         IntPtr modPtr = Marshal.GetHINSTANCE(mod);
@@ -660,7 +660,6 @@ static class AntiTamper
         {
             if ((metaTok & 0x00800000) != 0)
             {
-                Console.WriteLine(Convert.ToString((int)metaTok, 16));
                 uint offset = metaTok & 0x007FFFFF;
 
                 if (!gcHnds.ContainsKey(offset))
@@ -925,12 +924,13 @@ static class AntiTamper
             {
                 Marshal.Copy(data, (int)ptr, (IntPtr)arr, (int)len);
 
-                byte* kBuff = stackalloc byte[4];
-                *(uint*)kBuff = key;
-                for (uint i = 0; i < len; i++)
+                uint k = key;
+                for (uint i = 0; i < buff.Length; i++)
                 {
-                    arr[i] ^= kBuff[i % 4];
+                    arr[i] ^= (byte)(k & 0xff);
+                    k = (k * arr[i] + key) % 0xff;
                 }
+
                 MethodData* dat = (MethodData*)arr;
                 info->ILCodeSize = dat->ILCodeSize;
                 if (ver)

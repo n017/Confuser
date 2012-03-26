@@ -9,6 +9,7 @@ using System.Text;
 using System.Threading;
 using System.Security.Cryptography;
 using System.Runtime.CompilerServices;
+using System.Reflection.Emit;
 
 static class AntiDebugger
 {
@@ -134,11 +135,10 @@ static class Proxies
     private static void CtorProxy(RuntimeFieldHandle f)
     {
         var fld = FieldInfo.GetFieldFromHandle(f);
-        var asm = Assembly.GetExecutingAssembly();
         char[] ch = new char[fld.Name.Length];
         for (int i = 0; i < ch.Length; i++)
             ch[i] = (char)((byte)fld.Name[i] ^ i);
-        var mtd = asm.GetModules()[0].ResolveMethod(BitConverter.ToInt32(Convert.FromBase64String(new string(ch)), 0) ^ 0x12345678) as System.Reflection.ConstructorInfo;
+        var mtd = fld.Module.ResolveMethod(BitConverter.ToInt32(Convert.FromBase64String(new string(ch)), 0) ^ 0x12345678) as System.Reflection.ConstructorInfo;
 
         var args = mtd.GetParameters();
         Type[] arg = new Type[args.Length];
@@ -157,13 +157,12 @@ static class Proxies
 
     private static void MtdProxy(RuntimeFieldHandle f)
     {
-        var fld = System.Reflection.FieldInfo.GetFieldFromHandle(f);
-        var asm = System.Reflection.Assembly.GetExecutingAssembly();
+        var fld = FieldInfo.GetFieldFromHandle(f);
         char[] ch = new char[fld.Name.Length];
         for (int i = 0; i < ch.Length; i++)
             ch[i] = (char)((byte)fld.Name[i] ^ i);
         byte[] dat = Convert.FromBase64String(new string(ch));
-        var mtd = asm.GetModules()[0].ResolveMethod(BitConverter.ToInt32(dat, 1) ^ 0x12345678) as System.Reflection.MethodInfo;
+        var mtd = fld.Module.ResolveMethod(BitConverter.ToInt32(dat, 1) ^ 0x12345678) as MethodInfo;
 
         if (mtd.IsStatic)
             fld.SetValue(null, Delegate.CreateDelegate(fld.FieldType, mtd));
@@ -175,19 +174,19 @@ static class Proxies
             for (int i = 0; i < tmp.Length; i++)
                 arg[i + 1] = tmp[i].ParameterType;
 
-            System.Reflection.Emit.DynamicMethod dm;
+            DynamicMethod dm;
             if (mtd.DeclaringType.IsInterface)
-                dm = new System.Reflection.Emit.DynamicMethod("", mtd.ReturnType, arg, (Type)null, true);
+                dm = new DynamicMethod("", mtd.ReturnType, arg, (Type)null, true);
             else
-                dm = new System.Reflection.Emit.DynamicMethod("", mtd.ReturnType, arg, mtd.DeclaringType, true);
+                dm = new DynamicMethod("", mtd.ReturnType, arg, mtd.DeclaringType, true);
             var gen = dm.GetILGenerator();
             for (int i = 0; i < arg.Length; i++)
             {
-                gen.Emit(System.Reflection.Emit.OpCodes.Ldarg, i);
-                if (i == 0) gen.Emit(System.Reflection.Emit.OpCodes.Castclass, mtd.DeclaringType);
+                gen.Emit(OpCodes.Ldarg, i);
+                if (i == 0) gen.Emit(OpCodes.Castclass, mtd.DeclaringType);
             }
-            gen.Emit((dat[0] == '\r') ? System.Reflection.Emit.OpCodes.Callvirt : System.Reflection.Emit.OpCodes.Call, mtd);
-            gen.Emit(System.Reflection.Emit.OpCodes.Ret);
+            gen.Emit((dat[0] == '\r') ? OpCodes.Callvirt : OpCodes.Call, mtd);
+            gen.Emit(OpCodes.Ret);
 
             fld.SetValue(null, dm.CreateDelegate(fld.FieldType));
         }
@@ -543,7 +542,7 @@ static class AntiDumping
     [DllImportAttribute("kernel32.dll")]
     static unsafe extern bool VirtualProtect(byte* lpAddress, int dwSize, uint flNewProtect, out uint lpflOldProtect);
 
-    public static unsafe void Initalize()
+    public static unsafe void Initialize()
     {
         uint old;
         byte* bas = (byte*)Marshal.GetHINSTANCE(typeof(AntiDumping).Module);
