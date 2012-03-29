@@ -79,5 +79,12 @@ namespace Mono.Cecil {
 			base.IsValueType = type.IsValueType;
 			this.etype = MD.ElementType.GenericInst;
 		}
+
+        public override TypeReference Clone()
+        {
+            TypeReference ret = base.Clone();
+            (ret as GenericInstanceType).arguments = new Collection<TypeReference>(this.arguments);
+            return ret;
+        }
 	}
 }

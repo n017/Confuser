@@ -17,6 +17,7 @@ using Confuser.Core;
 using Confuser.AsmSelector;
 using System.Collections.Specialized;
 using System.Windows.Media.Animation;
+using System.ComponentModel;
 
 namespace Confuser
 {
@@ -64,7 +65,9 @@ namespace Confuser
                 if (!obj.Annotations.Contains(ADVSEL))
                     obj.Annotations[ADVSEL] = new ObservableCollection<IConfusion>();
                 cions = obj.Annotations[ADVSEL] as ObservableCollection<IConfusion>;
-                cnList.ItemsSource = cions;
+                var src = new CollectionViewSource() { Source = cions };
+                src.SortDescriptions.Add(new SortDescription("Name", ListSortDirection.Ascending));
+                cnList.ItemsSource = src.View;
                 panel.IsEnabled = true;
             }
         }

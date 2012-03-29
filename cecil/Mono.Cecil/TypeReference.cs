@@ -285,6 +285,11 @@ namespace Mono.Cecil {
 
 			return module.Resolve (this);
 		}
+
+        public virtual TypeReference Clone()
+        {
+            return base.MemberwiseClone() as TypeReference;
+        }
 	}
 
 	static partial class Mixin {

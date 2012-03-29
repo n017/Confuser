@@ -40,6 +40,12 @@ using RVA = System.UInt32;
 
 namespace Mono.Cecil {
 
+    public class UserString : IMetadataTokenProvider
+    {
+        public MetadataToken MetadataToken { get; set; }
+        public string String { get; internal set; }
+    }
+
 	abstract class ModuleReader {
 
 		readonly protected Image image;
@@ -2052,6 +2058,9 @@ namespace Mono.Cecil {
 				break;
 			case TokenType.MethodSpec:
 				element = GetMethodSpecification (rid);
+				break;
+			case TokenType.String:
+                element = new UserString() { MetadataToken = token, String = image.UserStringHeap.Read(rid) };
 				break;
 			default:
 				return null;

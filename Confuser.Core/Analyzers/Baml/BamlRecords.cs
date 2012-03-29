@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.IO;
 
-namespace Confuser.Core.Engines.Baml
+namespace Confuser.Core.Analyzers.Baml
 {
     enum BamlRecordType : byte
     {

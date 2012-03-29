@@ -167,7 +167,7 @@ namespace Confuser.Core
         internal ConfuserParameter param;
         internal List<AssemblySetting> settings;
         internal MarkerSetting mkrSettings;
-        internal List<IEngine> engines;
+        internal List<Analyzer> analyzers;
         internal void Log(string message) { param.Logger._Log(message); }
 
         public Thread ConfuseAsync(ConfuserParameter param)
@@ -426,15 +426,23 @@ namespace Confuser.Core
             helpers = new Dictionary<IMemberDefinition, HelperAttribute>();
 
             Log(string.Format("Analysing assemblies..."));
-            engines = new List<IEngine>();
+            Dictionary<Analyzer,string> aPhases=new Dictionary<Analyzer,string>();
             foreach (IConfusion cion in param.Confusions)
                 foreach (Phase phase in cion.Phases)
-                    if (phase.GetEngine() != null)
-                        engines.Add(phase.GetEngine());
-            for (int i = 0; i < engines.Count; i++)
+                {
+                    Analyzer analyzer = phase.GetAnalyzer();
+                    if (analyzer != null)
+                    {
+                        analyzers.Add(analyzer);
+                        aPhases.Add(analyzer,cion.Name);
+                        analyzer.SetLogger(param.Logger);
+                        analyzer.SetProgresser(param.Logger);
+                    }
+                }
+            foreach (var i in analyzers)
             {
-                engines[i].Analysis(param.Logger, assemblies);
-                param.Logger._Progress(i + 1, engines.Count);
+                Log(string.Format("Analysing {0}...", aPhases[i]));
+                i.Analyze(assemblies);
             }
         }
         void ProcessStructuralPhases(ModuleSetting mod, ObfuscationSettings globalParams, IEnumerable<Phase> phases)

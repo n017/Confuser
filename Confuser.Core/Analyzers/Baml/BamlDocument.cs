@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Collections.ObjectModel;
 
-namespace Confuser.Core.Engines.Baml
+namespace Confuser.Core.Analyzers.Baml
 {
     class BamlDocument : Collection<BamlRecord>
     {

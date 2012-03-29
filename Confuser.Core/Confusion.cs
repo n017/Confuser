@@ -95,8 +95,8 @@ namespace Confuser.Core
             CopyMarker mkr = new CopyMarker(cr.settings[0], Confusion);
             mkr.Initalize(cr.param.Confusions, cr.param.Packers);
             mkr.MarkHelperAssembly(asm, cr);
-            foreach (IEngine eng in cr.engines)
-                eng.Analysis(cr.param.Logger, new AssemblyDefinition[] { asm });
+            foreach (Analyzer analyzer in cr.analyzers)
+                analyzer.Analyze(new AssemblyDefinition[] { asm });
         }
 
         protected ConfuserParameter Parameter { get { return cr.param; } }
@@ -109,7 +109,7 @@ namespace Confuser.Core
         public abstract bool WholeRun { get; }
         public abstract void Initialize(ModuleDefinition mod);
         public abstract void DeInitialize();
-        public virtual IEngine GetEngine() { return null; }
+        public virtual Analyzer GetAnalyzer() { return null; }
     }
     public abstract class StructurePhase : Phase
     {

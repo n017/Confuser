@@ -9,372 +9,12 @@ using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
 using Mono.Collections.Generic;
-using Confuser.Core.Engines.Baml;
+using Confuser.Core.Analyzers.Baml;
 
-namespace Confuser.Core.Engines
+namespace Confuser.Core.Analyzers
 {
-    struct ReflectionMethod
+    partial class NameAnalyzer : Analyzer
     {
-        public string typeName;
-        public string mtdName;
-        public int[] paramLoc;
-        public string[] paramType;
-    }
-
-    static class Database
-    {
-        static Database()
-        {
-            Reflections = new Dictionary<string, ReflectionMethod>();
-            string type = null;
-            using (StringReader rdr = new StringReader(db))
-            {
-                while (true)
-                {
-                    string line = rdr.ReadLine();
-                    if (line == "=") break;
-                    if (type != null)
-                    {
-                        if (line == "")
-                        {
-                            type = null; continue;
-                        }
-                        ReflectionMethod mtd = new ReflectionMethod();
-                        mtd.typeName = type;
-                        mtd.mtdName = line.Substring(0, line.IndexOf('['));
-                        string param = line.Substring(line.IndexOf('[') + 1, line.IndexOf(']') - line.IndexOf('[') - 1);
-                        string[] pars = param.Split(',');
-                        mtd.paramLoc = new int[pars.Length];
-                        mtd.paramType = new string[pars.Length];
-                        for (int i = 0; i < pars.Length; i++)
-                        {
-                            mtd.paramLoc[i] = int.Parse(pars[i].Split(':')[0]);
-                            mtd.paramType[i] = pars[i].Split(':')[1];
-                        }
-                        Reflections.Add(mtd.typeName + "::" + mtd.mtdName, mtd);
-                    }
-                    else
-                    {
-                        type = line;
-                    }
-                }
-            }
-
-            ExcludeAttributes = new List<string>();
-            using (StringReader rdr = new StringReader(exclude))
-            {
-                while (true)
-                {
-                    string line = rdr.ReadLine();
-                    if (line == "=") break;
-                    ExcludeAttributes.Add(line);
-                }
-            }
-        }
-
-        public static readonly Dictionary<string, ReflectionMethod> Reflections;
-        public static readonly List<string> ExcludeAttributes;
-        const string db =
-@"Microsoft.VisualBasic.CompilerServices.LateBinding
-LateCall[0:This,1:Type,2:Target]
-LateGet[0:This,1:Type,2:Target]
-LateSet[0:This,1:Type,2:Target]
-LateSetComplex[0:This,1:Type,2:Target]
-
-Microsoft.VisualBasic.CompilerServices.NewLateBinding
-LateCall[0:This,1:Type,2:Target]
-LateCanEvaluate[0:This,1:Type,2:Target]
-LateGet[0:This,1:Type,2:Target]
-LateSet[0:This,1:Type,2:Target]
-LateSetComplex[0:This,1:Type,2:Target]
-
-System.Type
-GetEvent[0:Type,1:Target]
-GetField[0:Type,1:Target]
-GetMember[0:Type,1:Target]
-GetMethod[0:Type,1:Target]
-GetNestedType[0:Type,1:Target]
-GetProperty[0:Type,1:Target]
-GetType[0:TargetType]
-InvokeMember[0:Type,1:Target]
-ReflectionOnlyGetType[0:TargetType]
-
-System.Reflection.Assembly
-GetType[1:TargetType]
-
-System.Reflection.Module
-GetType[1:TargetType]
-
-System.Activator
-CreateInstance[1:TargetType]
-CreateInstanceFrom[1:TargetType]
-
-System.AppDomain
-CreateInstance[2:TargetType]
-CreateInstanceFrom[2:TargetType]
-
-System.Resources.ResourceManager
-.ctor[0:TargetResource]
-
-System.Configuration.SettingsBase
-get_Item[0:Type,1:Target]
-set_Item[0:Type,1:Target]
-
-System.Windows.DependencyProperty
-Register[0:Target,2:Type]
-RegisterAttached[0:Target,2:Type]
-RegisterAttachedReadOnly[0:Target,2:Type]
-RegisterReadOnly[0:Target,2:Type]
-=";
-
-        const string exclude =
-@"System.ServiceModel.ServiceContractAttribute
-System.ServiceModel.OperationContractAttribute
-=";
-    }
-
-    struct Identifier
-    {
-        public string scope;
-        public string name;
-        public int hash;
-    }
-    interface IReference
-    {
-        void UpdateReference(Identifier old, Identifier @new);
-    }
-    class RenameEngine : IEngine
-    {
-        class ResourceReference : IReference
-        {
-            public ResourceReference(Resource res) { this.res = res; }
-            Resource res;
-            public void UpdateReference(Identifier old, Identifier @new)
-            {
-                string oldN = string.IsNullOrEmpty(old.scope) ? old.name : old.scope + "." + old.name;
-                string newN = string.IsNullOrEmpty(@new.scope) ? @new.name : @new.scope + "." + @new.name;
-                res.Name = res.Name.Replace(oldN, newN);
-            }
-        }
-        class ResourceNameReference : IReference
-        {
-            public ResourceNameReference(Instruction inst) { this.inst = inst; }
-            Instruction inst;
-            public void UpdateReference(Identifier old, Identifier @new)
-            {
-                inst.Operand = @new.scope;
-            }
-        }
-        class SpecificationReference : IReference
-        {
-            public SpecificationReference(MemberReference refer) { this.refer = refer; }
-            MemberReference refer;
-            public void UpdateReference(Identifier old, Identifier @new)
-            {
-                MethodSpecification mSpec = refer as MethodSpecification;
-                if (mSpec == null || !(mSpec.DeclaringType.GetElementType() is TypeDefinition))
-                {
-                    TypeSpecification tSpec = refer.DeclaringType as TypeSpecification;
-                    TypeDefinition par = tSpec.GetElementType() as TypeDefinition;
-                    if (tSpec != null && par != null)
-                    {
-                        refer.Name = @new.name;
-                    }
-                }
-            }
-        }
-        class CustomAttributeReference : IReference
-        {
-            public CustomAttributeReference(TypeReference refer) { this.refer = refer; }
-            TypeReference refer;
-            public void UpdateReference(Identifier old, Identifier @new)
-            {
-                refer.Namespace = @new.scope;
-                refer.Name = @new.name;
-            }
-        }
-        class ReflectionReference : IReference
-        {
-            public ReflectionReference(Instruction ldstr) { this.ldstr = ldstr; }
-            Instruction ldstr;
-            public void UpdateReference(Identifier old, Identifier @new)
-            {
-                string op = (string)ldstr.Operand;
-                if (op == old.name)
-                    ldstr.Operand = @new.name;
-                else if (op == old.scope)
-                    ldstr.Operand = @new.scope;
-                else if (op == old.scope + "." + old.name)
-                    ldstr.Operand = string.IsNullOrEmpty(@new.scope) ? @new.name : @new.scope + "." + @new.name;
-            }
-        }
-        class BamlTypeReference : IReference
-        {
-            public BamlTypeReference(TypeInfoRecord typeRec) { this.typeRec = typeRec; }
-
-            TypeInfoRecord typeRec;
-
-            public void UpdateReference(Identifier old, Identifier @new)
-            {
-                typeRec.TypeFullName = string.IsNullOrEmpty(@new.scope) ? @new.name : @new.scope + "." + @new.name;
-            }
-        }
-        class BamlTypeExtReference : IReference
-        {
-            public BamlTypeExtReference(PropertyWithConverterRecord rec, BamlDocument doc, string assembly)
-            {
-                this.rec = rec;
-                this.doc = doc;
-                this.assembly = assembly;
-            }
-
-            PropertyWithConverterRecord rec;
-            string assembly;
-            BamlDocument doc;
-
-            public void UpdateReference(Identifier old, Identifier @new)
-            {
-                string prefix = rec.Value.Substring(0, rec.Value.IndexOf(':'));
-                if (old.scope != @new.scope)
-                {
-                    string xmlNamespace = "clr-namespace:" + @new.scope;
-                    if (@new.scope == null || !string.IsNullOrEmpty(assembly))
-                        xmlNamespace += ";assembly=" + assembly;
-
-                    for (int i = 0; i < doc.Count; i++)
-                    {
-                        XmlnsPropertyRecord xmlns = doc[i] as XmlnsPropertyRecord;
-                        if (xmlns != null)
-                        {
-                            if (xmlns.XmlNamespace == xmlNamespace)
-                            {
-                                prefix = xmlns.Prefix;
-                                break;
-                            }
-                            else if (xmlns.Prefix == prefix)
-                            {
-                                XmlnsPropertyRecord r = new XmlnsPropertyRecord();
-                                r.AssemblyIds = xmlns.AssemblyIds;
-                                r.Prefix = prefix = ObfuscationHelper.GetNewName(xmlns.Prefix, NameMode.Letters);
-                                r.XmlNamespace = xmlNamespace;
-                                doc.Insert(i, r);
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                if (!string.IsNullOrEmpty(prefix))
-                    rec.Value = prefix + ":" + @new.name;
-                else
-                    rec.Value = @new.name;
-            }
-        }
-        class BamlAttributeReference : IReference
-        {
-            public BamlAttributeReference(AttributeInfoRecord attrRec) { this.attrRec = attrRec; }
-
-            AttributeInfoRecord attrRec;
-
-            public void UpdateReference(Identifier old, Identifier @new)
-            {
-                attrRec.Name = @new.name;
-            }
-        }
-        class BamlPropertyReference : IReference
-        {
-            public BamlPropertyReference(PropertyRecord propRec) { this.propRec = propRec; }
-
-            PropertyRecord propRec;
-
-            public void UpdateReference(Identifier old, Identifier @new)
-            {
-                propRec.Value = @new.name;
-            }
-        }
-        class BamlPathReference : IReference
-        {
-            public BamlPathReference(BamlRecord rec, int startIdx, int endIdx)
-            {
-                this.rec = rec;
-                this.startIdx = startIdx;
-                this.endIdx = endIdx;
-            }
-
-            BamlRecord rec;
-            int startIdx;
-            int endIdx;
-            internal List<BamlPathReference> refers;
-
-            public void UpdateReference(Identifier old, Identifier @new)
-            {
-                StringBuilder sb;
-                if (rec is TextRecord)
-                    sb = new StringBuilder((rec as TextRecord).Value);
-                else
-                    sb = new StringBuilder((rec as PropertyWithConverterRecord).Value);
-                sb.Remove(startIdx, endIdx - startIdx + 1);
-                sb.Insert(startIdx, @new.name);
-                if (rec is TextRecord)
-                    (rec as TextRecord).Value = sb.ToString();
-                else
-                    (rec as PropertyWithConverterRecord).Value = sb.ToString();
-                int oEndIdx = endIdx;
-                endIdx = startIdx + @new.name.Length - 1;
-                foreach (var i in refers)
-                    if (this != i)
-                    {
-                        if (i.startIdx > this.startIdx)
-                            i.startIdx = i.startIdx + (endIdx - oEndIdx);
-                        if (i.endIdx > this.startIdx)
-                            i.endIdx = i.endIdx + (endIdx - oEndIdx);
-                    }
-            }
-        }
-        class SaveBamlsReference : IReference
-        {
-            public SaveBamlsReference(ModuleDefinition mod, int resId) { this.mod = mod; this.resId = resId; }
-
-            ModuleDefinition mod;
-            int resId;
-
-            public void UpdateReference(Identifier old, Identifier @new)
-            {
-                EmbeddedResource res = mod.Resources[resId] as EmbeddedResource;
-                foreach (KeyValuePair<string, BamlDocument> pair in (res as IAnnotationProvider).Annotations["Gbamls"] as Dictionary<string, BamlDocument>)
-                {
-                    Stream dst = new MemoryStream();
-                    BamlWriter.WriteDocument(pair.Value, dst);
-                    ((res as IAnnotationProvider).Annotations["Gresources"] as Dictionary<string, object>)[pair.Key] = dst;
-                }
-                MemoryStream newRes = new MemoryStream();
-                ResourceWriter wtr = new ResourceWriter(newRes);
-                foreach (KeyValuePair<string, object> pair in (res as IAnnotationProvider).Annotations["Gresources"] as Dictionary<string, object>)
-                    wtr.AddResource(pair.Key, pair.Value);
-                wtr.Generate();
-                mod.Resources[resId] = new EmbeddedResource(res.Name, res.Attributes, newRes.ToArray());
-            }
-        }
-        class IvtMemberReference : IReference
-        {
-            public IvtMemberReference(MemberReference memRef) { this.memRef = memRef; }
-
-            MemberReference memRef;
-
-            public void UpdateReference(Identifier old, Identifier @new)
-            {
-                if (memRef is MethodReference || memRef is FieldReference)
-                {
-                    memRef.Name = @new.name;
-                }
-                else if (memRef is TypeReference)
-                {
-                    memRef.Name = @new.name;
-                    ((TypeReference)memRef).Namespace = @new.scope;
-                }
-            }
-        }
-
         string NormalizeIva(string asmname)
         {
             string[] names = asmname.Split(',');
@@ -386,29 +26,36 @@ System.ServiceModel.OperationContractAttribute
             if (name.PublicKey != null) return name.Name + "," + BitConverter.ToString(name.PublicKey).Replace("-", "").ToLower();
             else return name.Name;
         }
-        Dictionary<AssemblyDefinition, List<string>> ivtMap;
+
+        Dictionary<AssemblyDefinition, List<string>> ivtMap;    //also act as assembly list
         Dictionary<MetadataToken, MemberReference> ivtRefs = new Dictionary<MetadataToken, MemberReference>();
-        public void Analysis(Logger logger, IEnumerable<AssemblyDefinition> asms)
+        Dictionary<TypeDefinition, VTable> vTbls = new Dictionary<TypeDefinition, VTable>();
+
+        public override void Analyze(IEnumerable<AssemblyDefinition> asms)
         {
             foreach (AssemblyDefinition asm in asms)
                 foreach (ModuleDefinition mod in asm.Modules)
                     Init(mod);
 
-            AnalysisIvtMap(logger, asms);
+            AnalyzeIvtMap(asms);
             foreach (AssemblyDefinition asm in asms)
             {
                 try
                 {
-                    AnalysisIvt(asm);
+                    AnalyzeIvt(asm);
                 }
                 catch { }
                 foreach (ModuleDefinition mod in asm.Modules)
-                    Analysis(mod);
+                    Analyze(mod);
             }
+            foreach (AssemblyDefinition asm in asms)
+                foreach (ModuleDefinition mod in asm.Modules)
+                    foreach (TypeDefinition type in mod.Types)
+                        ConstructVTable(type);
         }
         void Init(ModuleDefinition mod)
         {
-            (mod as IAnnotationProvider).Annotations["RenMode"] = NameMode.Unreadable;
+            (mod as IAnnotationProvider).Annotations["RenMode"] = NameMode.ASCII;
             foreach (TypeDefinition type in mod.Types)
                 Init(type);
             foreach (Resource res in mod.Resources)
@@ -450,7 +97,14 @@ System.ServiceModel.OperationContractAttribute
             }
         }
 
-        void AnalysisIvtMap(Logger logger, IEnumerable<AssemblyDefinition> asms)
+        void ConstructVTable(TypeDefinition typeDef)
+        {
+            foreach (var i in typeDef.NestedTypes)
+                ConstructVTable(i);
+            VTable.GetVTable(typeDef, vTbls);
+        }
+
+        void AnalyzeIvtMap(IEnumerable<AssemblyDefinition> asms)
         {
             ivtMap = new Dictionary<AssemblyDefinition, List<string>>();
             foreach (AssemblyDefinition asm in asms)
@@ -462,7 +116,7 @@ System.ServiceModel.OperationContractAttribute
                         internalVis.Add(NormalizeIva((string)attr.ConstructorArguments[0].Value));
                 if (internalVis.Count != 0)
                 {
-                    logger._Log("InternalsVisibleToAttribute found in " + asm.FullName + "!");
+                    Logger._Log("InternalsVisibleToAttribute found in " + asm.FullName + "!");
 
                     List<AssemblyDefinition> refAsms = new List<AssemblyDefinition>();
                     foreach (AssemblyDefinition asmm in asms)
@@ -470,9 +124,9 @@ System.ServiceModel.OperationContractAttribute
                             refAsms.Add(asmm);
 
                     if (refAsms.Count == 0)
-                        logger._Log("Internal assemblies NOT found!");
+                        Logger._Log("Internal assemblies NOT found!");
                     else
-                        logger._Log("Internal assemblies found!");
+                        Logger._Log("Internal assemblies found!");
                     foreach (AssemblyDefinition i in refAsms)
                     {
                         if (!ivtMap.ContainsKey(i)) ivtMap.Add(i, new List<string>());
@@ -481,11 +135,11 @@ System.ServiceModel.OperationContractAttribute
                 }
             }
         }
-        void AnalysisIvt(AssemblyDefinition asm)
+        void AnalyzeIvt(AssemblyDefinition asm)
         {
             List<string> ivts = ivtMap[asm];
             ivtRefs.Clear();
-            AnalysisCustomAttributes(asm);
+            AnalyzeCustomAttributes(asm);
             foreach (ModuleDefinition mod in asm.Modules)
             {
                 foreach (TypeReference typeRef in mod.GetTypeReferences())
@@ -515,16 +169,16 @@ System.ServiceModel.OperationContractAttribute
                 }
             }
         }
-        void Analysis(ModuleDefinition mod)
+        void Analyze(ModuleDefinition mod)
         {
-            AnalysisCustomAttributes(mod);
+            AnalyzeCustomAttributes(mod);
             for (int i = 0; i < mod.Resources.Count; i++)
                 if (mod.Resources[i].Name.EndsWith(".g.resources") && mod.Resources[i] is EmbeddedResource)
-                    AnalysisResource(mod, i);
+                    AnalyzeResource(mod, i);
             foreach (TypeDefinition type in mod.Types)
-                Analysis(type);
+                Analyze(type);
         }
-        void Analysis(TypeDefinition type)
+        void Analyze(TypeDefinition type)
         {
             if (type.Name == "<Module>" || IsTypePublic(type))
                 (type as IAnnotationProvider).Annotations["RenOk"] = false;
@@ -532,240 +186,88 @@ System.ServiceModel.OperationContractAttribute
                 if (res.Name == type.FullName + ".resources")
                     ((type as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new ResourceReference(res));
 
-            AnalysisCustomAttributes(type);
+            AnalyzeCustomAttributes(type);
             if (type.HasGenericParameters)
                 foreach (var i in type.GenericParameters)
-                    AnalysisCustomAttributes(i);
+                    AnalyzeCustomAttributes(i);
             foreach (TypeDefinition nType in type.NestedTypes)
-                Analysis(nType);
+                Analyze(nType);
             foreach (MethodDefinition mtd in type.Methods)
-                Analysis(mtd);
+                Analyze(mtd);
             foreach (FieldDefinition fld in type.Fields)
-                Analysis(fld);
+                Analyze(fld);
             foreach (PropertyDefinition prop in type.Properties)
-                Analysis(prop);
+                Analyze(prop);
             foreach (EventDefinition evt in type.Events)
-                Analysis(evt);
+                Analyze(evt);
+        }
 
-        }
-        string GetTrueName(MemberReference mem)
+        void Analyze(MethodDefinition mtd)
         {
-            if (mem is GenericInstanceType)
-            {
-                GenericInstanceType type = mem as GenericInstanceType;
-                StringBuilder sb = new StringBuilder();
-                sb.Append(GetTrueName(type.ElementType));
-                sb.Append("<");
-                for (int i = 0; i < type.GenericArguments.Count; i++)
-                {
-                    if (i != 0) sb.Append(", ");
-                    sb.Append(GetTrueName(type.GenericArguments[i]));
-                }
-                sb.Append(">");
-                return sb.ToString();
-            }
-            else if (mem is TypeReference)
-            {
-                TypeReference type = mem as TypeReference;
-                string ret = mem.FullName;
-                if (type.HasGenericParameters && ret.EndsWith("`" + type.GenericParameters.Count))
-                    ret = ret.Substring(0, ret.Length - ("`" + type.GenericParameters.Count).Length);
-                return ret;
-            }
-            else
-                return null;
-        }
-        void Analysis(MethodDefinition mtd)
-        {
-            if (mtd.DeclaringType.IsInterface || mtd.IsConstructor || (IsTypePublic(mtd.DeclaringType) &&
+            if (mtd.IsConstructor || (IsTypePublic(mtd.DeclaringType) &&
                 (mtd.IsFamily || mtd.IsAssembly || mtd.IsFamilyAndAssembly || mtd.IsFamilyOrAssembly || mtd.IsPublic)))
                 (mtd as IAnnotationProvider).Annotations["RenOk"] = false;
             else if (mtd.DeclaringType.BaseType != null && mtd.DeclaringType.BaseType.Resolve() != null)
             {
-                TypeDefinition bType = mtd.DeclaringType.BaseType.Resolve();
+                TypeReference bType = mtd.DeclaringType.BaseType;
                 if (bType.FullName == "System.Delegate" ||
                     bType.FullName == "System.MulticastDelegate")
                 {
                     (mtd as IAnnotationProvider).Annotations["RenOk"] = false;
                 }
-                else
-                {
-                    TypeDefinition now = bType;
-                    MethodDefinition ovr = null;
-                    do
-                    {
-                        foreach (MethodDefinition bMtd in now.Methods)
-                        {
-                            if (bMtd.Name == mtd.Name &&
-                                bMtd.ReturnType.FullName == mtd.ReturnType.FullName &&
-                                bMtd.Parameters.Count == mtd.Parameters.Count)
-                            {
-                                bool f = true;
-                                for (int i = 0; i < bMtd.Parameters.Count; i++)
-                                    if (bMtd.Parameters[i].ParameterType.FullName != mtd.Parameters[i].ParameterType.FullName)
-                                    {
-                                        f = false;
-                                        break;
-                                    }
-                                if (f)
-                                {
-                                    ovr = bMtd;
-                                    break;
-                                }
-                            }
-                        }
-                        if (now.BaseType != null)
-                            now = now.BaseType.Resolve();
-                        else
-                            now = null;
-                    } while (now != null);
-                    if (ovr != null && (ovr.Module != mtd.Module || IsTypePublic(ovr.DeclaringType)))
-                    {
-                        (mtd as IAnnotationProvider).Annotations["RenOk"] = false;
-                    }
-                }
-
-
-                Queue<TypeReference> q = new Queue<TypeReference>();
-                q.Enqueue(bType);
-                if (mtd.DeclaringType.HasInterfaces)
-                    foreach (TypeReference i in mtd.DeclaringType.Interfaces)
-                        q.Enqueue(i);
-                do
-                {
-                    TypeReference nowRefer = q.Dequeue();
-                    TypeDefinition now = nowRefer.Resolve();
-                    if (now == null) continue;
-                    if (now.HasGenericParameters && now.IsInterface)
-                    {
-                        bool contain = false;
-                        string n = mtd.Name;
-                        string t = GetTrueName(nowRefer);
-                        if (n.StartsWith(t))
-                            n = n.Substring(t.Length + 1);
-                        foreach (MethodDefinition bMtd in now.Methods)
-                        {
-                            if (bMtd.Name == n)  //Loose compare
-                            {
-                                contain = true;
-                                break;
-                            }
-                        }
-                        if (contain)
-                        {
-                            (mtd as IAnnotationProvider).Annotations["RenOk"] = false;
-                            break;
-                        }
-                    }
-                    else if (now.IsInterface)
-                    {
-                        MethodDefinition imple = null;
-                        foreach (MethodDefinition bMtd in now.Methods)
-                        {
-                            if (bMtd.Name == mtd.Name &&
-                                bMtd.ReturnType.FullName == mtd.ReturnType.FullName &&
-                                bMtd.Parameters.Count == mtd.Parameters.Count)
-                            {
-                                bool f = true;
-                                for (int i = 0; i < bMtd.Parameters.Count; i++)
-                                    if (bMtd.Parameters[i].ParameterType.FullName != mtd.Parameters[i].ParameterType.FullName)
-                                    {
-                                        f = false;
-                                        break;
-                                    }
-                                if (f)
-                                {
-                                    imple = bMtd;
-                                    break;
-                                }
-                            }
-                        }
-                        if (imple != null)
-                        {
-                            MethodReference refer = mtd.Module.Import(imple);
-                            bool ok = true;
-                            foreach (MethodDefinition m in mtd.DeclaringType.Methods)
-                            {
-                                foreach (MethodReference over in m.Overrides)
-                                    if (over.FullName == refer.FullName)
-                                    {
-                                        ok = false;
-                                        break;
-                                    }
-                                if (!ok) break;
-                            }
-                            if (ok)
-                            {
-                                mtd.Overrides.Add(refer);
-                                mtd.IsVirtual = true;
-                            }
-                        }
-                        if (now.HasInterfaces)
-                            foreach (TypeReference i in now.Interfaces)
-                                q.Enqueue(i.Resolve());
-                    }
-                    else
-                    {
-                        if (now.BaseType != null)
-                            q.Enqueue(now.BaseType);
-                        if (now.HasInterfaces)
-                            foreach (TypeReference i in now.Interfaces)
-                                q.Enqueue(i);
-                    }
-                } while (q.Count != 0);
             }
 
-            AnalysisCustomAttributes(mtd);
+            AnalyzeCustomAttributes(mtd);
             if (mtd.HasParameters)
                 foreach (var i in mtd.Parameters)
-                    AnalysisCustomAttributes(i);
-            AnalysisCustomAttributes(mtd.MethodReturnType);
+                    AnalyzeCustomAttributes(i);
+            AnalyzeCustomAttributes(mtd.MethodReturnType);
             if (mtd.HasGenericParameters)
                 foreach (var i in mtd.GenericParameters)
-                    AnalysisCustomAttributes(i);
+                    AnalyzeCustomAttributes(i);
             if (mtd.HasBody)
             {
                 mtd.Body.SimplifyMacros();
-                AnalysisCodes(mtd);
+                AnalyzeCodes(mtd);
                 mtd.Body.OptimizeMacros();
             }
         }
-        void Analysis(FieldDefinition fld)
+        void Analyze(FieldDefinition fld)
         {
-            AnalysisCustomAttributes(fld);
+            AnalyzeCustomAttributes(fld);
             if (fld.IsRuntimeSpecialName || fld.DeclaringType.IsEnum || (IsTypePublic(fld.DeclaringType) &&
                 (fld.IsFamily || fld.IsFamilyAndAssembly || fld.IsFamilyOrAssembly || fld.IsPublic)))
                 (fld as IAnnotationProvider).Annotations["RenOk"] = false;
         }
-        void Analysis(PropertyDefinition prop)
+        void Analyze(PropertyDefinition prop)
         {
-            AnalysisCustomAttributes(prop);
+            AnalyzeCustomAttributes(prop);
             if (prop.IsRuntimeSpecialName || IsTypePublic(prop.DeclaringType))
                 (prop as IAnnotationProvider).Annotations["RenOk"] = false;
         }
-        void Analysis(EventDefinition evt)
+        void Analyze(EventDefinition evt)
         {
-            AnalysisCustomAttributes(evt);
+            AnalyzeCustomAttributes(evt);
             if (evt.IsRuntimeSpecialName || IsTypePublic(evt.DeclaringType))
                 (evt as IAnnotationProvider).Annotations["RenOk"] = false;
         }
-        void AnalysisCustomAttributes(ICustomAttributeProvider ca)
+        void AnalyzeCustomAttributes(ICustomAttributeProvider ca)
         {
             if (!ca.HasCustomAttributes) return;
             foreach (var i in ca.CustomAttributes)
             {
                 foreach (var arg in i.ConstructorArguments)
-                    AnalysisCustomAttributeArgs(arg);
+                    AnalyzeCustomAttributeArgs(arg);
                 foreach (var arg in i.Fields)
-                    AnalysisCustomAttributeArgs(arg.Argument);
+                    AnalyzeCustomAttributeArgs(arg.Argument);
                 foreach (var arg in i.Properties)
-                    AnalysisCustomAttributeArgs(arg.Argument);
+                    AnalyzeCustomAttributeArgs(arg.Argument);
 
                 if (Database.ExcludeAttributes.Contains(i.AttributeType.FullName) && ca is IAnnotationProvider)
                     (ca as IAnnotationProvider).Annotations["RenOk"] = false;
             }
         }
-        void AnalysisCustomAttributeArgs(CustomAttributeArgument arg)
+        void AnalyzeCustomAttributeArgs(CustomAttributeArgument arg)
         {
             if (arg.Value is TypeReference)
             {
@@ -782,7 +284,7 @@ System.ServiceModel.OperationContractAttribute
             }
             else if (arg.Value is CustomAttributeArgument[])
                 foreach (var i in arg.Value as CustomAttributeArgument[])
-                    AnalysisCustomAttributeArgs(i);
+                    AnalyzeCustomAttributeArgs(i);
         }
 
         Dictionary<AssemblyDefinition, Dictionary<string, List<PropertyDefinition>>> props = new Dictionary<AssemblyDefinition, Dictionary<string, List<PropertyDefinition>>>();
@@ -996,7 +498,7 @@ System.ServiceModel.OperationContractAttribute
             foreach (var i in refers)
                 i.refers = refers;
         }
-        void AnalysisResource(ModuleDefinition mod, int resId)
+        void AnalyzeResource(ModuleDefinition mod, int resId)
         {
             EmbeddedResource res = mod.Resources[resId] as EmbeddedResource;
             ResourceReader resRdr = new ResourceReader(res.GetResourceStream());
@@ -1168,11 +670,15 @@ System.ServiceModel.OperationContractAttribute
                 System.Diagnostics.Debugger.Break();
         }
 
-        void AnalysisCodes(MethodDefinition mtd)
+        void AnalyzeCodes(MethodDefinition mtd)
         {
             for (int i = 0; i < mtd.Body.Instructions.Count; i++)
             {
                 Instruction inst = mtd.Body.Instructions[i];
+                if (inst.OpCode.Code == Code.Ldtoken && inst.Operand is IMemberDefinition)
+                    (inst.Operand as IAnnotationProvider).Annotations["RenOk"] = false;
+
+
                 if (inst.Operand is MethodReference ||
                     inst.Operand is FieldReference)
                 {

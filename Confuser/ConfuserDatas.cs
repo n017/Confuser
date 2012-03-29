@@ -41,8 +41,29 @@ namespace Confuser
                 }
             }
             if (!h) sb.AppendLine("NONE!");
+            else Sort();
             if (interact)
                 MessageBox.Show(sb.ToString(), "Confuser", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        static void Sort()
+        {
+            for (int i = 0; i < Confusions.Count; i++)
+                for (int j = i; j < Confusions.Count; j++)
+                    if (Comparer<string>.Default.Compare(Confusions[i].Name, Confusions[j].Name) > 0)
+                    {
+                        var tmp = Confusions[i];
+                        Confusions[i] = Confusions[j];
+                        Confusions[j] = tmp;
+                    }
+            for (int i = 0; i < Packers.Count; i++)
+                for (int j = i; j < Packers.Count; j++)
+                    if (Comparer<string>.Default.Compare(Packers[i].Name, Packers[j].Name) > 0)
+                    {
+                        var tmp = Packers[i];
+                        Packers[i] = Packers[j];
+                        Packers[j] = tmp;
+                    }
         }
 
 

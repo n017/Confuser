@@ -120,7 +120,7 @@
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
-                <ComboBox x:Name="cnSel" Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="5" ItemsSource="{Binding Source={x:Static local:ConfuserDatas.Confusions}}" ItemTemplate="{StaticResource cn}" SelectedIndex="0"/>
+                <ComboBox x:Name="cnSel" Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="5" ItemsSource="{Binding Source={x:Static local:ConfuserDatas.Confusions}}" ItemTemplate="{StaticResource cn}" SelectedIndex="0" TextSearch.TextPath="Name"/>
 
                 <Button Grid.Row="1" Grid.Column="0" Content="Add" Margin="5" Click="Add_Click" Focusable="False"/>
                 <Button Grid.Row="1" Grid.Column="1" Content="Remove" Margin="5" Click="Remove_Click" Focusable="False"/>

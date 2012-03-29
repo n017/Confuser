@@ -6,7 +6,7 @@ using System.Security.Cryptography;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
-using Confuser.Core.Engines;
+using Confuser.Core.Analyzers;
 
 namespace Confuser.Core.Confusions
 {
@@ -129,11 +129,9 @@ namespace Confuser.Core.Confusions
             }
         }
 
-        RenameEngine eng;
-        public override IEngine GetEngine()
+        public override Analyzer GetAnalyzer()
         {
-            if (eng == null) eng = new RenameEngine();
-            return eng;
+            return new NameAnalyzer();
         }
 
 

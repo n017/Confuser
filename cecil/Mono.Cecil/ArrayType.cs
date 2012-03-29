@@ -155,5 +155,13 @@ namespace Mono.Cecil {
 				dimensions.Add (new ArrayDimension ());
 			this.etype = MD.ElementType.Array;
 		}
+
+        public override TypeReference Clone()
+        {
+            TypeReference ret = base.Clone();
+            if (this.dimensions != null)
+                (ret as ArrayType).dimensions = new Collection<ArrayDimension>(this.dimensions);
+            return ret;
+        }
 	}
 }

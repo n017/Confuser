@@ -76,9 +76,12 @@
     <Compile Include="CecilHelper.cs" />
     <Compile Include="Confusions\AntiDumpConfusion.cs" />
     <Compile Include="Confusions\ConstantConfusion.cs" />
-    <Compile Include="Engines\Baml\BamlDocument.cs" />
-    <Compile Include="Engines\Baml\BamlRW.cs" />
-    <Compile Include="Engines\Baml\BamlRecords.cs" />
+    <Compile Include="Analyzers\Baml\BamlDocument.cs" />
+    <Compile Include="Analyzers\Baml\BamlRW.cs" />
+    <Compile Include="Analyzers\Baml\BamlRecords.cs" />
+    <Compile Include="Analyzers\Database.cs" />
+    <Compile Include="Analyzers\RenameReferences.cs" />
+    <Compile Include="Analyzers\Virtuals.cs" />
     <Compile Include="Packers\Compressor.cs" />
     <Compile Include="Confuser.cs" />
     <Compile Include="Confusions\AntiDebugConfusion.cs" />
@@ -95,8 +98,8 @@
     <Compile Include="Confusions\AntiILDasmConfusion.cs" />
     <None Include="Confusions\StringConfusion.cs" />
     <Compile Include="Confusion.cs" />
-    <Compile Include="Engines\RenameEngine.cs" />
-    <Compile Include="IEngine.cs" />
+    <Compile Include="Analyzers\NameAnalyzer.cs" />
+    <Compile Include="Analyzer.cs" />
     <Compile Include="Marker.cs" />
     <Compile Include="ObfuscationHelper.cs" />
     <Compile Include="Packer.cs" />

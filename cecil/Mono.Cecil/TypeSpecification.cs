@@ -34,10 +34,11 @@ namespace Mono.Cecil {
 
 	public abstract class TypeSpecification : TypeReference {
 
-		readonly TypeReference element_type;
+		TypeReference element_type;
 
 		public TypeReference ElementType {
 			get { return element_type; }
+			set { element_type = value; }
 		}
 
 		public override string Name {

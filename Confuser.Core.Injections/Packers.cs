@@ -12,7 +12,6 @@ static class CompressShell
 {
     static Assembly DecryptAsm(object sender, ResolveEventArgs e)
     {
-        Console.WriteLine(e.Name);
         byte[] b = Encoding.UTF8.GetBytes(e.Name);
         for (int i = 0; i < b.Length; i++)
             b[i] = (byte)(b[i] ^ 0x12345678 ^ i);
@@ -36,7 +35,6 @@ static class CompressShell
     }
     static Assembly ResolveResource(object sender, ResolveEventArgs e)
     {
-        Console.WriteLine(e.Name);
         byte[] b = Encoding.UTF8.GetBytes(e.Name);
         for (int i = 0; i < b.Length; i++)
             b[i] = (byte)(b[i] ^ 0x12345678 ^ i);
