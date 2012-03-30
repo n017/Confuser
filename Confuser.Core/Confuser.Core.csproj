@@ -84,6 +84,7 @@
     <Compile Include="Analyzers\Database.cs" />
     <Compile Include="Analyzers\RenameReferences.cs" />
     <Compile Include="Analyzers\NameAnalyzer.Virtuals.cs" />
+    <Compile Include="Confusions\AntiTamperConfusion.Mem.cs" />
     <Compile Include="Packers\Compressor.cs" />
     <Compile Include="Confuser.cs" />
     <Compile Include="Confusions\AntiDebugConfusion.cs" />
@@ -93,6 +94,7 @@
     <Compile Include="Confusions\ControlFlowConfusion.cs" />
     <Compile Include="Confusions\CtorProxyConfusion.cs" />
     <Compile Include="Analyzers\NameAnalyzer.Ivt.cs" />
+    <Compile Include="Confusions\AntiTamperConfusion.JIT.cs" />
     <None Include="Confusions\DisConstConfusion.cs" />
     <Compile Include="Confusions\ResEncryptConfusion.cs" />
     <Compile Include="Confusions\StackUnfConfusion.cs" />
