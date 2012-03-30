@@ -331,4 +331,14 @@ namespace Confuser.Core.Analyzers
             return ret;
         }
     }
+
+    partial class NameAnalyzer
+    {
+        void ConstructVTable(TypeDefinition typeDef)
+        {
+            foreach (var i in typeDef.NestedTypes)
+                ConstructVTable(i);
+            VTable.GetVTable(typeDef, vTbls);
+        }
+    }
 }

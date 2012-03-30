@@ -73,6 +73,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Analyzers\NameAnalyzer.Codes.cs" />
+    <Compile Include="Analyzers\NameAnalyzer.Baml.cs" />
     <Compile Include="CecilHelper.cs" />
     <Compile Include="Confusions\AntiDumpConfusion.cs" />
     <Compile Include="Confusions\ConstantConfusion.cs" />
@@ -81,7 +83,7 @@
     <Compile Include="Analyzers\Baml\BamlRecords.cs" />
     <Compile Include="Analyzers\Database.cs" />
     <Compile Include="Analyzers\RenameReferences.cs" />
-    <Compile Include="Analyzers\Virtuals.cs" />
+    <Compile Include="Analyzers\NameAnalyzer.Virtuals.cs" />
     <Compile Include="Packers\Compressor.cs" />
     <Compile Include="Confuser.cs" />
     <Compile Include="Confusions\AntiDebugConfusion.cs" />
@@ -90,6 +92,7 @@
     <Compile Include="Confusions\MdReduceConfusion.cs" />
     <Compile Include="Confusions\ControlFlowConfusion.cs" />
     <Compile Include="Confusions\CtorProxyConfusion.cs" />
+    <Compile Include="Analyzers\NameAnalyzer.Ivt.cs" />
     <None Include="Confusions\DisConstConfusion.cs" />
     <Compile Include="Confusions\ResEncryptConfusion.cs" />
     <Compile Include="Confusions\StackUnfConfusion.cs" />

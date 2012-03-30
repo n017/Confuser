@@ -425,8 +425,9 @@ namespace Confuser.Core
                 GlobalAssemblyResolver.Instance.AssemblyCache.Add(i.FullName, i);
             helpers = new Dictionary<IMemberDefinition, HelperAttribute>();
 
-            Log(string.Format("Analysing assemblies..."));
-            Dictionary<Analyzer,string> aPhases=new Dictionary<Analyzer,string>();
+            Log(string.Format("Analyzing assemblies..."));
+            analyzers = new List<Analyzer>();
+            Dictionary<Analyzer, string> aPhases = new Dictionary<Analyzer, string>();
             foreach (IConfusion cion in param.Confusions)
                 foreach (Phase phase in cion.Phases)
                 {
@@ -441,7 +442,7 @@ namespace Confuser.Core
                 }
             foreach (var i in analyzers)
             {
-                Log(string.Format("Analysing {0}...", aPhases[i]));
+                Log(string.Format("Analyzing {0}...", aPhases[i]));
                 i.Analyze(assemblies);
             }
         }
