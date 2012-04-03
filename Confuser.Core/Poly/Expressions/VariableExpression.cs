@@ -7,26 +7,25 @@ namespace Confuser.Core.Poly.Expressions
 {
     public class VariableExpression : Expression
     {
-        public override Expression GetVariableExpression()
+        public override IEnumerable<Expression> Children { get { return Enumerable.Empty<Expression>(); } }
+        public override void Generate(ExpressionGenerator gen, int level, Random rand)
         {
-            return this;
+        }
+        public override Expression GenerateInverse(Expression arg)
+        {
+            return arg;
         }
 
-        public override void Visit(ExpressionVisitor visitor)
-        {
-            visitor.Visit(this);
-        }
+        public override Expression GetVariableExpression() { return this; }
+        public override bool HasVariable { get { return true; } }
 
-        public override void VisitReverse(ExpressionVisitor visitor, Expression child)
+        public override void VisitPostOrder(ExpressionVisitor visitor)
         {
-            visitor.VisitReverse(this);
-            if (Parent != null)
-                Parent.VisitReverse(visitor, this);
+            visitor.VisitPostOrder(this);
         }
-
-        public override bool HasVariable
+        public override void VisitPreOrder(ExpressionVisitor visitor)
         {
-            get { return true; }
+            visitor.VisitPreOrder(this);
         }
 
         public override string ToString()

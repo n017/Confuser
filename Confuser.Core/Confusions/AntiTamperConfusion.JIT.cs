@@ -16,20 +16,20 @@ namespace Confuser.Core.Confusions
     {
         class JIT : IAntiTamper
         {
-            public TypeDefinition root;
-            public int key0;
-            public long key1;
-            public int key2;
-            public int key3;
-            public byte key4;
-            public byte[] fieldLayout;
-            public string sectName;
-            public List<int> excludes;
+            TypeDefinition root;
+            int key0;
+            long key1;
+            int key2;
+            int key3;
+            byte key4;
+            byte[] fieldLayout;
+            string sectName;
+            List<int> excludes;
 
-            public byte[] codes;
-            public ByteBuffer strings;
-            public Dictionary<int, MethodBody> bodies;
-            public ByteBuffer finalDat;
+            byte[] codes;
+            ByteBuffer strings;
+            Dictionary<int, MethodBody> bodies;
+            ByteBuffer finalDat;
 
             public Action<IMemberDefinition, HelperAttribute> AddHelper { get; set; }
 

@@ -350,53 +350,36 @@ namespace Confuser.Core.Confusions
                 List<Context> txts = new List<Context>();
                 ExtractData(parameter.Target as IList<Tuple<IAnnotationProvider, NameValueCollection>>, txts, Array.IndexOf(parameter.GlobalParameters.AllKeys, "numeric") != -1);
 
-                int[] ids;
-                bool retry;
-                do
+                int[] ids = new int[txts.Count];
+                txt.dict.Clear();
+                var expGen = new ExpressionGenerator();
+                int seed = expGen.Seed;
+                txt.exp = expGen.Generate(10);
+                var invExp = ExpressionInverser.InverseExpression(txt.exp);
+
+                for (int i = 0; i < txts.Count; i++)
                 {
-                    ids = new int[txts.Count];
-                    retry = false;
-                    txt.dict.Clear();
-                    int seed;
-                    txt.exp = ExpressionGenerator.Generate(5, out seed);
+                    object val = txts[i].str.Operand as object;
+                    if (IsNull(val)) continue;
 
-                    for (int i = 0; i < txts.Count; i++)
+                    if (txt.dict.ContainsKey(val))
+                        ids[i] = (int)(txt.dict[val] ^ ComputeHash(txts[i].mtd.MetadataToken.ToUInt32(), (uint)txt.key0, (uint)txt.key1, (uint)txt.key2, (uint)txt.key3));
+                    else
                     {
-                        object val = txts[i].str.Operand as object;
-                        if (IsNull(val)) continue;
+                        ids[i] = (int)(txt.idx ^ ComputeHash(txts[i].mtd.MetadataToken.ToUInt32(), (uint)txt.key0, (uint)txt.key1, (uint)txt.key2, (uint)txt.key3));
+                        byte t;
+                        byte[] ori = GetOperand(val, out t);
 
-                        if (txt.dict.ContainsKey(val))
-                            ids[i] = (int)(txt.dict[val] ^ ComputeHash(txts[i].mtd.MetadataToken.ToUInt32(), (uint)txt.key0, (uint)txt.key1, (uint)txt.key2, (uint)txt.key3));
-                        else
-                        {
-                            ids[i] = (int)(txt.idx ^ ComputeHash(txts[i].mtd.MetadataToken.ToUInt32(), (uint)txt.key0, (uint)txt.key1, (uint)txt.key2, (uint)txt.key3));
-                            byte t;
-                            byte[] ori = GetOperand(val, out t);
-
-                            int len;
-                            byte[] dat = Encrypt(ori, txt.exp, out len);
-                            try
-                            {
-                                if (!IsEqual(Decrypt(dat, len, txt.exp), ori))
-                                {
-                                    retry = true;
-                                    break;
-                                }
-                            }
-                            catch
-                            {
-                                retry = true;
-                                break;
-                            }
-                            byte[] final = new byte[dat.Length + 4];
-                            Buffer.BlockCopy(dat, 0, final, 4, dat.Length);
-                            Buffer.BlockCopy(BitConverter.GetBytes(len), 0, final, 0, 4);
-                            txt.dats.Add(new Data() { Dat = final, Type = t });
-                            txt.dict[val] = txt.idx;
-                            txt.idx += final.Length + 5;
-                        }
+                        int len;
+                        byte[] dat = Encrypt(ori, txt.exp, out len);
+                        byte[] final = new byte[dat.Length + 4];
+                        Buffer.BlockCopy(dat, 0, final, 4, dat.Length);
+                        Buffer.BlockCopy(BitConverter.GetBytes(len), 0, final, 0, 4);
+                        txt.dats.Add(new Data() { Dat = final, Type = t });
+                        txt.dict[val] = txt.idx;
+                        txt.idx += final.Length + 5;
                     }
-                } while (retry);
+                }
 
                 for (int i = 0; i < txt.strer.Body.Instructions.Count; i++)
                 {
@@ -414,7 +397,7 @@ namespace Confuser.Core.Confusions
                             insts.Add(z);
                         }
 
-                        Instruction[] expInsts = new CecilVisitor(txt.exp, true, insts.ToArray(), false).GetInstructions();
+                        Instruction[] expInsts = new CecilVisitor(ExpressionInverser.InverseExpression(txt.exp), insts.ToArray()).GetInstructions();
                         ILProcessor psr = txt.strer.Body.GetILProcessor();
                         psr.Replace(inst, expInsts[0]);
                         for (int ii = 1; ii < expInsts.Length; ii++)
@@ -577,7 +560,7 @@ namespace Confuser.Core.Confusions
             {
                 for (int i = 0; i < tmp.Length; i++)
                 {
-                    int en = (int)LongExpressionEvaluator.Evaluate(exp, tmp[i]);
+                    int en = (int)ExpressionEvaluator.Evaluate(exp, tmp[i]);
                     Write7BitEncodedInt(wtr, en);
                 }
             }
@@ -593,7 +576,7 @@ namespace Confuser.Core.Confusions
                 for (int i = 0; i < ret.Length; i++)
                 {
                     int r = Read7BitEncodedInt(rdr);
-                    ret[i] = (byte)LongExpressionEvaluator.ReverseEvaluate(exp, r);
+                    ret[i] = (byte)ExpressionEvaluator.Evaluate(exp, r);
                 }
             }
 

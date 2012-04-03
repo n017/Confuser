@@ -5,7 +5,7 @@ using System.Text;
 
 namespace Confuser.Core.Poly.Expressions
 {
-    public class AddExpression : Expression
+    public class XorExpression : Expression
     {
         public Expression OperandA { get; set; }
         public Expression OperandB { get; set; }
@@ -34,17 +34,17 @@ namespace Confuser.Core.Poly.Expressions
         }
         public override Expression GenerateInverse(Expression arg)
         {
-            if (OperandA.HasVariable)       //y = x + 1
+            if (OperandA.HasVariable)       //y = x ^ 1
             {
-                return new SubExpression()  //x = y - 1
+                return new XorExpression()  //x = y ^ 1
                 {
                     OperandA = arg,
                     OperandB = OperandB
                 };
             }
-            else if (OperandB.HasVariable)  //y = 1 + x
+            else if (OperandB.HasVariable)  //y = 1 ^ x
             {
-                return new SubExpression()  //x = y - 1
+                return new XorExpression()  //x = y ^ 1
                 {
                     OperandA = arg,
                     OperandB = OperandA
@@ -69,7 +69,7 @@ namespace Confuser.Core.Poly.Expressions
 
         public override string ToString()
         {
-            return string.Format("({0}+{1})", OperandA, OperandB);
+            return string.Format("({0}^{1})", OperandA, OperandB);
         }
     }
 }

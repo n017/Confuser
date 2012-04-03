@@ -504,5 +504,42 @@ namespace Confuser.Core
             }
             return ret.ToString();
         }
+
+        public static void Replace(MethodBody body, Instruction inst, Instruction[] news)
+        {
+            int instIdx = body.Instructions.IndexOf(inst);
+            if (instIdx == -1) throw new InvalidOperationException();
+            body.Instructions.RemoveAt(instIdx);
+            for (int i = news.Length - 1; i >= 0; i--)
+                body.Instructions.Insert(instIdx, news[i]);
+
+
+
+            foreach (var i in body.Instructions)
+            {
+                if (i.Operand is Instruction && i.Operand == inst)
+                    i.Operand = news[0];
+                else if (i.Operand is Instruction[])
+                {
+                    Instruction[] insts = i.Operand as Instruction[];
+                    int z;
+                    if ((z = Array.IndexOf(insts, inst)) != -1)
+                        insts[z] = news[0];
+                }
+            }
+            foreach (var i in body.ExceptionHandlers)
+            {
+                if (i.TryStart == inst)
+                    i.TryStart = news[0];
+                if (i.TryEnd == inst)
+                    i.TryEnd = news[0];
+                if (i.HandlerStart == inst)
+                    i.HandlerStart = news[0];
+                if (i.HandlerEnd == inst)
+                    i.HandlerEnd = news[0];
+                if (i.FilterStart == inst)
+                    i.FilterStart = news[0];
+            }
+        }
     }
 }

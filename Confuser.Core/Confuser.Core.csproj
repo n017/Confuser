@@ -85,6 +85,7 @@
     <Compile Include="Analyzers\RenameReferences.cs" />
     <Compile Include="Analyzers\NameAnalyzer.Virtuals.cs" />
     <Compile Include="Confusions\AntiTamperConfusion.Mem.cs" />
+    <Compile Include="Confusions\TestConfusion.cs" />
     <Compile Include="Packers\Compressor.cs" />
     <Compile Include="Confuser.cs" />
     <Compile Include="Confusions\AntiDebugConfusion.cs" />
@@ -127,6 +128,10 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Poly\ExpressionInverser.cs" />
+    <Compile Include="Poly\Expressions\XorExpression.cs" />
+    <Compile Include="Poly\Expressions\InvExpression.cs" />
+    <Compile Include="Poly\Visitors\x86Visitor.cs" />
     <Content Include="Note.txt" />
   </ItemGroup>
   <ItemGroup>

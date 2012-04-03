@@ -47,7 +47,7 @@ namespace Mono.Cecil.Cil {
 		internal readonly Dictionary<MetadataToken, Range> code_tokens;
 		readonly Dictionary<uint, MetadataToken> standalone_signatures;
 
-		RVA current;
+		internal RVA current;
 		MethodBody body;
 
 		public CodeWriter (MetadataBuilder metadata)
@@ -81,6 +81,7 @@ namespace Mono.Cecil.Cil {
             }
 
             code_tokens.Add(method.MetadataToken, new Range(rva, (uint)position - pos));
+            method.rva = rva;
             Align(4);
 
             EndMethod();

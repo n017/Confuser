@@ -132,13 +132,15 @@ static class AntiDebugger
 
 static class Proxies
 {
+    public static int PlaceHolder(int val) { return 0; }
     private static void CtorProxy(RuntimeFieldHandle f)
     {
         var fld = FieldInfo.GetFieldFromHandle(f);
         char[] ch = new char[fld.Name.Length];
         for (int i = 0; i < ch.Length; i++)
             ch[i] = (char)((byte)fld.Name[i] ^ i);
-        var mtd = fld.Module.ResolveMethod(BitConverter.ToInt32(Convert.FromBase64String(new string(ch)), 0) ^ 0x12345678) as System.Reflection.ConstructorInfo;
+        byte[] dat = Convert.FromBase64String(new string(ch));
+        var mtd = fld.Module.ResolveMethod(PlaceHolder(BitConverter.ToInt32(dat, 0)) | (dat[4] << 24)) as ConstructorInfo;
 
         var args = mtd.GetParameters();
         Type[] arg = new Type[args.Length];
@@ -154,7 +156,6 @@ static class Proxies
 
         fld.SetValue(null, dm.CreateDelegate(fld.FieldType));
     }
-
     private static void MtdProxy(RuntimeFieldHandle f)
     {
         var fld = FieldInfo.GetFieldFromHandle(f);
@@ -162,7 +163,7 @@ static class Proxies
         for (int i = 0; i < ch.Length; i++)
             ch[i] = (char)((byte)fld.Name[i] ^ i);
         byte[] dat = Convert.FromBase64String(new string(ch));
-        var mtd = fld.Module.ResolveMethod(BitConverter.ToInt32(dat, 1) ^ 0x12345678) as MethodInfo;
+        var mtd = fld.Module.ResolveMethod(PlaceHolder(BitConverter.ToInt32(dat, 1)) | ((dat[0] & 0x7f) << 24)) as MethodInfo;
 
         if (mtd.IsStatic)
             fld.SetValue(null, Delegate.CreateDelegate(fld.FieldType, mtd));
@@ -185,7 +186,7 @@ static class Proxies
                 gen.Emit(OpCodes.Ldarg, i);
                 if (i == 0) gen.Emit(OpCodes.Castclass, mtd.DeclaringType);
             }
-            gen.Emit((dat[0] == '\r') ? OpCodes.Callvirt : OpCodes.Call, mtd);
+            gen.Emit((dat[0] & 0x80) != 0 ? OpCodes.Callvirt : OpCodes.Call, mtd);
             gen.Emit(OpCodes.Ret);
 
             fld.SetValue(null, dm.CreateDelegate(fld.FieldType));
@@ -327,7 +328,7 @@ static class Encryptions
                         shift += 7;
                     } while ((b & 0x80) != 0);
 
-                    f[i] = (byte)Poly.PlaceHolder((long)count);
+                    f[i] = (byte)Poly.PlaceHolder(count);
                 }
 
                 hashTbl[pos] = (ret = Encoding.Unicode.GetString(f, 0, len));
@@ -409,7 +410,6 @@ static class Encryptions
                     f = new byte[(len + 7) & ~7];
                     for (int i = 0; i < f.Length; i++)
                     {
-                        Poly.PolyStart();
                         int count = 0;
                         int shift = 0;
                         byte b;
@@ -420,7 +420,9 @@ static class Encryptions
                             shift += 7;
                         } while ((b & 0x80) != 0);
 
-                        f[i] = (byte)Poly.PlaceHolder((long)count);
+                        Poly.PolyStart();
+                        count = Poly.PlaceHolder(count);
+                        f[i] = (byte)count;
                     }
                 }
                 if (type == 11)
@@ -533,8 +535,7 @@ static class Encryptions
 static class Poly
 {
     public static void PolyStart() { }
-    public static double PlaceHolder(double val) { return 0; }
-    public static long PlaceHolder(long val) { return 0; }
+    public static int PlaceHolder(int val) { return 0; }
 }
 
 static class AntiDumping

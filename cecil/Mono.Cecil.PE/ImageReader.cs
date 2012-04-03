@@ -149,10 +149,12 @@ namespace Mono.Cecil.PE {
 			// EntryPointRVA		4
 			// BaseOfCode			4
 			// BaseOfData			4 || 0
+			Advance (pe64 ? 22 : 26);
 
 			//   - NTSpecificFieldsHeader
 
 			// ImageBase			4 || 8
+			image.ImageBase = pe64 ? ReadUInt64 () : ReadUInt32 ();
 			// SectionAlignment		4
 			// FileAlignement		4
 			// OSMajor				2
@@ -165,7 +167,7 @@ namespace Mono.Cecil.PE {
 			// ImageSize			4
 			// HeaderSize			4
 			// FileChecksum			4
-			Advance (66);
+			Advance (36);
 
 			// SubSystem			2
 			subsystem = ReadUInt16 ();

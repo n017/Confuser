@@ -36,7 +36,7 @@ namespace Confuser.Core.Analyzers
         }
         void Init(ModuleDefinition mod)
         {
-            (mod as IAnnotationProvider).Annotations["RenMode"] = NameMode.ASCII;
+            (mod as IAnnotationProvider).Annotations["RenMode"] = NameMode.Unreadable;
             foreach (TypeDefinition type in mod.Types)
                 Init(type);
             foreach (Resource res in mod.Resources)

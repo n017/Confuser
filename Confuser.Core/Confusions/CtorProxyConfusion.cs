@@ -10,6 +10,9 @@ using System.IO;
 using System.Globalization;
 using System.IO.Compression;
 using System.Collections.Specialized;
+using Confuser.Core.Poly;
+using Confuser.Core.Poly.Visitors;
+using Mono.Cecil.Metadata;
 
 namespace Confuser.Core.Confusions
 {
@@ -69,14 +72,43 @@ namespace Confuser.Core.Confusions
                 txt.proxy.Name = ObfuscationHelper.GetNewName("Proxy" + Guid.NewGuid().ToString());
                 AddHelper(txt.proxy, 0);
 
+                Instruction placeholder = null;
                 txt.key = new Random().Next();
                 foreach (Instruction inst in txt.proxy.Body.Instructions)
-                    if (inst.Operand is int && (int)inst.Operand == 0x12345678)
-                    { inst.Operand = txt.key; break; }
+                    if (inst.Operand is MethodReference && (inst.Operand as MethodReference).Name == "PlaceHolder")
+                    {
+                        placeholder = inst;
+                        break;
+                    }
+                if (txt.isNative)
+                {
+                    txt.nativeDecr = new MethodDefinition(
+                        ObfuscationHelper.GetNewName("NativeDecrypter" + Guid.NewGuid().ToString()),
+                        MethodAttributes.Abstract | MethodAttributes.CompilerControlled |
+                        MethodAttributes.ReuseSlot | MethodAttributes.Static,
+                        mod.TypeSystem.Int32);
+                    txt.nativeDecr.Parameters.Add(new ParameterDefinition(mod.TypeSystem.Int32));
+                    modType.Methods.Add(txt.nativeDecr);
+                    txt.exp = new ExpressionGenerator().Generate(6);
+                    txt.invExp = ExpressionInverser.InverseExpression(txt.exp);
+
+                    CecilHelper.Replace(txt.proxy.Body, placeholder, new Instruction[]
+                        {
+                            Instruction.Create(OpCodes.Call, txt.nativeDecr)
+                        });
+                }
+                else
+                    CecilHelper.Replace(txt.proxy.Body, placeholder, new Instruction[]
+                        {
+                            Instruction.Create(OpCodes.Ldc_I4, txt.key),
+                            Instruction.Create(OpCodes.Xor)
+                        });
             }
 
             public override void Process(ConfusionParameter parameter)
             {
+                _Context txt = cc.txts[mod];
+                txt.isNative = parameter.GlobalParameters["type"] != "native";
                 IList<Tuple<IAnnotationProvider, NameValueCollection>> targets = parameter.Target as IList<Tuple<IAnnotationProvider, NameValueCollection>>;
                 for (int i = 0; i < targets.Count; i++)
                 {
@@ -99,7 +131,6 @@ namespace Confuser.Core.Confusions
                 int interval = 1;
                 if (total > 1000)
                     interval = (int)total / 100;
-                _Context txt = cc.txts[mod];
                 for (int i = 0; i < txt.txts.Count; i++)
                 {
                     CreateFieldBridge(mod, txt.txts[i]);
@@ -286,10 +317,10 @@ namespace Confuser.Core.Confusions
                 this.progresser = progresser;
             }
         }
-        class MdPhase : MetadataPhase
+        class MdPhase1 : MetadataPhase
         {
             CtorProxyConfusion cc;
-            public MdPhase(CtorProxyConfusion cc) { this.cc = cc; }
+            public MdPhase1(CtorProxyConfusion cc) { this.cc = cc; }
             public override IConfusion Confusion
             {
                 get { return cc; }
@@ -312,12 +343,88 @@ namespace Confuser.Core.Confusions
                 {
                     if (txt.fld.Name[0] != '\0') continue;
                     MetadataToken tkn = accessor.LookupToken(txt.mtdRef);
-                    string str = Convert.ToBase64String(BitConverter.GetBytes(tkn.ToInt32() ^ _txt.key));
+                    byte[] dat = new byte[5];
+                    dat[4] = (byte)((int)tkn.TokenType >> 24);
+
+                    if (_txt.isNative)
+                        Buffer.BlockCopy(BitConverter.GetBytes(ExpressionEvaluator.Evaluate(_txt.exp, (int)tkn.RID)), 0, dat, 0, 4);
+                    else
+                        Buffer.BlockCopy(BitConverter.GetBytes((int)tkn.RID ^ _txt.key), 0, dat, 0, 4);
+
+                    string str = Convert.ToBase64String(dat);
                     StringBuilder sb = new StringBuilder(str.Length);
                     for (int i = 0; i < str.Length; i++)
                         sb.Append((char)((byte)str[i] ^ i));
                     txt.fld.Name = sb.ToString();
                 }
+                if (!_txt.isNative) return;
+
+                _txt.nativeRVA = accessor.Codebase + (uint)accessor.Codes.Position;
+                MemoryStream ms = new MemoryStream();
+                using (BinaryWriter wtr = new BinaryWriter(ms))
+                {
+                    wtr.Write(new byte[] { 0x8b, 0x44, 0x24, 0x04 });   //mov eax, [esp + 4]
+                    wtr.Write(new byte[] { 0x53 });   //push ebx
+                    wtr.Write(new byte[] { 0x50 });   //push eax
+                    x86Visitor visitor = new x86Visitor(_txt.invExp, null);     //use default handler
+                    x86Register ret;
+                    var insts = visitor.GetInstructions(out ret);
+                    foreach (var i in insts)
+                        wtr.Write(i.Assemble());
+                    if (ret != x86Register.EAX)
+                        wtr.Write(
+                            new x86Instruction()
+                            {
+                                OpCode = x86OpCode.MOV,
+                                Operands = new Ix86Operand[]
+                                {
+                                    new x86RegisterOperand() { Register = x86Register.EAX },
+                                    new x86RegisterOperand() { Register = ret }
+                                }
+                            }.Assemble());
+                    wtr.Write(new byte[] { 0x5b });   //pop ebx
+                    wtr.Write(new byte[] { 0xc3 });   //ret
+                    wtr.Write(new byte[((ms.Length + 3) & ~3) - ms.Length]);
+                }
+                byte[] codes = ms.ToArray();
+                accessor.Codes.WriteBytes(codes);
+                accessor.SetCodePosition(accessor.Codebase + (uint)accessor.Codes.Position);
+            }
+        }
+        class MdPhase2 : MetadataPhase
+        {
+            CtorProxyConfusion cc;
+            public MdPhase2(CtorProxyConfusion cc) { this.cc = cc; }
+            public override IConfusion Confusion
+            {
+                get { return cc; }
+            }
+
+            public override int PhaseID
+            {
+                get { return 2; }
+            }
+
+            public override Priority Priority
+            {
+                get { return Priority.TypeLevel; }
+            }
+
+            public override void Process(NameValueCollection parameters, MetadataProcessor.MetadataAccessor accessor)
+            {
+                _Context _txt = cc.txts[accessor.Module];
+                if (!_txt.isNative) return;
+
+                var tbl = accessor.TableHeap.GetTable<MethodTable>(Table.Method);
+                var row = tbl[(int)_txt.nativeDecr.MetadataToken.RID - 1];
+                row.Col2 = MethodImplAttributes.Native | MethodImplAttributes.Unmanaged | MethodImplAttributes.PreserveSig;
+                row.Col3 &= ~MethodAttributes.Abstract;
+                row.Col3 |= MethodAttributes.PInvokeImpl;
+                row.Col1 = _txt.nativeRVA;
+
+                tbl[(int)_txt.nativeDecr.MetadataToken.RID - 1] = row;
+
+                accessor.Module.Attributes &= ~ModuleAttributes.ILOnly;
             }
         }
 
@@ -360,7 +467,7 @@ namespace Confuser.Core.Confusions
         {
             get
             {
-                if (ps == null) ps = new Phase[] { new Phase1(this), new Phase2(this), new MdPhase(this) };
+                if (ps == null) ps = new Phase[] { new Phase1(this), new Phase2(this), new MdPhase1(this), new MdPhase2(this) };
                 return ps;
             }
         }
@@ -370,11 +477,18 @@ namespace Confuser.Core.Confusions
 
         class _Context
         {
+            public bool isNative;
             public Dictionary<string, TypeDefinition> delegates;
             public Dictionary<string, FieldDefinition> fields;
             public Dictionary<string, MethodDefinition> bridges;
             public MethodDefinition proxy;
+
+            public uint nativeRVA;
+            public MethodDefinition nativeDecr;
+            public Expression exp;
+            public Expression invExp;
             public int key;
+
             public List<Context> txts;
             public TypeReference mcd;
             public TypeReference v;

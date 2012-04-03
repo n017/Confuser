@@ -6,84 +6,60 @@ using Confuser.Core.Poly.Expressions;
 
 namespace Confuser.Core.Poly
 {
-    public static class ExpressionGenerator
+    public class ExpressionGenerator
     {
-        public static Expression Generate(int lv, int seed)
-        {
-            Expression exp;
-            bool hasVar = false;
-            exp = Generate(null, lv, ref hasVar, new Random(seed));
-            if (!exp.HasVariable)
-                return null;
-            else
-                return exp;
-        }
+        public int Seed { get; private set; }
+        public Type[] ExpressionTypes { get; set; }
 
-        public static Expression Generate(int lv, out int seed)
+        public ExpressionGenerator()
+            : this(BitConverter.ToInt32(Guid.NewGuid().ToByteArray(), 0))
         {
-            Expression exp;
-            Random rand = new Random();
-            do
+        }
+        public ExpressionGenerator(int seed)
+        {
+            Seed = seed;
+            ExpressionTypes = new Type[]
             {
-                seed = rand.Next();
-                bool hasVar = false;
-                exp = Generate(null, lv, ref hasVar, new Random(seed));
-            } while (!exp.HasVariable);
-            return exp;
+                typeof(AddExpression),
+                typeof(SubExpression),
+                //typeof(MulExpression),
+                //typeof(DivExpression),
+                typeof(NegExpression),
+                typeof(InvExpression),
+                typeof(XorExpression)
+            };
         }
 
-        static Expression Generate(Expression par, int lv, ref bool hasVar, Random rand)
+
+        public Expression Generate(int lv)
+        {
+            g = false;
+            return Generate(null, lv, new Random(Seed));
+        }
+
+        bool g = false;
+        internal Expression Generate(Expression parent, int level, Random rand)
         {
             Expression ret = null;
-            if (lv == 0)
+            if (level == 0)
             {
-                if (!hasVar && rand.NextDouble() > 0.5)
+                if (!g)
                 {
                     ret = new VariableExpression();
-                    hasVar = true;
+                    g = true;
                 }
                 else
                 {
                     ret = new ConstantExpression();
-                    while ((ret as ConstantExpression).Value == 0||
-                           (ret as ConstantExpression).Value == -1 || 
-                           (ret as ConstantExpression).Value == 1)
-                        (ret as ConstantExpression).Value = rand.Next(-10, 10);
+                    ret.Generate(this, level, rand);
                 }
             }
             else
             {
-                int a = rand.NextDouble() > 0.15 ? lv - 1 : 0;
-                int b = rand.NextDouble() > 0.15 ? lv - 1 : 0;
-                switch (rand.Next(0, 3))
-                {
-                    case 0:
-                        ret = new AddExpression();
-                        (ret as AddExpression).OperandA = Generate(ret, a, ref hasVar, rand);
-                        (ret as AddExpression).OperandB = Generate(ret, b, ref hasVar, rand);
-                        break;
-                    case 1:
-                        ret = new SubExpression();
-                        (ret as SubExpression).OperandA = Generate(ret, a, ref hasVar, rand);
-                        (ret as SubExpression).OperandB = Generate(ret, b, ref hasVar, rand);
-                        break;
-                    case 2:
-                        ret = new NegExpression();
-                        (ret as NegExpression).Value = Generate(ret, a, ref hasVar, rand);
-                        break;
-                    //case 3:
-                    //    ret = new MulExpression();
-                    //    (ret as MulExpression).OperandA = Generate(ret, a, ref hasVar, rand);
-                    //    (ret as MulExpression).OperandB = Generate(ret, b, ref hasVar, rand);
-                    //    break;
-                    //case 4:
-                    //    ret = new DivExpression();
-                    //    (ret as DivExpression).OperandA = Generate(ret, a, ref hasVar, rand);
-                    //    (ret as DivExpression).OperandB = Generate(ret, b, ref hasVar, rand);
-                    //    break;
-                }
+                ret = (Expression)Activator.CreateInstance(ExpressionTypes[rand.Next(0, ExpressionTypes.Length - 1)]);
+                ret.Generate(this, level - 1, rand);
             }
-            ret.Parent = par;
+            ret.Parent = parent;
             return ret;
         }
     }

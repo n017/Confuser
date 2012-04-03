@@ -5,7 +5,7 @@ using System.Text;
 
 namespace Confuser.Core.Poly.Expressions
 {
-    public class NegExpression : Expression
+    public class InvExpression : Expression
     {
         public Expression Value { get; set; }
         public override IEnumerable<Expression> Children { get { yield return Value; } }
@@ -16,7 +16,7 @@ namespace Confuser.Core.Poly.Expressions
         }
         public override Expression GenerateInverse(Expression arg)
         {
-            return new NegExpression() { Value = arg };
+            return new InvExpression() { Value = arg };
         }
 
         public override void VisitPostOrder(ExpressionVisitor visitor)
@@ -32,7 +32,7 @@ namespace Confuser.Core.Poly.Expressions
 
         public override string ToString()
         {
-            return string.Format("-{0}", Value);
+            return string.Format("~{0}", Value);
         }
     }
 }

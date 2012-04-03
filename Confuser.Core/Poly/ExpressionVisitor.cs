@@ -7,7 +7,7 @@ namespace Confuser.Core.Poly
 {
     public abstract class ExpressionVisitor
     {
-        public abstract void Visit(Expression exp);
-        public abstract void VisitReverse(Expression exp);
+        public abstract void VisitPostOrder(Expression exp);
+        public abstract void VisitPreOrder(Expression exp);
     }
 }

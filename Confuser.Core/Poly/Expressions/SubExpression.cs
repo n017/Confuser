@@ -7,51 +7,69 @@ namespace Confuser.Core.Poly.Expressions
 {
     public class SubExpression : Expression
     {
-        Expression a;
-        public Expression OperandA { get { return a; } set { a = value; } }
-        Expression b;
-        public Expression OperandB { get { return b; } set { b = value; } }
-
-        public override Expression GetVariableExpression()
+        public Expression OperandA { get; set; }
+        public Expression OperandB { get; set; }
+        public override IEnumerable<Expression> Children
         {
-            if (a.HasVariable) return a.GetVariableExpression();
-            if (b.HasVariable) return b.GetVariableExpression();
-            return null;
-        }
-
-        public override void Visit(ExpressionVisitor visitor)
-        {
-            a.Visit(visitor);
-            b.Visit(visitor);
-            visitor.Visit(this);
-        }
-
-        public override void VisitReverse(ExpressionVisitor visitor, Expression child)
-        {
-            if (child != null && Parent != null)
-                Parent.VisitReverse(visitor, this);
-
-            if (child == a)
+            get
             {
-                b.Visit(visitor);
-                visitor.VisitReverse(this);
-            }
-            else if (child == b)
-            {
-                a.Visit(visitor);
-                visitor.Visit(this);
-                visitor.VisitReverse(new NegExpression());
+                yield return OperandA;
+                yield return OperandB;
             }
         }
-
-        public override bool HasVariable
+        public override void Generate(ExpressionGenerator gen, int level, Random rand)
         {
-            get { return a.HasVariable || b.HasVariable; }
+            int a = rand.Next(0, 100) > 15 ? level : 0;
+            int b = rand.Next(0, 100) > 15 ? level : 0;
+            if (rand.Next() % 2 == 0)
+            {
+                OperandA = Gen(gen, a, rand);
+                OperandB = Gen(gen, b, rand);
+            }
+            else
+            {
+                OperandB = Gen(gen, b, rand);
+                OperandA = Gen(gen, a, rand);
+            }
+        }
+        public override Expression GenerateInverse(Expression arg)
+        {
+            if (OperandA.HasVariable)       //y = x - 2
+            {
+                return new AddExpression()  //x = y + 2
+                {
+                    OperandA = arg,
+                    OperandB = OperandB
+                };
+            }
+            else if (OperandB.HasVariable)  //y = 2 - x
+            {
+                return new SubExpression()  //x = 2 - y
+                {
+                    OperandA = OperandA,
+                    OperandB = arg
+                };
+            }
+            else
+                throw new InvalidOperationException();
+        }
+
+        public override void VisitPostOrder(ExpressionVisitor visitor)
+        {
+            OperandA.VisitPostOrder(visitor);
+            OperandB.VisitPostOrder(visitor);
+            visitor.VisitPostOrder(this);
+        }
+        public override void VisitPreOrder(ExpressionVisitor visitor)
+        {
+            visitor.VisitPreOrder(this);
+            OperandA.VisitPreOrder(visitor);
+            OperandB.VisitPreOrder(visitor);
         }
 
         public override string ToString()
         {
-            return string.Format("({0}-{1})", a, b);
+            return string.Format("({0}-{1})", OperandA, OperandB);
         }
     }
 }

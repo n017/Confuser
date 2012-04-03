@@ -7,45 +7,69 @@ namespace Confuser.Core.Poly.Expressions
 {
     public class MulExpression : Expression
     {
-        Expression a;
-        public Expression OperandA { get { return a; } set { a = value; } }
-        Expression b;
-        public Expression OperandB { get { return b; } set { b = value; } }
-
-        public override Expression GetVariableExpression()
+        public Expression OperandA { get; set; }
+        public Expression OperandB { get; set; }
+        public override IEnumerable<Expression> Children
         {
-            if (a.HasVariable) return a.GetVariableExpression();
-            if (b.HasVariable) return b.GetVariableExpression();
-            return null;
+            get
+            {
+                yield return OperandA;
+                yield return OperandB;
+            }
+        }
+        public override void Generate(ExpressionGenerator gen, int level, Random rand)
+        {
+            int a = rand.Next(0, 100) > 15 ? level : 0;
+            int b = rand.Next(0, 100) > 15 ? level : 0;
+            if (rand.Next() % 2 == 0)
+            {
+                OperandA = Gen(gen, a, rand);
+                OperandB = Gen(gen, b, rand);
+            }
+            else
+            {
+                OperandB = Gen(gen, b, rand);
+                OperandA = Gen(gen, a, rand);
+            }
+        }
+        public override Expression GenerateInverse(Expression arg)
+        {
+            if (OperandA.HasVariable)       //y = x * 2
+            {
+                return new DivExpression()  //x = y / 2
+                {
+                    OperandA = arg,
+                    OperandB = OperandB
+                };
+            }
+            else if (OperandB.HasVariable)  //y = 2 * x
+            {
+                return new DivExpression()  //x = y / 2
+                {
+                    OperandA = arg,
+                    OperandB = OperandA
+                };
+            }
+            else
+                throw new InvalidOperationException();
         }
 
-        public override void Visit(ExpressionVisitor visitor)
+        public override void VisitPostOrder(ExpressionVisitor visitor)
         {
-            a.Visit(visitor);
-            b.Visit(visitor);
-            visitor.Visit(this);
+            OperandA.VisitPostOrder(visitor);
+            OperandB.VisitPostOrder(visitor);
+            visitor.VisitPostOrder(this);
         }
-
-        public override void VisitReverse(ExpressionVisitor visitor, Expression child)
+        public override void VisitPreOrder(ExpressionVisitor visitor)
         {
-            if (child != null && Parent != null)
-                Parent.VisitReverse(visitor, this);
-
-            if (child == a)
-                b.Visit(visitor);
-            else if (child == b)
-                a.Visit(visitor);
-            visitor.VisitReverse(this);
-        }
-
-        public override bool HasVariable
-        {
-            get { return a.HasVariable || b.HasVariable; }
+            visitor.VisitPreOrder(this);
+            OperandA.VisitPreOrder(visitor);
+            OperandB.VisitPreOrder(visitor);
         }
 
         public override string ToString()
         {
-            return string.Format("({0}*{1})", a, b);
+            return string.Format("({0}*{1})", OperandA, OperandB);
         }
     }
 }

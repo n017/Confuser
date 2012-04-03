@@ -9,17 +9,14 @@ namespace Confuser.Core.Poly.Visitors
 {
     public class CecilVisitor : ExpressionVisitor
     {
-        List<Instruction> insts = new List<Instruction>();
-        Instruction[] arg;
-        bool useDouble;
-        public CecilVisitor(Expression exp, bool isReverse, Instruction[] arg, bool useDouble)
+        List<Instruction> insts;
+        Instruction[] args;
+
+        public CecilVisitor(Expression exp, Instruction[] args)
         {
-            this.arg = arg;
-            this.useDouble = useDouble;
-            if (isReverse)
-                exp.GetVariableExpression().VisitReverse(this, null);
-            else
-                exp.Visit(this);
+            insts = new List<Instruction>();
+            this.args = args;
+            exp.VisitPostOrder(this);
         }
 
         public Instruction[] GetInstructions()
@@ -27,76 +24,39 @@ namespace Confuser.Core.Poly.Visitors
             return insts.ToArray();
         }
 
-        public override void Visit(Expression exp)
+        public override void VisitPostOrder(Expression exp)
         {
             if (exp is ConstantExpression)
-            {
-                ConstantExpression tExp = exp as ConstantExpression;
-                if (useDouble)
-                    insts.Add(Instruction.Create(OpCodes.Ldc_R8, tExp.Value));
-                else
-                    insts.Add(Instruction.Create(OpCodes.Ldc_I8, (long)tExp.Value));
-            }
+                insts.Add(Instruction.Create(OpCodes.Ldc_I4, (int)(exp as ConstantExpression).Value));
+
             else if (exp is VariableExpression)
-            {
-                insts.AddRange(arg);
-            }
+                insts.AddRange(args);
+
             else if (exp is AddExpression)
-            {
                 insts.Add(Instruction.Create(OpCodes.Add));
-            }
+
             else if (exp is SubExpression)
-            {
                 insts.Add(Instruction.Create(OpCodes.Sub));
-            }
+
             else if (exp is MulExpression)
-            {
                 insts.Add(Instruction.Create(OpCodes.Mul));
-            }
-            else if (exp is NegExpression)
-            {
-                insts.Add(Instruction.Create(OpCodes.Neg));
-            }
+
             else if (exp is DivExpression)
-            {
                 insts.Add(Instruction.Create(OpCodes.Div));
-            }
+
+            else if (exp is NegExpression)
+                insts.Add(Instruction.Create(OpCodes.Neg));
+
+            else if (exp is InvExpression)
+                insts.Add(Instruction.Create(OpCodes.Not));
+
+            else if (exp is XorExpression)
+                insts.Add(Instruction.Create(OpCodes.Xor));
         }
 
-        public override void VisitReverse(Expression exp)
+        public override void VisitPreOrder(Expression exp)
         {
-            if (exp is ConstantExpression)
-            {
-                ConstantExpression tExp = exp as ConstantExpression;
-                if (useDouble)
-                    insts.Add(Instruction.Create(OpCodes.Ldc_R8, tExp.Value));
-                else
-                    insts.Add(Instruction.Create(OpCodes.Ldc_I8, (long)tExp.Value));
-            }
-            else if (exp is VariableExpression)
-            {
-                insts.AddRange(arg);
-            }
-            else if (exp is AddExpression)
-            {
-                insts.Add(Instruction.Create(OpCodes.Sub));
-            }
-            else if (exp is SubExpression)
-            {
-                insts.Add(Instruction.Create(OpCodes.Add));
-            }
-            else if (exp is MulExpression)
-            {
-                insts.Add(Instruction.Create(OpCodes.Div));
-            }
-            else if (exp is NegExpression)
-            {
-                insts.Add(Instruction.Create(OpCodes.Neg));
-            }
-            else if (exp is DivExpression)
-            {
-                insts.Add(Instruction.Create(OpCodes.Mul));
-            }
+            //
         }
     }
 }

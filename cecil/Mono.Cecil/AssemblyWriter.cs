@@ -1583,7 +1583,9 @@ namespace Mono.Cecil {
             TrueProcessor psr;
             internal MetadataAccessor(TrueProcessor psr) { this.psr = psr; }
 
+            public DataBuffer Data { get { return psr.data; } }
             public ByteBuffer Codes { get { return psr.code; } }
+            public void SetCodePosition(uint rva) { psr.code.current = rva; }
             public uint Codebase { get { return psr.text_map.GetNextRVA(TextSegment.CLIHeader); } }
             public IDictionary<MetadataToken, Range> BodyRanges { get { return psr.code.code_tokens; } }
             public BlobHeapBuffer BlobHeap { get { return psr.blob_heap; } }
