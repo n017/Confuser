@@ -294,7 +294,7 @@ namespace Confuser.Core.Confusions
         {
             get
             {
-                if (phases == null) phases = new Phase[] { new Phase1(this), new Phase2(this), new Phase3(this), new Phase4(this) };
+                if (phases == null) phases = new Phase[] { new Phase1(this), new Phase2(this), new Phase4(this) };
                 return phases;
             }
         }

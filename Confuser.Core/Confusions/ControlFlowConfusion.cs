@@ -5,6 +5,11 @@ using System.Text;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
+using Confuser.Core.Poly;
+using System.IO;
+using Confuser.Core.Poly.Visitors;
+using System.Collections.Specialized;
+using Mono.Cecil.Metadata;
 
 namespace Confuser.Core.Confusions
 {
@@ -174,7 +179,7 @@ namespace Confuser.Core.Confusions
         }
         public override void Initialize(ModuleDefinition mod)
         {
-            rad = new Random();
+            rand = new Random();
             if (mod.Architecture != TargetArchitecture.I386)
                 Log("Junk code is not supported on target architecture, it won't generated.");
         }
@@ -186,12 +191,13 @@ namespace Confuser.Core.Confusions
         public void Init() { }
         public void Deinit() { }
 
-        Random rad;
+        Random rand;
         bool genJunk;
+        MethodDefinition method;
         public override void Process(ConfusionParameter parameter)
         {
-            MethodDefinition mtd = parameter.Target as MethodDefinition;
-            if (!mtd.HasBody) return;
+            method = parameter.Target as MethodDefinition;
+            if (!method.HasBody) return;
 
             int slv = 5;
             if (Array.IndexOf(parameter.Parameters.AllKeys, "level") != -1)
@@ -203,7 +209,7 @@ namespace Confuser.Core.Confusions
                 }
             }
             genJunk = false;
-            if (mtd.Module.Architecture != TargetArchitecture.I386)
+            if (method.Module.Architecture != TargetArchitecture.I386)
                 genJunk = false;
             else if (Array.IndexOf(parameter.Parameters.AllKeys, "genjunk") != -1)
             {
@@ -215,68 +221,54 @@ namespace Confuser.Core.Confusions
             }
             double trueLv = slv / 10.0;
 
-            MethodBody bdy = mtd.Body;
-            bdy.SimplifyMacros();
-            bdy.ComputeHeader();
-            Dictionary<Instruction, Level> Ids = GetIds(bdy);
+            MethodBody body = method.Body;
+            body.SimplifyMacros();
+            body.ComputeHeader();
+            body.MaxStackSize += 5;
+            Dictionary<Instruction, Level> Ids = GetIds(body);
             Level[] lvs = GetLvs(Ids);
-            List<Instruction[]> blks = new List<Instruction[]>();
+            List<Instruction[]> scopes = new List<Instruction[]>();
             foreach (Level lv in lvs)
-                blks.Add(GetInstructionsByLv(lv, Ids));
+                scopes.Add(GetInstructionsByLv(lv, Ids));
 
-            bdy.Instructions.Clear();
-            ILProcessor wkr = bdy.GetILProcessor();
+            body.Instructions.Clear();
             Dictionary<Instruction, Instruction> HdrTbl = new Dictionary<Instruction, Instruction>();
-            for (int i = 0; i < blks.Count; i++)
+            for (int i = 0; i < scopes.Count; i++)
             {
-                Instruction[] blk = blks[i];
-                Instruction[][] iblks;
-                if (Array.IndexOf(parameter.Parameters.AllKeys, "switch") == -1)
-                {
-                    iblks = BrizeSplit(blk, trueLv);
-                    BrizeFlow(bdy, ref iblks);
-                }
-                else
-                {
-                    iblks = SwitcizeSplit(mtd, blk, trueLv);
-                    if (iblks.Length == 1)
-                    {
-                        iblks = BrizeSplit(blk, trueLv);
-                        BrizeFlow(bdy, ref iblks);
-                    }
-                    else
-                        SwitcizeFlow(bdy, ref iblks);
-                }
-                Reorder(ref iblks);
+                Instruction[] scope = scopes[i];
+                Instruction[][] blocks;
+                blocks = BranchesSplit(scope, trueLv);
+                AddBranches(body, ref blocks);
+                Reorder(ref blocks);
 
-                HdrTbl.Add(blk[0], iblks[0][0]);
+                HdrTbl.Add(scope[0], blocks[0][0]);
 
-                foreach (Instruction[] iblk in iblks)
+                foreach (Instruction[] iblk in blocks)
                 {
-                    wkr.Append(iblk[0]);
+                    body.Instructions.Add(iblk[0]);
                     for (int ii = 1; ii < iblk.Length; ii++)
                     {
                         Instruction tmp;
                         if (iblk[ii].Operand is Instruction)
                         {
-                            if (HdrTbl.TryGetValue(iblk[ii].Operand as Instruction, out tmp) && tmp != iblks[0][0])
+                            if (HdrTbl.TryGetValue(iblk[ii].Operand as Instruction, out tmp) && tmp != blocks[0][0])
                                 iblk[ii].Operand = tmp;
                         }
                         else if (iblk[ii].Operand is Instruction[])
                         {
                             Instruction[] op = iblk[ii].Operand as Instruction[];
                             for (int iii = 0; iii < op.Length; iii++)
-                                if (HdrTbl.TryGetValue(op[iii], out tmp) && tmp != iblks[0][0])
+                                if (HdrTbl.TryGetValue(op[iii], out tmp) && tmp != blocks[0][0])
                                     op[iii] = tmp;
                             iblk[ii].Operand = op;
                         }
-                        wkr.Append(iblk[ii]);
+                        body.Instructions.Add(iblk[ii]);
                     }
                 }
-                SetLvHandler(lvs[i], bdy, iblks);
+                SetLvHandler(lvs[i], body, blocks);
             }
 
-            foreach (ExceptionHandler eh in bdy.ExceptionHandlers)
+            foreach (ExceptionHandler eh in body.ExceptionHandlers)
             {
                 eh.TryEnd = eh.TryEnd.Next;
                 eh.HandlerEnd = eh.HandlerEnd.Next;
@@ -287,15 +279,15 @@ namespace Confuser.Core.Confusions
             }
 
             //bdy.OptimizeMacros();
-            bdy.ComputeOffsets();
-            bdy.PreserveMaxStackSize = true;
+            body.ComputeOffsets();
+            body.PreserveMaxStackSize = true;
         }
 
-        private Dictionary<Instruction, Level> GetIds(MethodBody bdy)
+        private Dictionary<Instruction, Level> GetIds(MethodBody body)
         {
             SortedDictionary<int, Level> lvs = new SortedDictionary<int, Level>();
             int p = -1;
-            foreach (ExceptionHandler eh in bdy.ExceptionHandlers)
+            foreach (ExceptionHandler eh in body.ExceptionHandlers)
             {
                 if (!lvs.ContainsKey(eh.TryStart.Offset))
                     lvs[eh.TryStart.Offset] = new Level(eh, LevelType.TryStart);
@@ -390,11 +382,11 @@ namespace Confuser.Core.Confusions
                 if (lvs[ks[i]].Handler[0] != null)
                 {
                     int oo = lvs[ks[i]].GetEndOffset();
-                    if ((lvs[ks[i]].GetOnlyLevelType().ToString() == "FilterEnd" ||
-                        lvs[ks[i]].GetOnlyLevelType().ToString() == "HandlerEnd" ||
-                        lvs[ks[i]].GetOnlyLevelType().ToString() == "Handler" ||
-                        lvs[ks[i]].GetOnlyLevelType().ToString() == "Filter") &&
-                        !lvs.ContainsKey(oo))
+                    if ((lvs[ks[i]].GetOnlyLevelType() == LevelType.FilterEnd ||
+                         lvs[ks[i]].GetOnlyLevelType() == LevelType.HandlerEnd ||
+                         lvs[ks[i]].GetOnlyLevelType() == LevelType.Handler ||
+                         lvs[ks[i]].GetOnlyLevelType() == LevelType.Filter) &&
+                         !lvs.ContainsKey(oo))
                     {
                         lvs.Add(oo, new Level() { Handler = lvs[ks[i]].Handler, Type = new List<LevelType> { LevelType.None } });
                         ks.Add(oo);
@@ -406,7 +398,7 @@ namespace Confuser.Core.Confusions
 
             Dictionary<Instruction, Level> ret = new Dictionary<Instruction, Level>();
             int offset = 0;
-            foreach (Instruction inst in bdy.Instructions)
+            foreach (Instruction inst in body.Instructions)
             {
                 if (inst.Offset >= offset && lvs.ContainsKey(inst.Offset))
                     offset = inst.Offset;
@@ -431,7 +423,7 @@ namespace Confuser.Core.Confusions
                     ret.Add(lv);
             return ret.ToArray();
         }
-        private void SetLvHandler(Level lv, MethodBody bdy, Instruction[][] blks)
+        private void SetLvHandler(Level lv, MethodBody body, Instruction[][] blocks)
         {
             for (int i = 0; i < lv.Handler.Count; i++)
             {
@@ -439,33 +431,33 @@ namespace Confuser.Core.Confusions
                 switch (lv.Type[i])
                 {
                     case LevelType.TryStart:
-                        lv.Handler[i].TryStart = blks[0][0];
+                        lv.Handler[i].TryStart = blocks[0][0];
                         break;
                     case LevelType.TryEnd:
-                        lv.Handler[i].TryEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
+                        lv.Handler[i].TryEnd = blocks[blocks.Length - 1][blocks[blocks.Length - 1].Length - 1];
                         break;
                     case LevelType.Try:
-                        lv.Handler[i].TryStart = blks[0][0];
-                        lv.Handler[i].TryEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
+                        lv.Handler[i].TryStart = blocks[0][0];
+                        lv.Handler[i].TryEnd = blocks[blocks.Length - 1][blocks[blocks.Length - 1].Length - 1];
                         break;
                     case LevelType.HandlerStart:
-                        lv.Handler[i].HandlerStart = blks[0][0];
+                        lv.Handler[i].HandlerStart = blocks[0][0];
                         break;
                     case LevelType.HandlerEnd:
-                        lv.Handler[i].HandlerEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
+                        lv.Handler[i].HandlerEnd = blocks[blocks.Length - 1][blocks[blocks.Length - 1].Length - 1];
                         break;
                     case LevelType.Handler:
-                        lv.Handler[i].HandlerStart = blks[0][0];
-                        lv.Handler[i].HandlerEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
+                        lv.Handler[i].HandlerStart = blocks[0][0];
+                        lv.Handler[i].HandlerEnd = blocks[blocks.Length - 1][blocks[blocks.Length - 1].Length - 1];
                         break;
                     case LevelType.FilterStart:
-                        lv.Handler[i].FilterStart = blks[0][0];
+                        lv.Handler[i].FilterStart = blocks[0][0];
                         break;
                     case LevelType.FilterEnd:
                         //lv.Handler[i].FilterEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
                         break;
                     case LevelType.Filter:
-                        lv.Handler[i].FilterStart = blks[0][0];
+                        lv.Handler[i].FilterStart = blocks[0][0];
                         //lv.Handler[i].FilterEnd = blks[blks.Length - 1][blks[blks.Length - 1].Length - 1];
                         break;
                     case LevelType.None:
@@ -476,173 +468,54 @@ namespace Confuser.Core.Confusions
             }
         }
 
-        private Instruction[][] BrizeSplit(Instruction[] insts, double factor)
+        private Instruction[][] BranchesSplit(Instruction[] insts, double factor)
         {
             List<Instruction[]> ret = new List<Instruction[]>();
-            List<Instruction> blk = new List<Instruction>();
+            List<Instruction> block = new List<Instruction>();
             for (int i = 0; i < insts.Length; i++)
             {
-                blk.Add(insts[i]);
-                if ((rad.NextDouble() < factor ||
-                    insts[i].OpCode.Name == "pop" ||
-                    insts[i].OpCode.Name[0] == 'c' ||
-                    insts[i].OpCode.Name.StartsWith("ldloc")) &&
+                block.Add(insts[i]);
+                if ((rand.NextDouble() < factor ||
+                    insts[i].OpCode.Code == Code.Pop ||
+                    insts[i].OpCode.Code == Code.Call ||
+                    insts[i].OpCode.Code == Code.Ldloc) &&
 
                     insts[i].OpCode.OpCodeType != OpCodeType.Prefix &&
-                    insts[i].OpCode != OpCodes.Ldftn && insts[i].OpCode != OpCodes.Ldvirtftn &&
-                    (i + 1 == insts.Length || (insts[i + 1].OpCode != OpCodes.Ldftn && insts[i + 1].OpCode != OpCodes.Ldvirtftn)) &&
-                    (i - 1 == -1 || (insts[i - 1].OpCode != OpCodes.Ldftn && insts[i - 1].OpCode != OpCodes.Ldvirtftn)))
+                    insts[i].OpCode.Code != Code.Ldftn && insts[i].OpCode.Code != Code.Ldvirtftn &&
+                    (i + 1 == insts.Length || (insts[i + 1].OpCode.Code != Code.Ldftn && insts[i + 1].OpCode.Code != Code.Ldvirtftn)) &&
+                    (i - 1 == -1 || (insts[i - 1].OpCode.Code != Code.Ldftn && insts[i - 1].OpCode.Code != Code.Ldvirtftn)))
                 {
-                    ret.Add(blk.ToArray());
-                    blk = new List<Instruction>();
+                    ret.Add(block.ToArray());
+                    block.Clear();
                 }
             }
-            if (blk.Count != 0)
-                ret.Add(blk.ToArray());
+            if (block.Count != 0)
+                ret.Add(block.ToArray());
             return ret.ToArray();
         }
-        private Instruction[][] SwitcizeSplit(MethodDefinition mtd, Instruction[] insts, double factor)
+        private void AddBranches(MethodBody body, ref Instruction[][] blocks)
         {
             List<Instruction[]> ret = new List<Instruction[]>();
-            List<Instruction> blk = new List<Instruction>();
-            List<int> boundaries = new List<int>();
-            for (int i = 0; i < insts.Length; i++)
-                if (insts[i].Operand is Instruction)
-                    boundaries.Add(Array.IndexOf<Instruction>(insts, (Instruction)insts[i].Operand) - 1);
-                else if (insts[i].Operand is Instruction[])
-                {
-                    foreach (Instruction inst in (Instruction[])insts[i].Operand)
-                        boundaries.Add(Array.IndexOf<Instruction>(insts, inst) - 1);
-                }
-            int stack = 0;
-            for (int i = 0; i < insts.Length; i++)
+            for (int i = 0; i < blocks.Length; i++)
             {
-                blk.Add(insts[i]);
-                FollowStack(mtd, insts[i], ref stack);
-                if ((rad.NextDouble() < factor ||
-                    boundaries.Contains(i)) &&
-                    insts[i].OpCode.OpCodeType != OpCodeType.Prefix &&
-                    stack == 0)
+                Instruction[] blk = blocks[i];
+                List<Instruction> newBlock = new List<Instruction>(blk);
+
+                if (i + 1 < blocks.Length)
                 {
-                    ret.Add(blk.ToArray());
-                    blk = new List<Instruction>();
-                }
-            }
-            if (blk.Count != 0)
-                ret.Add(blk.ToArray());
-            return ret.ToArray();
-        }
-        private void FollowStack(MethodDefinition mtd, Instruction inst, ref int stack)
-        {
-            switch (inst.OpCode.StackBehaviourPop)
-            {
-                case StackBehaviour.Pop1:
-                case StackBehaviour.Pop1_pop1:
-                case StackBehaviour.Popref:
-                case StackBehaviour.Popi:
-                    stack--; break;
-                case StackBehaviour.Popi_pop1:
-                case StackBehaviour.Popi_popi:
-                case StackBehaviour.Popi_popi8:
-                case StackBehaviour.Popi_popr4:
-                case StackBehaviour.Popi_popr8:
-                case StackBehaviour.Popref_pop1:
-                case StackBehaviour.Popref_popi:
-                    stack -= 2; break;
-                case StackBehaviour.Popi_popi_popi:
-                case StackBehaviour.Popref_popi_popi:
-                case StackBehaviour.Popref_popi_popi8:
-                case StackBehaviour.Popref_popi_popr4:
-                case StackBehaviour.Popref_popi_popr8:
-                case StackBehaviour.Popref_popi_popref:
-                    stack -= 3; break;
-                case StackBehaviour.PopAll:
-                    stack = 0; break;
-                case StackBehaviour.Varpop:
-                    if (inst.OpCode == OpCodes.Ret)
-                    {
-                        if (mtd.FullName != "System.Void")
-                            stack--;
-                    }
+                    if (rand.Next() % 2 == 0)
+                        AddJump(newBlock, blocks[i + 1][0]);
                     else
                     {
-                        if (((MethodReference)inst.Operand).HasThis && ((MethodReference)inst.Operand).Name != ".ctor")
-                            stack--;
-                        stack -= ((MethodReference)inst.Operand).Parameters.Count;
+                        ConnectBlocks(newBlock, blocks[i + 1], blocks);
+                        if (i + 2 < blocks.Length)
+                            AddJump(newBlock, blocks[i + 2][0]);
+                        i++;
                     }
-                    break;
-            }
-            switch (inst.OpCode.StackBehaviourPush)
-            {
-                case StackBehaviour.Push1:
-                case StackBehaviour.Pushi:
-                case StackBehaviour.Pushi8:
-                case StackBehaviour.Pushr4:
-                case StackBehaviour.Pushr8:
-                case StackBehaviour.Pushref:
-                    stack++; break;
-                case StackBehaviour.Push1_push1:
-                    stack += 2; break;
-                case StackBehaviour.Varpush:
-                    stack += ((MethodReference)inst.Operand).ReturnType.FullName == "System.Void" && ((MethodReference)inst.Operand).Name != ".ctor" ? 0 : 1;
-                    break;
-            }
-        }
-        private void BrizeFlow(MethodBody bdy, ref Instruction[][] blks)
-        {
-            List<Instruction[]> ret = new List<Instruction[]>();
-            for (int i = 0; i < blks.Length; i++)
-            {
-                Instruction[] blk = blks[i];
-                List<Instruction> newBlk = new List<Instruction>();
-                for (int ii = 0; ii < blk.Length; ii++)
-                    newBlk.Add(blk[ii]);
-
-                if (i + 1 < blks.Length)
-                    AddJump(bdy.GetILProcessor(), newBlk, blks[i + 1][0]);
-                ret.Add(newBlk.ToArray());
-            }
-            blks = ret.ToArray();
-        }
-        private void SwitcizeFlow(MethodBody bdy, ref Instruction[][] blks)
-        {
-            List<Instruction[]> ret = new List<Instruction[]>();
-            VariableDefinition counter = new VariableDefinition(bdy.Method.Module.TypeSystem.Int32);
-            bdy.Variables.Add(counter);
-            bdy.InitLocals = true;
-            Instruction loop;
-            Instruction sw;
-            Instruction[] hdrBlk = new Instruction[]
-            {
-                Instruction.Create(OpCodes.Ldc_I4_0),
-                Instruction.Create(OpCodes.Stloc, counter),
-                loop = Instruction.Create(OpCodes.Ldloc, counter),
-                sw = Instruction.Create(OpCodes.Switch, new Instruction[0])
-            };
-            bdy.MaxStackSize++;
-
-            for (int i = 0; i < blks.Length; i++)
-            {
-                Instruction[] blk = blks[i];
-                List<Instruction> newBlk = new List<Instruction>();
-                int set = rad.Next(0, blk.Length);
-                for (int ii = 0; ii < blk.Length; ii++)
-                {
-                    if (ii == set)
-                    {
-                        newBlk.Add(Instruction.Create(OpCodes.Ldc_I4, i + 1));
-                        newBlk.Add(Instruction.Create(OpCodes.Stloc, counter));
-                    }
-                    newBlk.Add(blk[ii]);
                 }
-
-                if (i + 1 < blks.Length)
-                    AddJump(bdy.GetILProcessor(), newBlk, loop);
-                ret.Add(newBlk.ToArray());
+                ret.Add(newBlock.ToArray());
             }
-            sw.Operand = (from i in ret select i[0]).ToArray();
-            ret.Insert(0, hdrBlk);
-            blks = ret.ToArray();
+            blocks = ret.ToArray();
         }
         private void Reorder(ref Instruction[][] insts)
         {
@@ -654,7 +527,7 @@ namespace Confuser.Core.Confusions
                 for (int i = 0; i < insts.Length; i++)
                 {
                     idx[i] = i;
-                    ran[i] = rad.Next();
+                    ran[i] = rand.Next();
                 }
                 ran[0] = int.MinValue;
                 ran[insts.Length - 1] = int.MaxValue;
@@ -682,40 +555,61 @@ namespace Confuser.Core.Confusions
                                                     0xc7ff, 0xc8ff, 0xc9ff, 0xcaff, 0xcbff,
                                                     0xccff, 0xcdff, 0xceff, 0xcfff, 0x08fe,
                                                     0x19fe, 0x1bfe, 0x1ffe};
-        private void AddJump(ILProcessor wkr, List<Instruction> insts, Instruction target)
+        private void ConnectBlocks(List<Instruction> insts, Instruction[] block, Instruction[][] blocks)
         {
-            insts.Add(Instruction.Create(OpCodes.Br, target));
+            Instruction t = blocks[rand.Next(0, blocks.Length)][0];
+            switch (rand.Next(0, 2))
+            {
+                case 0:
+                    insts.Add(Instruction.Create(OpCodes.Ldtoken, method));
+                    insts.Add(Instruction.Create(OpCodes.Brfalse, t));
+                    break;
+                case 1:
+                    int i = rand.Next(-1, 9);
+                    insts.Add(Instruction.Create(OpCodes.Ldc_I4, i));
+                    insts.Add(Instruction.Create(i == 0 ? OpCodes.Brtrue : OpCodes.Brfalse, t));
+                    break;
+            }
+
+            insts.AddRange(block);
+        }
+        private void AddJump(List<Instruction> insts, Instruction target)
+        {
+            switch (rand.Next(0, 2))
+            {
+                case 0:
+                    insts.Add(Instruction.Create(OpCodes.Ldtoken, method));
+                    insts.Add(Instruction.Create(OpCodes.Brtrue, target));
+                    break;
+                case 1:
+                    insts.Add(Instruction.Create(OpCodes.Br, target));
+                    break;
+            }
+
             if (genJunk)
             {
-                switch (rad.Next(0, 4))
+                switch (rand.Next(0, 4))
                 {
                     case 0:
-                        insts.Add(Instruction.Create(OpCodes.Pop));
-                        break;
+                        insts.Add(Instruction.Create(OpCodes.Pop)); break;
                     case 1:
-                        insts.Add(Instruction.Create(OpCodes.Ldc_I4, rad.Next()));
-                        break;
+                        insts.Add(Instruction.Create(OpCodes.Ldc_I4, rand.Next(-1, 9))); break;
                     case 2:
-                        insts.Add(Instruction.Create(OpCodes.Dup));
-                        break;
+                        insts.Add(Instruction.Create(OpCodes.Dup)); break;
                     case 3:
-                        insts.Add(Instruction.CreateJunkCode(junkCode[rad.Next(0, junkCode.Length)]));
-                        break;
+                        insts.Add(Instruction.CreateJunkCode(junkCode[rand.Next(0, junkCode.Length)])); break;
                 }
             }
             else
             {
-                switch (rad.Next(0, 3))
+                switch (rand.Next(0, 3))
                 {
                     case 0:
-                        insts.Add(Instruction.Create(OpCodes.Pop));
-                        break;
+                        insts.Add(Instruction.Create(OpCodes.Pop)); break;
                     case 1:
-                        insts.Add(Instruction.Create(OpCodes.Ldc_I4, rad.Next()));
-                        break;
+                        insts.Add(Instruction.Create(OpCodes.Ldc_I4, rand.Next(-1, 9))); break;
                     case 2:
-                        insts.Add(Instruction.Create(OpCodes.Dup));
-                        break;
+                        insts.Add(Instruction.Create(OpCodes.Dup)); break;
                 }
             }
         }
