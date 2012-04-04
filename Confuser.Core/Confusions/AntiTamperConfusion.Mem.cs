@@ -147,10 +147,9 @@ namespace Confuser.Core.Confusions
             }
 
 
-            void ExtractCodes(Stream stream, out uint csOffset, out uint sn, out uint snLen)
+            void ExtractCodes(Stream stream, MetadataProcessor.ImageAccessor accessor, out uint csOffset, out uint sn, out uint snLen)
             {
                 Random rand = new Random();
-                int rvaOffset = -1;
                 BinaryReader rdr = new BinaryReader(stream);
                 stream.Seek(0x3c, SeekOrigin.Begin);
                 uint offset = rdr.ReadUInt32();
@@ -161,33 +160,12 @@ namespace Confuser.Core.Confusions
                 bool pe32 = (rdr.ReadUInt16() == 0x010b);
                 csOffset = offset + 0x40;
                 stream.Seek(offset = offset + (pe32 ? 0xE0U : 0xF0U), SeekOrigin.Begin);   //sections
-                uint sampleRva = 0xffffffff;
-                foreach (uint i in rvas)
-                    if (i != 0) { sampleRva = i; break; }
-                uint[] vAdrs = new uint[sections];
-                uint[] vSizes = new uint[sections];
-                uint[] dAdrs = new uint[sections];
-                for (int i = 0; i < sections; i++)
-                {
-                    string name = Encoding.ASCII.GetString(rdr.ReadBytes(8)).Trim('\0');
-                    uint vSize = vSizes[i] = rdr.ReadUInt32();
-                    uint vAdr = vAdrs[i] = rdr.ReadUInt32();
-                    uint dSize = rdr.ReadUInt32();
-                    uint dAdr = dAdrs[i] = rdr.ReadUInt32();
-                    stream.Seek(0x10, SeekOrigin.Current);
-                    if (sampleRva > vAdr && sampleRva < (vAdr + vSize))
-                    {
-                        rvaOffset = (int)dAdr - (int)vAdr;
-                        break;
-                    }
-                }
 
                 for (int i = 0; i < rvas.Length; i++)
                 {
                     if (rvas[i] == 0) continue;
-                    long ptr = rvas[i] + rvaOffset;
-                    ptrs[i] = (uint)ptr;
-                    stream.Seek(ptr, SeekOrigin.Begin);
+                    ptrs[i] = accessor.ResolveVirtualAddress(rvas[i]);
+                    stream.Seek(ptrs[i], SeekOrigin.Begin);
                     byte b = rdr.ReadByte();
                     if ((b & 0x3) == 0x2)
                     {
@@ -222,31 +200,19 @@ namespace Confuser.Core.Confusions
                             } while (more);
                         }
                     }
-                    long len = stream.Position - ptr;
-                    stream.Seek(ptr, SeekOrigin.Begin);
+                    long len = stream.Position - ptrs[i];
+                    stream.Seek(ptrs[i], SeekOrigin.Begin);
                     codes[i] = rdr.ReadBytes((int)len);
-                    stream.Seek(ptr, SeekOrigin.Begin);
+                    stream.Seek(ptrs[i], SeekOrigin.Begin);
                     byte[] bs = new byte[len];
                     rand.NextBytes(bs);
                     stream.Write(bs, 0, (int)len);
                 }
 
                 stream.Seek(offset - 16, SeekOrigin.Begin);
-                uint mdDir = rdr.ReadUInt32();
-                for (int i = 0; i < sections; i++)
-                    if (mdDir > vAdrs[i] && mdDir < vAdrs[i] + vSizes[i])
-                    {
-                        mdDir = mdDir - vAdrs[i] + dAdrs[i];
-                        break;
-                    }
+                uint mdDir = accessor.ResolveVirtualAddress(rdr.ReadUInt32());
                 stream.Seek(mdDir + 0x20, SeekOrigin.Begin);
-                sn = rdr.ReadUInt32();
-                for (int i = 0; i < sections; i++)
-                    if (sn > vAdrs[i] && sn < vAdrs[i] + vSizes[i])
-                    {
-                        sn = sn - vAdrs[i] + dAdrs[i];
-                        break;
-                    }
+                sn = accessor.ResolveVirtualAddress(rdr.ReadUInt32());
                 snLen = rdr.ReadUInt32();
             }
             static byte[] Encrypt(byte[] buff, byte[] dat, out byte[] iv, byte key)
@@ -291,15 +257,14 @@ namespace Confuser.Core.Confusions
                 return ret;
             }
 
-            public void Phase5(Stream stream, ModuleDefinition mod)
+            public void Phase5(Stream stream, MetadataProcessor.ImageAccessor accessor)
             {
                 stream.Seek(0, SeekOrigin.Begin);
                 uint csOffset;
                 uint sn;
                 uint snLen;
-                ExtractCodes(stream, out csOffset, out sn, out snLen);
+                ExtractCodes(stream, accessor, out csOffset, out sn, out snLen);
                 stream.Position = 0;
-                Image img = ImageReader.ReadImageFrom(stream);
 
                 MemoryStream ms = new MemoryStream();
                 ms.WriteByte(0xd6);
@@ -319,7 +284,8 @@ namespace Confuser.Core.Confusions
                 BinaryReader sReader = new BinaryReader(stream);
                 using (MemoryStream str = new MemoryStream())
                 {
-                    stream.Position = img.ResolveVirtualAddress(img.Metadata.VirtualAddress) + 12;
+                    var mdPtr = accessor.ResolveVirtualAddress(accessor.GetTextSegmentRange(TextSegment.MetadataHeader).Start);
+                    stream.Position = mdPtr + 12;
                     stream.Position += sReader.ReadUInt32() + 4;
                     stream.Position += 2;
 
@@ -327,7 +293,7 @@ namespace Confuser.Core.Confusions
 
                     for (int i = 0; i < streams; i++)
                     {
-                        uint offset = img.ResolveVirtualAddress(img.Metadata.VirtualAddress + sReader.ReadUInt32());
+                        uint offset = mdPtr + sReader.ReadUInt32();
                         uint size = sReader.ReadUInt32();
 
                         int c = 0;
@@ -349,8 +315,8 @@ namespace Confuser.Core.Confusions
                 long checkSum = BitConverter.ToInt64(md5, 0) ^ BitConverter.ToInt64(md5, 8);
                 wtr = new BinaryWriter(stream);
                 stream.Seek(csOffset, SeekOrigin.Begin);
-                wtr.Write(img.Metadata.VirtualAddress ^ (uint)key0);
-                stream.Seek(img.GetSection(sectName).PointerToRawData, SeekOrigin.Begin);
+                wtr.Write(accessor.GetTextSegmentRange(TextSegment.MetadataHeader).Start ^ (uint)key0);
+                stream.Seek(accessor.GetSection(sectName).PointerToRawData, SeekOrigin.Begin);
                 wtr.Write(checkSum ^ key1);
                 wtr.Write(sn);
                 wtr.Write(snLen);

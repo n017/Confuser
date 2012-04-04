@@ -6,6 +6,7 @@ using Mono.Cecil.Metadata;
 using System.Text;
 using System.Collections.Specialized;
 using System.IO;
+using Mono.Cecil.PE;
 
 namespace Confuser.Core.Confusions
 {
@@ -93,12 +94,74 @@ namespace Confuser.Core.Confusions
                 accessor.TableHeap.GetTable<AssemblyTable>(Table.Assembly).AddRow(new Row<AssemblyHashAlgorithm, ushort, ushort, ushort, ushort, AssemblyAttributes, uint, uint, uint>(
                     AssemblyHashAlgorithm.None, 0, 0, 0, 0, AssemblyAttributes.SideBySideCompatible, 0,
                     accessor.StringHeap.GetStringIndex(Guid.NewGuid().ToString()), 0));
+
+                Random rand = new Random();
+                for (int i = 0; i < 10; i++)
+                    accessor.TableHeap.GetTable<ENCLogTable>(Table.EncLog).AddRow(new Row<uint, uint>((uint)rand.Next(), (uint)rand.Next()));
+                for (int i = 0; i < 10; i++)
+                    accessor.TableHeap.GetTable<ENCMapTable>(Table.EncMap).AddRow((uint)rand.Next());
+
+                accessor.TableHeap.GetTable<AssemblyRefTable>(Table.AssemblyRef).AddRow(new Row<ushort, ushort, ushort, ushort, AssemblyAttributes, uint, uint, uint, uint>(
+                    0, 0, 0, 0, AssemblyAttributes.SideBySideCompatible, 0,
+                    0xffff, 0, 0xffff));
+
             }
         }
-        class Phase3 : PePhase
+        //class Phase3 : ImagePhase
+        //{
+        //    InvalidMdConfusion cion;
+        //    public Phase3(InvalidMdConfusion cion) { this.cion = cion; }
+        //    public override Priority Priority
+        //    {
+        //        get { return Priority.PELevel; }
+        //    }
+        //    public override IConfusion Confusion
+        //    {
+        //        get { return cion; }
+        //    }
+        //    public override int PhaseID
+        //    {
+        //        get { return 2; }
+        //    }
+
+        //    public override void Process(NameValueCollection parameters, MetadataProcessor.ImageAccessor accessor)
+        //    {
+        //        //Section text = accessor.Sections[0];
+
+        //        //Random rand = new Random();
+        //        //int newSectCount = rand.Next(2, 4);
+
+        //        //for (int i = 0; i < newSectCount && text.VirtualSize > 0x2000; i++)
+        //        //{
+        //        //    uint size = 0;
+        //        //    if (text.VirtualSize < 0x4000)
+        //        //    {
+        //        //        size = text.VirtualSize - 0x2000;
+        //        //    }
+        //        //    accessor.ResizeSection(text, text.VirtualSize - size, false);
+
+        //        //    int insertIndex = 1;
+        //        //    Section newSect = accessor.CreateSection(
+        //        //        Convert.ToBase64String(Guid.NewGuid().ToByteArray()).Substring(0, 6),
+        //        //        size,
+        //        //        text.Characteristics,
+        //        //        null);
+        //        //    newSect.VirtualAddress = text.VirtualAddress + text.VirtualSize;
+        //        //    newSect.PointerToRawData =
+        //        //        accessor.Sections[insertIndex - 1].PointerToRawData +
+        //        //        accessor.Sections[insertIndex - 1].SizeOfRawData;
+        //        //    accessor.Sections.Insert(insertIndex, newSect);
+        //        //    for (int j = insertIndex + 1; j < accessor.Sections.Count; j++)
+        //        //        accessor.Sections[j].PointerToRawData =
+        //        //            accessor.Sections[j - 1].PointerToRawData +
+        //        //            accessor.Sections[j - 1].SizeOfRawData;
+        //        //}
+        //    }
+        //}
+        class Phase4 : PePhase
         {
             InvalidMdConfusion cion;
-            public Phase3(InvalidMdConfusion cion) { this.cion = cion; }
+            public Phase4(InvalidMdConfusion cion) { this.cion = cion; }
             public override Priority Priority
             {
                 get { return Priority.PELevel; }
@@ -112,10 +175,11 @@ namespace Confuser.Core.Confusions
                 get { return 2; }
             }
 
-            public override void Process(NameValueCollection parameters, Stream stream, ModuleDefinition mod)
+            public override void Process(NameValueCollection parameters, Stream stream, MetadataProcessor.ImageAccessor accessor)
             {
                 Random rand = new Random();
                 BinaryReader rdr = new BinaryReader(stream);
+
                 stream.Seek(0x3c, SeekOrigin.Begin);
                 uint offset = rdr.ReadUInt32();
                 stream.Seek(offset, SeekOrigin.Begin);
@@ -123,11 +187,8 @@ namespace Confuser.Core.Confusions
                 uint sections = rdr.ReadUInt16();
                 stream.Seek(offset = offset + 0x18, SeekOrigin.Begin);  //Optional hdr
                 bool pe32 = (rdr.ReadUInt16() == 0x010b);
-                //stream.Seek(offset + (pe32 ? 0x5c : 0x6c), SeekOrigin.Begin);
-                //stream.Write(new byte[] { 0x06, 0x00, 0x00, 0x00 }, 0, 4);
-                stream.Seek(offset + 0x10, SeekOrigin.Begin);
-                uint entryPt = rdr.ReadUInt32(); bool ok = false;
                 stream.Seek(offset = offset + (pe32 ? 0xE0U : 0xF0U), SeekOrigin.Begin);   //sections
+                stream.Seek(-0xc, SeekOrigin.Current);
                 for (int i = 0; i < sections; i++)
                 {
                     bool seen = false;
@@ -145,14 +206,53 @@ namespace Confuser.Core.Confusions
                     uint vLoc = rdr.ReadUInt32();
                     uint rSize = rdr.ReadUInt32();
                     uint rLoc = rdr.ReadUInt32();
-                    if (!ok && entryPt > vLoc && entryPt < (vLoc + vSize))
-                    { entryPt = entryPt - vLoc + rLoc; ok = true; }
                     stream.Seek(0x10, SeekOrigin.Current);
                 }
-                //stream.Seek(entryPt, SeekOrigin.Begin);
-                //byte[] fake = new byte[]{0xff,0x25,0x00,0x20,0x40,0x00,
-                //                         0xBE,0x05,0x29,0x0E,0x31,0x1B};
-                //stream.Write(fake, 0, fake.Length);
+
+                var mdPtr = accessor.ResolveVirtualAddress(accessor.GetTextSegmentRange(TextSegment.MetadataHeader).Start);
+                stream.Position = mdPtr + 12;
+                long verLenPos = stream.Position;
+                uint verLen = rdr.ReadUInt32();
+                stream.Position += verLen;
+                stream.Position += 2;
+
+                ushort streams = rdr.ReadUInt16();
+
+                uint startOfStreams = 0xffffffff;
+                for (int i = 0; i < streams; i++)
+                {
+                    startOfStreams = Math.Min(rdr.ReadUInt32(), startOfStreams);
+                    stream.Position += 4;
+                    long begin = stream.Position;
+
+                    int c = 0;
+                    string s = "";
+                    byte b;
+                    while ((b = rdr.ReadByte()) != 0)
+                    {
+                        s += (char)b;
+                        c++;
+                    }
+                    if (s == "#~")
+                    {
+                        stream.Position = begin + 1;
+                        stream.WriteByte((byte)'-');
+                    }
+                    stream.Position = (stream.Position + 3) & ~3;
+                }
+
+                uint m = startOfStreams - (uint)(stream.Position - mdPtr);
+                uint size = (uint)(stream.Position - (verLenPos + 4));
+                stream.Position = verLenPos;
+                stream.Write(BitConverter.GetBytes(verLen + m), 0, 4);
+                byte[] x = new byte[verLen];
+                stream.Read(x, 0, (int)verLen);
+                byte[] t = new byte[size - verLen];
+                stream.Read(t, 0, (int)t.Length);
+                stream.Position = verLenPos + 4;
+                stream.Write(x, 0, x.Length);
+                stream.Write(new byte[m], 0, (int)m);
+                stream.Write(t, 0, t.Length);
             }
         }
 
@@ -192,7 +292,11 @@ namespace Confuser.Core.Confusions
         Phase[] phases;
         public Phase[] Phases
         {
-            get { if (phases == null)phases = new Phase[] { new Phase1(this), new Phase2(this), new Phase3(this) }; return phases; }
+            get
+            {
+                if (phases == null) phases = new Phase[] { new Phase1(this), new Phase2(this), new Phase3(this), new Phase4(this) };
+                return phases;
+            }
         }
 
         public void Init() { }

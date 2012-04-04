@@ -41,6 +41,135 @@ namespace Mono.Cecil.PE {
 
 	sealed class ImageWriter : BinaryStreamWriter {
 
+        sealed class VirtualStream : Stream
+        {
+            internal Collection<Section> sects;
+            Stream str;
+            Section GetSectionAtVirtualAddress(RVA rva)
+            {
+                for (int i = 0; i < sects.Count; i++)
+                {
+                    var section = sects[i];
+                    if (rva >= section.VirtualAddress && rva < section.VirtualAddress + section.SizeOfRawData)
+                        return section;
+                }
+
+                return null;
+            }
+            public VirtualStream(Stream str)
+            {
+                this.str = str;
+            }
+            public override bool CanRead { get { return true; } }
+            public override bool CanSeek { get { return true; } }
+            public override bool CanWrite { get { return true; } }
+            public override void Flush() { }
+            public override long Length { get { return long.MaxValue; } }
+
+            uint rva;
+            public override long Position
+            {
+                get { return rva; }
+                set { rva = (uint)value; }
+            }
+
+            public override int Read(byte[] buffer, int offset, int count)
+            {
+                Section sect = GetSectionAtVirtualAddress(rva);
+                uint limit;
+                if (sect == null)
+                {
+                    str.Position = rva;
+                    limit = 0;
+                }
+                else
+                {
+                    str.Position = rva - sect.VirtualAddress + sect.PointerToRawData;
+                    limit = sect.VirtualAddress + sect.VirtualSize;
+                }
+
+                int ret = 0;
+                for (int i = offset; i < offset + count; i++)
+                {
+                    buffer[i] = (byte)str.ReadByte();
+                    ret++;
+                    rva++;
+                    if (rva >= limit)
+                    {
+                        sect = GetSectionAtVirtualAddress(rva);
+                        if (sect == null)
+                        {
+                            str.Position = rva;
+                            limit = 0;
+                        }
+                        else
+                        {
+                            str.Position = rva - sect.VirtualAddress + sect.PointerToRawData;
+                            limit = sect.VirtualAddress + sect.VirtualSize;
+                        }
+                    }
+                }
+                return ret;
+            }
+
+            public override long Seek(long offset, SeekOrigin origin)
+            {
+                switch (origin)
+                {
+                    case SeekOrigin.Begin:
+                        Position = offset; break;
+                    case SeekOrigin.Current:
+                        Position += offset; break;
+                    case SeekOrigin.End:
+                        throw new NotSupportedException();
+                }
+                return Position;
+            }
+
+            public override void SetLength(long value)
+            {
+                throw new NotSupportedException();
+            }
+
+            public override void Write(byte[] buffer, int offset, int count)
+            {
+                Section sect = GetSectionAtVirtualAddress(rva);
+                uint limit;
+                if (sect == null)
+                {
+                    str.Position = rva;
+                    limit = 0;
+                }
+                else
+                {
+                    str.Position = rva - sect.VirtualAddress + sect.PointerToRawData;
+                    limit = sect.VirtualAddress + sect.VirtualSize;
+                }
+
+                int ret = 0;
+                for (int i = offset; i < offset + count; i++)
+                {
+                    str.WriteByte(buffer[i]);
+                    ret++;
+                    rva++;
+                    if (rva >= limit)
+                    {
+                        sect = GetSectionAtVirtualAddress(rva);
+                        if (sect == null)
+                        {
+                            str.Position = rva;
+                            limit = 0;
+                        }
+                        else
+                        {
+                            str.Position = rva - sect.VirtualAddress + sect.PointerToRawData;
+                            limit = sect.VirtualAddress + sect.VirtualSize;
+                        }
+                    }
+                }
+            }
+        }
+
 		internal readonly ModuleDefinition module;
 		internal readonly MetadataBuilder metadata;
 		internal readonly TextMap text_map;
@@ -64,7 +193,7 @@ namespace Mono.Cecil.PE {
 		internal Collection<Section> sections;
 
 		ImageWriter (ModuleDefinition module, MetadataBuilder metadata, Stream stream)
-			: base (stream)
+			: base (new VirtualStream(stream))
 		{
 			this.module = module;
 			this.pe64 = module.Architecture != TargetArchitecture.I386;
@@ -119,6 +248,7 @@ namespace Mono.Cecil.PE {
 		{
 			var writer = new ImageWriter (module, metadata, stream);
 			writer.BuildSections ();
+            (writer.BaseStream as VirtualStream).sects = writer.sections;
 			return writer;
 		}
 
@@ -157,6 +287,26 @@ namespace Mono.Cecil.PE {
                 Data = new byte[Align(size, file_alignment)],
                 Characteristics = characteristics
 			};
+		}
+
+		internal void ResizeSection (Section section, uint newSize, bool update)
+		{
+			section.VirtualSize = newSize;
+			section.SizeOfRawData = Align (newSize, file_alignment);
+			byte[] newDat = new byte[section.SizeOfRawData];
+			if (newDat.Length > section.Data.Length)
+				Buffer.BlockCopy(section.Data, 0, newDat, 0, section.Data.Length);
+			else
+				Buffer.BlockCopy(section.Data, 0, newDat, 0, newDat.Length);
+			section.Data = newDat;
+
+			int sectIndex = sections.IndexOf(section);
+			if (sectIndex != -1 && update)
+				for (int i = sectIndex + 1; i < sections.Count; i++)
+				{
+					sections[i].VirtualAddress = sections[i - 1].VirtualAddress + Align (sections[i - 1].VirtualSize, section_alignment);
+					sections[i].PointerToRawData = sections[i - 1].PointerToRawData + sections[i - 1].SizeOfRawData;
+				}
 		}
 
 		static uint Align (uint value, uint align)
@@ -378,14 +528,14 @@ namespace Mono.Cecil.PE {
 			BaseStream.Seek (pointer, SeekOrigin.Begin);
 		}
 
-		void MoveToRVA (Section section, RVA rva)
+		void MoveToRVA (RVA rva)
 		{
-			BaseStream.Seek (section.PointerToRawData + rva - section.VirtualAddress, SeekOrigin.Begin);
+			BaseStream.Seek (rva, SeekOrigin.Begin);
 		}
 
 		void MoveToRVA (TextSegment segment)
 		{
-			MoveToRVA (GetSection(".text"), text_map.GetRVA (segment));
+			MoveToRVA (text_map.GetRVA (segment));
 		}
 
 		void WriteRVA (RVA rva)
@@ -398,7 +548,7 @@ namespace Mono.Cecil.PE {
 
 		void WriteText ()
 		{
-			MoveTo (GetSection(".text").PointerToRawData);
+			MoveTo (GetSection(".text").VirtualAddress);
 
 			// ImportAddressTable
 
@@ -643,13 +793,13 @@ namespace Mono.Cecil.PE {
 		void WriteRsrc ()
 		{
             if (win32_resources == null) return;
-			MoveTo (GetSection(".rsrc").PointerToRawData);
+			MoveTo (GetSection(".rsrc").VirtualAddress);
 			WriteBuffer (win32_resources);
 		}
 
 		void WriteReloc ()
 		{
-			MoveTo (GetSection(".reloc").PointerToRawData);
+			MoveTo (GetSection(".reloc").VirtualAddress);
 
 			var reloc_rva = text_map.GetRVA (TextSegment.StartupStub);
 			reloc_rva += module.Architecture == TargetArchitecture.IA64 ? 0x20u : 2;
@@ -683,7 +833,7 @@ namespace Mono.Cecil.PE {
 			WriteSectionHeaders ();
             foreach (Section sect in sections)
             {
-                MoveTo(sect.PointerToRawData);
+                MoveTo(sect.VirtualAddress);
                 WriteBytes(sect.Data);
             }
 			WriteText ();

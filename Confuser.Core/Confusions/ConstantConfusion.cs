@@ -10,6 +10,7 @@ using System.IO.Compression;
 using Mono.Cecil.Rocks;
 using Confuser.Core.Poly.Visitors;
 using System.Collections.Specialized;
+using Mono.Cecil.Metadata;
 
 namespace Confuser.Core.Confusions
 {
@@ -57,11 +58,13 @@ namespace Confuser.Core.Confusions
             ModuleDefinition mod;
             public override void Process(ConfusionParameter parameter)
             {
-                if (Array.IndexOf(parameter.GlobalParameters.AllKeys, "dynamic") == -1)
+                if (parameter.GlobalParameters["type"] != "dynamic" &&
+                    parameter.GlobalParameters["type"] != "native")
                 {
                     ProcessSafe(parameter); return;
                 }
                 _Context txt = cc.txts[mod];
+                txt.isNative = parameter.GlobalParameters["type"] == "native";
 
                 Random rand = new Random();
                 TypeDefinition modType = mod.GetType("<Module>");
@@ -74,6 +77,16 @@ namespace Confuser.Core.Confusions
                 txt.strer.Name = Encoding.UTF8.GetString(n);
                 txt.strer.IsAssembly = true;
                 AddHelper(txt.strer, HelperAttribute.NoInjection);
+                if (txt.isNative)
+                {
+                    txt.nativeDecr = new MethodDefinition(
+                        ObfuscationHelper.GetNewName("NativeDecrypter" + Guid.NewGuid().ToString()),
+                        MethodAttributes.Abstract | MethodAttributes.CompilerControlled |
+                        MethodAttributes.ReuseSlot | MethodAttributes.Static,
+                        mod.TypeSystem.Int32);
+                    txt.nativeDecr.Parameters.Add(new ParameterDefinition(mod.TypeSystem.Int32));
+                    modType.Methods.Add(txt.nativeDecr);
+                }
 
                 txt.key0 = rand.Next();
                 txt.key1 = rand.Next();
@@ -341,7 +354,8 @@ namespace Confuser.Core.Confusions
 
             public override void Process(ConfusionParameter parameter)
             {
-                if (Array.IndexOf(parameter.GlobalParameters.AllKeys, "dynamic") == -1)
+                if (parameter.GlobalParameters["type"] != "dynamic" &&
+                    parameter.GlobalParameters["type"] != "native")
                 {
                     ProcessSafe(parameter); return;
                 }
@@ -354,8 +368,11 @@ namespace Confuser.Core.Confusions
                 txt.dict.Clear();
                 var expGen = new ExpressionGenerator();
                 int seed = expGen.Seed;
-                txt.exp = expGen.Generate(10);
-                var invExp = ExpressionInverser.InverseExpression(txt.exp);
+                if (txt.isNative)
+                    txt.exp = expGen.Generate(6);
+                else
+                    txt.exp = expGen.Generate(10);
+                txt.invExp = ExpressionInverser.InverseExpression(txt.exp);
 
                 for (int i = 0; i < txts.Count; i++)
                 {
@@ -381,30 +398,27 @@ namespace Confuser.Core.Confusions
                     }
                 }
 
-                for (int i = 0; i < txt.strer.Body.Instructions.Count; i++)
-                {
-                    Instruction inst = txt.strer.Body.Instructions[i];
-                    if (inst.Operand is MethodReference && ((MethodReference)inst.Operand).Name == "PolyStart")
-                    {
-                        List<Instruction> insts = new List<Instruction>();
-                        int ptr = i + 1;
-                        while (ptr < txt.strer.Body.Instructions.Count)
-                        {
-                            Instruction z = txt.strer.Body.Instructions[ptr];
-                            txt.strer.Body.Instructions.Remove(z);
-                            if (z.Operand is MethodReference && ((MethodReference)z.Operand).Name == "PlaceHolder")
-                                break;
-                            insts.Add(z);
-                        }
 
-                        Instruction[] expInsts = new CecilVisitor(ExpressionInverser.InverseExpression(txt.exp), insts.ToArray()).GetInstructions();
-                        ILProcessor psr = txt.strer.Body.GetILProcessor();
-                        psr.Replace(inst, expInsts[0]);
-                        for (int ii = 1; ii < expInsts.Length; ii++)
-                        {
-                            psr.InsertAfter(expInsts[ii - 1], expInsts[ii]);
-                        }
+                Instruction placeholder = null;
+                foreach (Instruction inst in txt.strer.Body.Instructions)
+                    if (inst.Operand is MethodReference && (inst.Operand as MethodReference).Name == "PlaceHolder")
+                    {
+                        placeholder = inst;
+                        break;
                     }
+                if (txt.isNative)
+                    CecilHelper.Replace(txt.strer.Body, placeholder, new Instruction[]
+                        {
+                            Instruction.Create(OpCodes.Call, txt.nativeDecr)
+                        });
+                else
+                {
+                    Instruction ldloc = placeholder.Previous;
+                    txt.strer.Body.Instructions.Remove(placeholder.Previous);   //ldloc
+                    CecilHelper.Replace(txt.strer.Body, placeholder, new CecilVisitor(txt.invExp, new Instruction[]
+                    {
+                        ldloc
+                    }).GetInstructions());
                 }
                 txt.strer.Body.OptimizeMacros();
                 txt.strer.Body.ComputeOffsets();
@@ -449,6 +463,96 @@ namespace Confuser.Core.Confusions
                 this.progresser = progresser;
             }
         }
+        class MdPhase1 : MetadataPhase
+        {
+            public MdPhase1(ConstantConfusion cc) { this.cc = cc; }
+            ConstantConfusion cc;
+            public override IConfusion Confusion
+            {
+                get { return cc; }
+            }
+
+            public override int PhaseID
+            {
+                get { return 1; }
+            }
+
+            public override Priority Priority
+            {
+                get { return Priority.TypeLevel; }
+            }
+
+            public override void Process(NameValueCollection parameters, MetadataProcessor.MetadataAccessor accessor)
+            {
+                _Context txt = cc.txts[accessor.Module];
+                txt.nativeRVA = accessor.Codebase + (uint)accessor.Codes.Position;
+                MemoryStream ms = new MemoryStream();
+                using (BinaryWriter wtr = new BinaryWriter(ms))
+                {
+                    wtr.Write(new byte[] { 0x8b, 0x44, 0x24, 0x04 });   //mov eax, [esp + 4]
+                    wtr.Write(new byte[] { 0x53 });   //push ebx
+                    wtr.Write(new byte[] { 0x50 });   //push eax
+                    x86Visitor visitor = new x86Visitor(txt.invExp, null);     //use default handler
+                    x86Register ret;
+                    var insts = visitor.GetInstructions(out ret);
+                    foreach (var i in insts)
+                        wtr.Write(i.Assemble());
+                    if (ret != x86Register.EAX)
+                        wtr.Write(
+                            new x86Instruction()
+                            {
+                                OpCode = x86OpCode.MOV,
+                                Operands = new Ix86Operand[]
+                                {
+                                    new x86RegisterOperand() { Register = x86Register.EAX },
+                                    new x86RegisterOperand() { Register = ret }
+                                }
+                            }.Assemble());
+                    wtr.Write(new byte[] { 0x5b });   //pop ebx
+                    wtr.Write(new byte[] { 0xc3 });   //ret
+                    wtr.Write(new byte[((ms.Length + 3) & ~3) - ms.Length]);
+                }
+                byte[] codes = ms.ToArray();
+                accessor.Codes.WriteBytes(codes);
+                accessor.SetCodePosition(accessor.Codebase + (uint)accessor.Codes.Position);
+            }
+        }
+        class MdPhase2 : MetadataPhase
+        {
+            public MdPhase2(ConstantConfusion cc) { this.cc = cc; }
+            ConstantConfusion cc;
+            public override IConfusion Confusion
+            {
+                get { return cc; }
+            }
+
+            public override int PhaseID
+            {
+                get { return 2; }
+            }
+
+            public override Priority Priority
+            {
+                get { return Priority.TypeLevel; }
+            }
+
+            public override void Process(NameValueCollection parameters, MetadataProcessor.MetadataAccessor accessor)
+            {
+                _Context txt = cc.txts[accessor.Module];
+                if (!txt.isNative) return;
+
+                var tbl = accessor.TableHeap.GetTable<MethodTable>(Table.Method);
+                var row = tbl[(int)txt.nativeDecr.MetadataToken.RID - 1];
+                row.Col2 = MethodImplAttributes.Native | MethodImplAttributes.Unmanaged | MethodImplAttributes.PreserveSig;
+                row.Col3 &= ~MethodAttributes.Abstract;
+                row.Col3 |= MethodAttributes.PInvokeImpl;
+                row.Col1 = txt.nativeRVA;
+
+                tbl[(int)txt.nativeDecr.MetadataToken.RID - 1] = row;
+
+                accessor.Module.Attributes &= ~ModuleAttributes.ILOnly;
+            }
+        }
 
 
         struct Data
@@ -470,7 +574,11 @@ namespace Confuser.Core.Confusions
             public byte[] types = new byte[5];
             public MethodDefinition strer;
 
+            public bool isNative;
+            public uint nativeRVA;
+            public MethodDefinition nativeDecr;
             public Expression exp;
+            public Expression invExp;
         }
         Dictionary<ModuleDefinition, _Context> txts = new Dictionary<ModuleDefinition, _Context>();
 
@@ -513,7 +621,7 @@ namespace Confuser.Core.Confusions
             get
             {
                 if (ps == null)
-                    ps = new Phase[] { new Phase1(this), new Phase3(this) };
+                    ps = new Phase[] { new Phase1(this), new Phase3(this), new MdPhase1(this), new MdPhase2(this) };
                 return ps;
             }
         }

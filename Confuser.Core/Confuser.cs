@@ -605,7 +605,7 @@ namespace Confuser.Core
                     param.Logger._Progress(i, imgPhases.Length);
                 }
             });
-            psr.ProcessPe += new MetadataProcessor.PeProcess(delegate(Stream str)
+            psr.ProcessPe += new MetadataProcessor.PeProcess(delegate(Stream str, MetadataProcessor.ImageAccessor accessor)
             {
                 Log(string.Format("Obfuscating PE of module {0}...", mod.Module.Name));
                 PePhase[] pePhases = (from i in phases where (i is PePhase) orderby (int)i.Priority + i.PhaseID * 10 ascending select (PePhase)i).ToArray();
@@ -619,7 +619,7 @@ namespace Confuser.Core
                         globalParam = globalParams[pePhases[i].Confusion];
                     else
                         globalParam = new NameValueCollection();
-                    pePhases[i].Process(globalParam, str, mod.Module);
+                    pePhases[i].Process(globalParam, str, accessor);
                     param.Logger._Progress(i, pePhases.Length);
                 }
             });

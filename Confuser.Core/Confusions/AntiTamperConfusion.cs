@@ -25,7 +25,7 @@ namespace Confuser.Core.Confusions
             void Phase2(IProgresser progresser, ModuleDefinition mod);
             void Phase3(MetadataProcessor.MetadataAccessor accessor);
             void Phase4(MetadataProcessor.ImageAccessor accessor);
-            void Phase5(Stream stream, ModuleDefinition mod);
+            void Phase5(Stream stream, MetadataProcessor.ImageAccessor accessor);
         }
 
         class Phase1 : StructurePhase
@@ -174,9 +174,9 @@ namespace Confuser.Core.Confusions
                 get { return 5; }
             }
 
-            public override void Process(NameValueCollection parameters, Stream stream, ModuleDefinition mod)
+            public override void Process(NameValueCollection parameters, Stream stream, MetadataProcessor.ImageAccessor accessor)
             {
-                cion.vers[mod].Phase5(stream, mod);
+                cion.vers[accessor.Module].Phase5(stream, accessor);
             }
         }
 

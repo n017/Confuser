@@ -34,7 +34,7 @@ using RVA = System.UInt32;
 
 namespace Mono.Cecil.PE {
 
-	enum TextSegment {
+	public enum TextSegment {
 		ImportAddressTable,
 		CLIHeader,
 		Code,

@@ -124,7 +124,7 @@ namespace Confuser.Core
     }
     public abstract class PePhase : Phase
     {
-        public abstract void Process(NameValueCollection parameters, Stream stream, ModuleDefinition mod);
+        public abstract void Process(NameValueCollection parameters, Stream stream, MetadataProcessor.ImageAccessor accessor);
         public override sealed void Initialize(ModuleDefinition mod) { }
         public override sealed void DeInitialize() { }
         public override sealed bool WholeRun { get { return true; } }

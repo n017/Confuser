@@ -1457,7 +1457,7 @@ namespace Mono.Cecil {
     public sealed class MetadataProcessor
     {
         public delegate void MetadataProcess(MetadataAccessor accessor);
-        public delegate void PeProcess(Stream pe);
+        public delegate void PeProcess(Stream pe, ImageAccessor accessor);
         public delegate void ImageProcess(ImageAccessor accessor);
 
         public void Process(ModuleDefinition mod, string fileName)
@@ -1525,7 +1525,7 @@ namespace Mono.Cecil {
 			var writer = ImageWriter.CreateWriter (module, metadata, stream);
             OnProcessImage(new ImageAccessor(writer));
 			writer.WriteImage ();
-            OnProcessPe(stream);
+            OnProcessPe(stream, new ImageAccessor(writer));
 
 #if !SILVERLIGHT && !CF
 			if (parameters.StrongNameKeyPair != null)
@@ -1556,9 +1556,9 @@ namespace Mono.Cecil {
             if (ProcessImage != null) ProcessImage(accessor);
         }
         public event PeProcess ProcessPe;
-        private void OnProcessPe(Stream pe)
+        private void OnProcessPe(Stream pe, ImageAccessor accessor)
         {
-            if (ProcessPe != null) ProcessPe(pe);
+            if (ProcessPe != null) ProcessPe(pe, accessor);
         }
 
 
@@ -1611,9 +1611,46 @@ namespace Mono.Cecil {
             {
                 return writer.CreateSection(name, size, characteristics, previous);
             }
-            public ByteBuffer GetCodeBuffer()
+            public Section GetSection(string name)
             {
-                return writer.metadata.code;
+                foreach (var i in Sections)
+                    if (i.Name == name)
+                        return i;
+                return null;
+            }
+            public void ResizeSection(Section section, uint newSize, bool update)
+            {
+                writer.ResizeSection(section, newSize, update);
+            }
+
+            public Section GetSectionAtVirtualAddress(RVA rva)
+            {
+                var sections = this.Sections;
+                for (int i = 0; i < sections.Count; i++)
+                {
+                    var section = sections[i];
+                    if (rva >= section.VirtualAddress && rva < section.VirtualAddress + section.SizeOfRawData)
+                        return section;
+                }
+
+                return null;
+            }
+            public uint ResolveVirtualAddress(RVA rva)
+            {
+                if (rva == 0) return 0;
+                var section = GetSectionAtVirtualAddress(rva);
+                if (section == null)
+                    throw new ArgumentOutOfRangeException();
+
+                return ResolveVirtualAddressInSection(rva, section);
+            }
+            public uint ResolveVirtualAddressInSection(RVA rva, Section section)
+            {
+                return rva + section.PointerToRawData - section.VirtualAddress;
+            }
+            public Range GetTextSegmentRange(TextSegment segment)
+            {
+                return writer.text_map.GetRange(segment);
             }
         }
     }
