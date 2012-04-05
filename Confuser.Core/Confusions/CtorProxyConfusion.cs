@@ -87,10 +87,14 @@ namespace Confuser.Core.Confusions
                         MethodAttributes.Abstract | MethodAttributes.CompilerControlled |
                         MethodAttributes.ReuseSlot | MethodAttributes.Static,
                         mod.TypeSystem.Int32);
+                    txt.nativeDecr.ImplAttributes = MethodImplAttributes.Native;
                     txt.nativeDecr.Parameters.Add(new ParameterDefinition(mod.TypeSystem.Int32));
                     modType.Methods.Add(txt.nativeDecr);
-                    txt.exp = new ExpressionGenerator().Generate(6);
-                    txt.invExp = ExpressionInverser.InverseExpression(txt.exp);
+                    do
+                    {
+                        txt.exp = new ExpressionGenerator().Generate(6);
+                        txt.invExp = ExpressionInverser.InverseExpression(txt.exp);
+                    } while ((txt.visitor = new x86Visitor(txt.invExp, null)).RegisterOverflowed);
 
                     CecilHelper.Replace(txt.proxy.Body, placeholder, new Instruction[]
                         {
@@ -108,7 +112,7 @@ namespace Confuser.Core.Confusions
             public override void Process(ConfusionParameter parameter)
             {
                 _Context txt = cc.txts[mod];
-                txt.isNative = parameter.GlobalParameters["type"] != "native";
+                txt.isNative = parameter.GlobalParameters["type"] == "native";
                 IList<Tuple<IAnnotationProvider, NameValueCollection>> targets = parameter.Target as IList<Tuple<IAnnotationProvider, NameValueCollection>>;
                 for (int i = 0; i < targets.Count; i++)
                 {
@@ -359,7 +363,7 @@ namespace Confuser.Core.Confusions
                 }
                 if (!_txt.isNative) return;
 
-                _txt.nativeRVA = accessor.Codebase + (uint)accessor.Codes.Position;
+                _txt.nativeRange = new Range(accessor.Codebase + (uint)accessor.Codes.Position, 0);
                 MemoryStream ms = new MemoryStream();
                 using (BinaryWriter wtr = new BinaryWriter(ms))
                 {
@@ -368,7 +372,7 @@ namespace Confuser.Core.Confusions
                     wtr.Write(new byte[] { 0x50 });   //push eax
                     x86Visitor visitor = new x86Visitor(_txt.invExp, null);     //use default handler
                     x86Register ret;
-                    var insts = visitor.GetInstructions(out ret);
+                    var insts = _txt.visitor.GetInstructions(out ret);
                     foreach (var i in insts)
                         wtr.Write(i.Assemble());
                     if (ret != x86Register.EAX)
@@ -389,6 +393,7 @@ namespace Confuser.Core.Confusions
                 byte[] codes = ms.ToArray();
                 accessor.Codes.WriteBytes(codes);
                 accessor.SetCodePosition(accessor.Codebase + (uint)accessor.Codes.Position);
+                _txt.nativeRange.Length = (uint)codes.Length;
             }
         }
         class MdPhase2 : MetadataPhase
@@ -412,17 +417,18 @@ namespace Confuser.Core.Confusions
 
             public override void Process(NameValueCollection parameters, MetadataProcessor.MetadataAccessor accessor)
             {
-                _Context _txt = cc.txts[accessor.Module];
-                if (!_txt.isNative) return;
+                _Context txt = cc.txts[accessor.Module];
+                if (!txt.isNative) return;
 
                 var tbl = accessor.TableHeap.GetTable<MethodTable>(Table.Method);
-                var row = tbl[(int)_txt.nativeDecr.MetadataToken.RID - 1];
+                var row = tbl[(int)txt.nativeDecr.MetadataToken.RID - 1];
                 row.Col2 = MethodImplAttributes.Native | MethodImplAttributes.Unmanaged | MethodImplAttributes.PreserveSig;
                 row.Col3 &= ~MethodAttributes.Abstract;
                 row.Col3 |= MethodAttributes.PInvokeImpl;
-                row.Col1 = _txt.nativeRVA;
+                row.Col1 = txt.nativeRange.Start;
+                accessor.BodyRanges[txt.nativeDecr.MetadataToken] = txt.nativeRange;
 
-                tbl[(int)_txt.nativeDecr.MetadataToken.RID - 1] = row;
+                tbl[(int)txt.nativeDecr.MetadataToken.RID - 1] = row;
 
                 accessor.Module.Attributes &= ~ModuleAttributes.ILOnly;
             }
@@ -483,10 +489,11 @@ namespace Confuser.Core.Confusions
             public Dictionary<string, MethodDefinition> bridges;
             public MethodDefinition proxy;
 
-            public uint nativeRVA;
+            public Range nativeRange;
             public MethodDefinition nativeDecr;
             public Expression exp;
             public Expression invExp;
+            public x86Visitor visitor;
             public int key;
 
             public List<Context> txts;

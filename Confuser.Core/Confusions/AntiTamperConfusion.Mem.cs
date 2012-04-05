@@ -121,13 +121,10 @@ namespace Confuser.Core.Confusions
                 codes = new byte[tbl.Length][];
                 for (int i = 0; i < tbl.Length; i++)
                 {
-                    if (excludes.Contains(i)) continue;
+                    if (excludes.Contains(i) || (tbl[i].Col2 & MethodImplAttributes.CodeTypeMask) != MethodImplAttributes.IL) continue;
                     rvas[i] = tbl[i].Col1;
                 }
                 codeLen = (uint)accessor.Codes.Length;
-                foreach (var i in root.Methods)
-                    if (i.Body != null)
-                        codeLen -= (uint)i.Body.CodeSize;
             }
 
             public void Phase4(MetadataProcessor.ImageAccessor accessor)

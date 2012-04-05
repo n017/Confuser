@@ -283,7 +283,7 @@ namespace Confuser.Core
 
             param = new NameValueCollection();
 
-            Match match = Regex.Match(cfg, @"([^:]*):?(?:([^=]*=[^,]*),?)*");
+            Match match = Regex.Match(cfg, @"([^:]+)(?::(?:([^=]*=[^,]*),?)*)?");
             packer = Packers[match.Groups[1].Value];
             foreach (Capture arg in match.Groups[2].Captures)
             {

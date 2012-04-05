@@ -408,8 +408,10 @@ namespace Confuser.Core.Confusions
                 for (int i = 0; i < tbl.Length; i++)
                 {
                     if (tbl[i].Col1 == 0) continue;
-                    if (excludes.Contains(i))
+                    if (excludes.Contains(i) || (tbl[i].Col2 & MethodImplAttributes.CodeTypeMask) != MethodImplAttributes.IL)
                     {
+                        if ((tbl[i].Col2 & MethodImplAttributes.CodeTypeMask) != MethodImplAttributes.IL)
+                            accessor.Codes.WriteBytes(((accessor.Codes.Position + 15) & ~15) - accessor.Codes.Position);
                         tbl[i].Col1 = (uint)accessor.Codes.Position + bas;
 
                         Range range = accessor.BodyRanges[new MetadataToken(TokenType.Method, i + 1)];

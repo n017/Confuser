@@ -102,7 +102,8 @@ namespace Confuser
         public override MarkerSetting MarkAssemblies(IList<AssemblyDefinition> asms, Preset preset, Confuser.Core.Confuser cr, EventHandler<LogEventArgs> err)
         {
             var ret = base.MarkAssemblies(asms, preset, cr, err);
-            ret.Packer = packer;
+            if (ret.Packer == null)
+                ret.Packer = packer;
             return ret;
         }
     }

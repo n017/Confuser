@@ -227,6 +227,8 @@ namespace Confuser.Core.Poly.Visitors
         x86Register reg;
         bool[] regs;
 
+        public bool RegisterOverflowed { get; private set; }
+
         public x86Visitor(Expression exp, Func<x86Register, x86Instruction[]> args)
         {
             insts = new List<x86Instruction>();
@@ -262,6 +264,7 @@ namespace Confuser.Core.Poly.Visitors
                 if (!regs[i])
                     return (x86Register)i;
 
+            RegisterOverflowed = true;
             return x86Register.ESP;         //WHAT? Shouldn't reach here.
         }
         x86Register GetRegister(Expression exp)
