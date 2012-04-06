@@ -62,6 +62,13 @@ namespace Confuser.Core.Confusions
                 txt.reso.IsAssembly = true;
                 AddHelper(txt.reso, HelperAttribute.NoInjection);
 
+                FieldDefinition datAsm = new FieldDefinition(
+                    ObfuscationHelper.GetNewName("datAsm" + Guid.NewGuid().ToString()),
+                    FieldAttributes.Static | FieldAttributes.CompilerControlled,
+                    mod.Import(typeof(System.Reflection.Assembly)));
+                modType.Fields.Add(datAsm);
+                AddHelper(datAsm, HelperAttribute.NoInjection);
+
                 n = Guid.NewGuid().ToByteArray();
                 txt.key0 = txt.key1 = n[0];
                 for (int x = 0; x < n.Length; x++)
@@ -78,6 +85,8 @@ namespace Confuser.Core.Confusions
                 {
                     if ((inst.Operand as string) == "PADDINGPADDINGPADDING")
                         inst.Operand = Encoding.UTF8.GetString(n);
+                    else if (inst.Operand is FieldReference && (inst.Operand as FieldReference).Name == "datAsm")
+                        inst.Operand = datAsm;
                     else if (inst.Operand is int && (int)inst.Operand == 0x11)
                         inst.Operand = (int)txt.key0;
                     else if (inst.Operand is int && (int)inst.Operand == 0x22)

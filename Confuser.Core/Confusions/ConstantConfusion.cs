@@ -77,6 +77,21 @@ namespace Confuser.Core.Confusions
                 txt.strer.Name = Encoding.UTF8.GetString(n);
                 txt.strer.IsAssembly = true;
                 AddHelper(txt.strer, HelperAttribute.NoInjection);
+
+                FieldDefinition constTbl = new FieldDefinition(
+                    ObfuscationHelper.GetNewName("constTbl" + Guid.NewGuid().ToString()),
+                    FieldAttributes.Static | FieldAttributes.CompilerControlled,
+                    mod.Import(typeof(Dictionary<uint, object>)));
+                modType.Fields.Add(constTbl);
+                AddHelper(constTbl, HelperAttribute.NoInjection);
+
+                FieldDefinition constStream = new FieldDefinition(
+                    ObfuscationHelper.GetNewName("constStream" + Guid.NewGuid().ToString()),
+                    FieldAttributes.Static | FieldAttributes.CompilerControlled,
+                    mod.Import(typeof(MemoryStream)));
+                modType.Fields.Add(constStream);
+                AddHelper(constStream, HelperAttribute.NoInjection);
+
                 if (txt.isNative)
                 {
                     txt.nativeDecr = new MethodDefinition(
@@ -105,8 +120,13 @@ namespace Confuser.Core.Confusions
                 {
                     if ((inst.Operand as string) == "PADDINGPADDINGPADDING")
                         inst.Operand = Encoding.UTF8.GetString(n);
-                    if ((inst.Operand as string) == "PADDINGPADDINGPADDINGPADDING")
-                        inst.Operand = Encoding.UTF8.GetString(dat);
+                    else if (inst.Operand is FieldReference)
+                    {
+                        if ((inst.Operand as FieldReference).Name == "constTbl")
+                            inst.Operand = constTbl;
+                        else if ((inst.Operand as FieldReference).Name == "constStream")
+                            inst.Operand = constStream;
+                    }
                     else if (inst.Operand is int && (int)inst.Operand == 12345678)
                         inst.Operand = txt.key0;
                     else if (inst.Operand is int && (int)inst.Operand == 0x67452301)
@@ -143,6 +163,21 @@ namespace Confuser.Core.Confusions
                 byte[] n = new byte[0x10]; rand.NextBytes(n);
                 txt.strer.Name = Encoding.UTF8.GetString(n);
                 txt.strer.IsAssembly = true;
+                AddHelper(txt.strer, HelperAttribute.NoInjection);
+
+                FieldDefinition constTbl = new FieldDefinition(
+                    ObfuscationHelper.GetNewName("constTbl" + Guid.NewGuid().ToString()),
+                    FieldAttributes.Static | FieldAttributes.CompilerControlled,
+                    mod.Import(typeof(Dictionary<uint, object>)));
+                modType.Fields.Add(constTbl);
+                AddHelper(constTbl, HelperAttribute.NoInjection);
+
+                FieldDefinition constStream = new FieldDefinition(
+                    ObfuscationHelper.GetNewName("constStream" + Guid.NewGuid().ToString()),
+                    FieldAttributes.Static | FieldAttributes.CompilerControlled,
+                    mod.Import(typeof(MemoryStream)));
+                modType.Fields.Add(constStream);
+                AddHelper(constStream, HelperAttribute.NoInjection);
 
                 txt.key0 = rand.Next();
                 txt.key1 = rand.Next();
@@ -160,8 +195,13 @@ namespace Confuser.Core.Confusions
                 {
                     if ((inst.Operand as string) == "PADDINGPADDINGPADDING")
                         inst.Operand = Encoding.UTF8.GetString(n);
-                    if ((inst.Operand as string) == "PADDINGPADDINGPADDINGPADDING")
-                        inst.Operand = Encoding.UTF8.GetString(dat);
+                    else if (inst.Operand is FieldReference)
+                    {
+                        if ((inst.Operand as FieldReference).Name == "constTbl")
+                            inst.Operand = constTbl;
+                        else if ((inst.Operand as FieldReference).Name == "constStream")
+                            inst.Operand = constStream;
+                    }
                     else if (inst.Operand is int && (int)inst.Operand == 12345678)
                         inst.Operand = txt.key0;
                     else if (inst.Operand is int && (int)inst.Operand == 0x67452301)
@@ -562,7 +602,7 @@ namespace Confuser.Core.Confusions
 
                 tbl[(int)txt.nativeDecr.MetadataToken.RID - 1] = row;
 
-                accessor.Module.Attributes &= ~ModuleAttributes.ILOnly;
+                //accessor.Module.Attributes &= ~ModuleAttributes.ILOnly;
             }
         }
 

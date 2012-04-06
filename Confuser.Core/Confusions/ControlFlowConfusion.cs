@@ -557,34 +557,42 @@ namespace Confuser.Core.Confusions
                                                     0x19fe, 0x1bfe, 0x1ffe};
         private void ConnectBlocks(List<Instruction> insts, Instruction[] block, Instruction[][] blocks)
         {
-            Instruction t = blocks[rand.Next(0, blocks.Length)][0];
-            switch (rand.Next(0, 2))
+            if (method.Module.Runtime != TargetRuntime.Net_4_0)
             {
-                case 0:
-                    insts.Add(Instruction.Create(OpCodes.Ldtoken, method));
-                    insts.Add(Instruction.Create(OpCodes.Brfalse, t));
-                    break;
-                case 1:
-                    int i = rand.Next(-1, 9);
-                    insts.Add(Instruction.Create(OpCodes.Ldc_I4, i));
-                    insts.Add(Instruction.Create(i == 0 ? OpCodes.Brtrue : OpCodes.Brfalse, t));
-                    break;
-            }
+                Instruction t = blocks[rand.Next(0, blocks.Length)][0];
+                switch (rand.Next(0, 2))
+                {
+                    case 0:
+                        insts.Add(Instruction.Create(OpCodes.Ldtoken, method.DeclaringType));
+                        insts.Add(Instruction.Create(OpCodes.Brfalse, t));
+                        break;
+                    case 1:
+                        int i = rand.Next(-1, 9);
+                        insts.Add(Instruction.Create(OpCodes.Ldc_I4, i));
+                        insts.Add(Instruction.Create(i == 0 ? OpCodes.Brtrue : OpCodes.Brfalse, t));
+                        break;
+                }
 
+            }
             insts.AddRange(block);
         }
         private void AddJump(List<Instruction> insts, Instruction target)
         {
-            switch (rand.Next(0, 2))
+            if (method.Module.Runtime != TargetRuntime.Net_4_0)
             {
-                case 0:
-                    insts.Add(Instruction.Create(OpCodes.Ldtoken, method));
-                    insts.Add(Instruction.Create(OpCodes.Brtrue, target));
-                    break;
-                case 1:
-                    insts.Add(Instruction.Create(OpCodes.Br, target));
-                    break;
+                switch (rand.Next(0, 2))
+                {
+                    case 0:
+                        insts.Add(Instruction.Create(OpCodes.Ldtoken, method.DeclaringType));
+                        insts.Add(Instruction.Create(OpCodes.Brtrue, target));
+                        break;
+                    case 1:
+                        insts.Add(Instruction.Create(OpCodes.Br, target));
+                        break;
+                }
             }
+            else
+                insts.Add(Instruction.Create(OpCodes.Br, target));
 
             if (genJunk)
             {

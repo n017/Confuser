@@ -28,18 +28,20 @@ static class AntiDebugger
             Environment.GetEnvironmentVariable("COR_PROFILER") != null)
             Environment.FailFast("Profiler detected");
 
-        Thread thread1 = new Thread(AntiDebug);
-        Thread thread2 = new Thread(AntiDebug);
-        thread1.IsBackground = true;
-        thread2.IsBackground = true;
-        thread1.Start(thread2);
-        Thread.Sleep(500);
-        thread2.Start(thread1);
+        Thread thread = new Thread(AntiDebug);
+        thread.IsBackground = true;
+        thread.Start(null);
     }
     static void AntiDebug(object thread)
     {
-        Thread.Sleep(1000);
-        Thread th = (Thread)thread;
+        Thread th = thread as Thread;
+        if (th == null)
+        {
+            th = new Thread(AntiDebug);
+            th.IsBackground = true;
+            th.Start(Thread.CurrentThread);
+            Thread.Sleep(500);
+        }
         while (true)
         {
             //Managed
@@ -105,18 +107,20 @@ static class AntiDebugger
             Environment.GetEnvironmentVariable("COR_PROFILER") != null)
             Environment.FailFast("Profiler detected");
 
-        Thread thread1 = new Thread(AntiDebugSafe);
-        Thread thread2 = new Thread(AntiDebugSafe);
-        thread1.IsBackground = true;
-        thread2.IsBackground = true;
-        thread1.Start(thread2);
-        Thread.Sleep(500);
-        thread2.Start(thread1);
+        Thread thread = new Thread(AntiDebugSafe);
+        thread.IsBackground = true;
+        thread.Start(null);
     }
     private static void AntiDebugSafe(object thread)
     {
-        Thread.Sleep(1000);
-        Thread th = (Thread)thread;
+        Thread th = thread as Thread;
+        if (th == null)
+        {
+            th = new Thread(AntiDebugSafe);
+            th.IsBackground = true;
+            th.Start(Thread.CurrentThread);
+            Thread.Sleep(500);
+        }
         while (true)
         {
             if (Debugger.IsAttached || Debugger.IsLogging())
@@ -196,10 +200,10 @@ static class Proxies
 
 static class Encryptions
 {
+    static Assembly datAsm;
     static Assembly Resources(object sender, ResolveEventArgs args)
     {
-        Assembly datAsm;
-        if ((datAsm = AppDomain.CurrentDomain.GetData("PADDINGPADDINGPADDING") as System.Reflection.Assembly) == null)
+        if (datAsm == null)
         {
             Stream str = typeof(Exception).Assembly.GetManifestResourceStream("PADDINGPADDINGPADDING");
             using (BinaryReader rdr = new BinaryReader(new DeflateStream(str, CompressionMode.Decompress)))
@@ -212,7 +216,6 @@ static class Encryptions
                     k = (byte)((k * 0x22) % 0x100);
                 }
                 datAsm = System.Reflection.Assembly.Load(dat);
-                AppDomain.CurrentDomain.SetData("PADDINGPADDINGPADDING", datAsm);
                 Buffer.BlockCopy(new byte[dat.Length], 0, dat, 0, dat.Length);
             }
         }
@@ -340,13 +343,14 @@ static class Encryptions
 
     public static int PlaceHolder(int val) { return 0; }
 
+    static Dictionary<uint, object> constTbl;
+    static MemoryStream constStream;
     static object Constants(uint id)
     {
-        Dictionary<uint, object> hashTbl;
-        if ((hashTbl = AppDomain.CurrentDomain.GetData("PADDINGPADDINGPADDING") as Dictionary<uint, object>) == null)
+        if (constTbl == null)
         {
-            AppDomain.CurrentDomain.SetData("PADDINGPADDINGPADDING", hashTbl = new Dictionary<uint, object>());
-            MemoryStream stream = new MemoryStream();
+            constTbl = new Dictionary<uint, object>();
+            constStream = new MemoryStream();
             Assembly asm = Assembly.GetCallingAssembly();
             using (DeflateStream str = new DeflateStream(asm.GetManifestResourceStream("PADDINGPADDINGPADDING"), CompressionMode.Decompress))
             {
@@ -354,12 +358,11 @@ static class Encryptions
                 int read = str.Read(dat, 0, 0x1000);
                 do
                 {
-                    stream.Write(dat, 0, read);
+                    constStream.Write(dat, 0, read);
                     read = str.Read(dat, 0, 0x1000);
                 }
                 while (read != 0);
             }
-            AppDomain.CurrentDomain.SetData("PADDINGPADDINGPADDINGPADDING", stream.ToArray());
         }
         object ret;
         uint x = (uint)new StackFrame(1).GetMethod().MetadataToken;
@@ -396,58 +399,55 @@ static class Encryptions
             }
         }
         uint pos = h ^ id;
-        if (!hashTbl.TryGetValue(pos, out ret))
+        if (!constTbl.TryGetValue(pos, out ret))
         {
-            using (BinaryReader rdr = new BinaryReader(new MemoryStream((byte[])AppDomain.CurrentDomain.GetData("PADDINGPADDINGPADDINGPADDING"))))
+            BinaryReader rdr = new BinaryReader(constStream);
+            rdr.BaseStream.Seek(pos, SeekOrigin.Begin);
+            byte type = rdr.ReadByte();
+            byte[] bs = rdr.ReadBytes(rdr.ReadInt32());
+
+            byte[] f;
+            int len;
+            using (BinaryReader r = new BinaryReader(new MemoryStream(bs)))
             {
-                rdr.BaseStream.Seek(pos, SeekOrigin.Begin);
-                byte type = rdr.ReadByte();
-                byte[] bs = rdr.ReadBytes(rdr.ReadInt32());
-
-                byte[] f;
-                int len;
-                using (BinaryReader r = new BinaryReader(new MemoryStream(bs)))
+                len = r.ReadInt32();
+                f = new byte[(len + 7) & ~7];
+                for (int i = 0; i < f.Length; i++)
                 {
-                    len = r.ReadInt32();
-                    f = new byte[(len + 7) & ~7];
-                    for (int i = 0; i < f.Length; i++)
+                    int count = 0;
+                    int shift = 0;
+                    byte b;
+                    do
                     {
-                        int count = 0;
-                        int shift = 0;
-                        byte b;
-                        do
-                        {
-                            b = r.ReadByte();
-                            count |= (b & 0x7F) << shift;
-                            shift += 7;
-                        } while ((b & 0x80) != 0);
+                        b = r.ReadByte();
+                        count |= (b & 0x7F) << shift;
+                        shift += 7;
+                    } while ((b & 0x80) != 0);
 
-                        count = PlaceHolder(count);
-                        f[i] = (byte)count;
-                    }
+                    count = PlaceHolder(count);
+                    f[i] = (byte)count;
                 }
-                if (type == 11)
-                    ret = BitConverter.ToDouble(f, 0);
-                else if (type == 22)
-                    ret = BitConverter.ToSingle(f, 0);
-                else if (type == 33)
-                    ret = BitConverter.ToInt32(f, 0);
-                else if (type == 44)
-                    ret = BitConverter.ToInt64(f, 0);
-                else if (type == 55)
-                    ret = Encoding.UTF8.GetString(f, 0, len);
-                hashTbl[pos] = ret;
             }
+            if (type == 11)
+                ret = BitConverter.ToDouble(f, 0);
+            else if (type == 22)
+                ret = BitConverter.ToSingle(f, 0);
+            else if (type == 33)
+                ret = BitConverter.ToInt32(f, 0);
+            else if (type == 44)
+                ret = BitConverter.ToInt64(f, 0);
+            else if (type == 55)
+                ret = Encoding.UTF8.GetString(f, 0, len);
+            constTbl[pos] = ret;
         }
         return ret;
     }
     static object SafeConstants(uint id)
     {
-        Dictionary<uint, object> hashTbl;
-        if ((hashTbl = AppDomain.CurrentDomain.GetData("PADDINGPADDINGPADDING") as Dictionary<uint, object>) == null)
+        if (constTbl == null)
         {
-            AppDomain.CurrentDomain.SetData("PADDINGPADDINGPADDING", hashTbl = new Dictionary<uint, object>());
-            MemoryStream stream = new MemoryStream();
+            constTbl = new Dictionary<uint, object>();
+            constStream = new MemoryStream();
             Assembly asm = Assembly.GetCallingAssembly();
             using (DeflateStream str = new DeflateStream(asm.GetManifestResourceStream("PADDINGPADDINGPADDING"), CompressionMode.Decompress))
             {
@@ -455,12 +455,11 @@ static class Encryptions
                 int read = str.Read(dat, 0, 0x1000);
                 do
                 {
-                    stream.Write(dat, 0, read);
+                    constStream.Write(dat, 0, read);
                     read = str.Read(dat, 0, 0x1000);
                 }
                 while (read != 0);
             }
-            AppDomain.CurrentDomain.SetData("PADDINGPADDINGPADDINGPADDING", stream.ToArray());
         }
         object ret;
         uint x = (uint)new StackFrame(1).GetMethod().MetadataToken;
@@ -497,38 +496,37 @@ static class Encryptions
             }
         }
         uint pos = h ^ id;
-        if (!hashTbl.TryGetValue(pos, out ret))
+        if (!constTbl.TryGetValue(pos, out ret))
         {
-            using (BinaryReader rdr = new BinaryReader(new MemoryStream((byte[])AppDomain.CurrentDomain.GetData("PADDINGPADDINGPADDINGPADDING"))))
+            BinaryReader rdr = new BinaryReader(constStream);
+            rdr.BaseStream.Seek(pos, SeekOrigin.Begin);
+            byte type = rdr.ReadByte();
+            byte[] f = rdr.ReadBytes(rdr.ReadInt32());
+
+            uint seed = 12345678 ^ pos;
+            ushort _m = (ushort)(seed >> 16);
+            ushort _c = (ushort)(seed & 0xffff);
+            ushort m = _c; ushort c = _m;
+            for (int i = 0; i < f.Length; i++)
             {
-                rdr.BaseStream.Seek(pos, SeekOrigin.Begin);
-                byte type = rdr.ReadByte();
-                byte[] f = rdr.ReadBytes(rdr.ReadInt32());
-
-                uint seed = 12345678 ^ pos;
-                ushort _m = (ushort)(seed >> 16);
-                ushort _c = (ushort)(seed & 0xffff);
-                ushort m = _c; ushort c = _m;
-                for (int i = 0; i < f.Length; i++)
-                {
-                    f[i] ^= (byte)((seed * m + c) % 0x100);
-                    m = (ushort)((seed * m + _m) % 0x10000);
-                    c = (ushort)((seed * c + _c) % 0x10000);
-                }
-
-                if (type == 11)
-                    ret = BitConverter.ToDouble(f, 0);
-                else if (type == 22)
-                    ret = BitConverter.ToSingle(f, 0);
-                else if (type == 33)
-                    ret = BitConverter.ToInt32(f, 0);
-                else if (type == 44)
-                    ret = BitConverter.ToInt64(f, 0);
-                else if (type == 55)
-                    ret = Encoding.UTF8.GetString(f);
-                hashTbl[pos] = ret;
+                f[i] ^= (byte)((seed * m + c) % 0x100);
+                m = (ushort)((seed * m + _m) % 0x10000);
+                c = (ushort)((seed * c + _c) % 0x10000);
             }
+
+            if (type == 11)
+                ret = BitConverter.ToDouble(f, 0);
+            else if (type == 22)
+                ret = BitConverter.ToSingle(f, 0);
+            else if (type == 33)
+                ret = BitConverter.ToInt32(f, 0);
+            else if (type == 44)
+                ret = BitConverter.ToInt64(f, 0);
+            else if (type == 55)
+                ret = Encoding.UTF8.GetString(f);
+            constTbl[pos] = ret;
         }
+
         return ret;
     }
 }

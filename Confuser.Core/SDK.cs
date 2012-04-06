@@ -1,6 +1,6 @@
 ﻿using System;
 
-[AttributeUsage(AttributeTargets.All & ~AttributeTargets.GenericParameter & ~AttributeTargets.Parameter & ~AttributeTargets.ReturnValue)]
+[AttributeUsage(AttributeTargets.All & ~AttributeTargets.GenericParameter & ~AttributeTargets.Parameter & ~AttributeTargets.ReturnValue, AllowMultiple = false)]
 class ConfusingAttribute : Attribute
 {
     public ConfusingAttribute()

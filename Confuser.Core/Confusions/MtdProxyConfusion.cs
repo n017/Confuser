@@ -462,7 +462,7 @@ namespace Confuser.Core.Confusions
 
                 tbl[(int)txt.nativeDecr.MetadataToken.RID - 1] = row;
 
-                accessor.Module.Attributes &= ~ModuleAttributes.ILOnly;
+                //accessor.Module.Attributes &= ~ModuleAttributes.ILOnly;
             }
         }
 
