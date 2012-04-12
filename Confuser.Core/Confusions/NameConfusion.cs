@@ -51,13 +51,21 @@ namespace Confuser.Core.Confusions
             }
         }
 
+        bool GetRenOk(IAnnotationProvider provider)
+        {
+            if (provider.Annotations["RenOk"] != null)
+                return (bool)provider.Annotations["RenOk"];
+            else
+                return false;
+        }
+
         public override void Process(ConfusionParameter parameter)
         {
             IMemberDefinition mem = parameter.Target as IMemberDefinition;
             if (mem is TypeDefinition)
             {
                 TypeDefinition type = mem as TypeDefinition;
-                if ((bool)(type as IAnnotationProvider).Annotations["RenOk"])
+                if (GetRenOk(type))
                 {
                     var mode = (NameMode)(mem.Module as IAnnotationProvider).Annotations["RenMode"];
                     type.Name = ObfuscationHelper.GetNewName(type.FullName, mode);
@@ -85,7 +93,7 @@ namespace Confuser.Core.Confusions
                 MethodDefinition mtd = mem as MethodDefinition;
                 PerformMethod(mtd);
             }
-            else if ((bool)(mem as IAnnotationProvider).Annotations["RenOk"])
+            else if (GetRenOk(mem as IAnnotationProvider))
             {
                 mem.Name = ObfuscationHelper.GetNewName(mem.Name, (NameMode)(mem.Module as IAnnotationProvider).Annotations["RenMode"]);
                 Identifier id = (Identifier)(mem as IAnnotationProvider).Annotations["RenId"];
@@ -102,7 +110,7 @@ namespace Confuser.Core.Confusions
         void PerformMethod(MethodDefinition mtd)
         {
             var mode = (NameMode)(mtd.Module as IAnnotationProvider).Annotations["RenMode"];
-            if ((bool)(mtd as IAnnotationProvider).Annotations["RenOk"])
+            if (GetRenOk(mtd))
             {
                 mtd.Name = ObfuscationHelper.GetNewName(mtd.Name, mode);
                 Identifier id = (Identifier)(mtd as IAnnotationProvider).Annotations["RenId"];

@@ -105,6 +105,8 @@ namespace Confuser.Core.Confusions
                     0, 0, 0, 0, AssemblyAttributes.SideBySideCompatible, 0,
                     0xffff, 0, 0xffff));
 
+                accessor.TableHeap.GetTable<GenericParamTable>(Table.GenericParam).AddRow(new Row<ushort, GenericParameterAttributes, uint, uint>(0xffff, (GenericParameterAttributes)0xffff, 0xffff, 0xffff));
+            
             }
         }
         //class Phase3 : ImagePhase

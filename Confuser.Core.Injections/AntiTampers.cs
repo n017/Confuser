@@ -462,7 +462,7 @@ static class AntiTamperJIT
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
     unsafe delegate void getEHinfo(IntPtr self, IntPtr ftn, uint EHnumber, CORINFO_EH_CLAUSE* clause);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-    unsafe delegate InfoAccessType constructStringLiteral(IntPtr self, IntPtr module, uint metaTok, IntPtr ppobj);
+    unsafe delegate InfoAccessType constructStringLiteral(IntPtr self, IntPtr module, uint metaTok, out IntPtr pobj);
 
 
     [DllImport("kernel32.dll")]
@@ -643,6 +643,35 @@ static class AntiTamperJIT
             return ret;
         }
     }
+    unsafe class HandleTable
+    {
+        IntPtr* baseAdr;
+        int size;
+        IntPtr* current;
+        int currentIdx;
+        public HandleTable()
+        {
+            size = 0x10;
+            baseAdr = (IntPtr*)Marshal.AllocHGlobal(size * IntPtr.Size);
+            current = baseAdr;
+            currentIdx = 0;
+        }
+
+        public IntPtr AddHandle(IntPtr hnd)
+        {
+            if (currentIdx == size)
+            {
+                IntPtr* newAdr = (IntPtr*)Marshal.AllocHGlobal(size * 2 * IntPtr.Size);
+                for (int i = 0; i < size; i++)
+                    *(newAdr + i) = *(baseAdr + i);
+                current = newAdr + size;
+                size *= 2;
+            }
+            *current = hnd;
+            currentIdx++;
+            return (IntPtr)(current++);
+        }
+    }
     unsafe class CorDynamicInfoHook
     {
         public ICorDynamicInfo* info;
@@ -655,8 +684,10 @@ static class AntiTamperJIT
 
         static IntPtr Obj2Ptr(object obj) { return (IntPtr)0; }    //Placeholder
 
-        Dictionary<uint, GCHandle> gcHnds = new Dictionary<uint, GCHandle>();
-        InfoAccessType hookConstructStr(IntPtr self, IntPtr module, uint metaTok, IntPtr ppobj)
+        static HandleTable tbl = new HandleTable();
+        Dictionary<uint, IntPtr> gcHnds = new Dictionary<uint, IntPtr>();
+        List<GCHandle> pins = new List<GCHandle>();
+        InfoAccessType hookConstructStr(IntPtr self, IntPtr module, uint metaTok, out IntPtr pobj)
         {
             if ((metaTok & 0x00800000) != 0)
             {
@@ -666,7 +697,10 @@ static class AntiTamperJIT
                 {
                     uint length = (uint)(BitConverter.ToUInt32(data, (int)offset) & ~1);
                     if (length < 1)
-                        gcHnds[offset] = GCHandle.Alloc(string.Empty, GCHandleType.Pinned);
+                    {
+                        pins.Add(GCHandle.Alloc(string.Empty, GCHandleType.Pinned));
+                        gcHnds[offset] = tbl.AddHandle(Obj2Ptr(string.Empty));
+                    }
 
                     var chars = new char[length / 2];
 
@@ -674,12 +708,13 @@ static class AntiTamperJIT
                         chars[j++] = (char)(data[i] | (data[i + 1] << 8));
 
                     string c = new string(chars);
-                    gcHnds[offset] = GCHandle.Alloc(string.Intern(c), GCHandleType.Pinned);
+                    pins.Add(GCHandle.Alloc(c, GCHandleType.Pinned));
+                    gcHnds[offset] = tbl.AddHandle(Obj2Ptr(c));
                 }
-                Marshal.WriteIntPtr(ppobj, Obj2Ptr(gcHnds[offset].Target));
-                return InfoAccessType.VALUE;
+                pobj = gcHnds[offset];
+                return InfoAccessType.PVALUE;
             }
-            InfoAccessType ret = o_constructStringLiteral(self, module, metaTok, ppobj);
+            InfoAccessType ret = o_constructStringLiteral(self, module, metaTok, out pobj);
             return ret;
         }
 

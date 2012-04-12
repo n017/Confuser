@@ -367,11 +367,18 @@ namespace Confuser.Core.Confusions
                 MemoryStream ms = new MemoryStream();
                 using (BinaryWriter wtr = new BinaryWriter(ms))
                 {
-                    wtr.Write(new byte[] { 0x8b, 0x44, 0x24, 0x04 });   //mov eax, [esp + 4]
-                    wtr.Write(new byte[] { 0x53 });   //push ebx
-                    wtr.Write(new byte[] { 0x50 });   //push eax
-                    x86Visitor visitor = new x86Visitor(_txt.invExp, null);     //use default handler
-                    x86Register ret;
+                    wtr.Write(new byte[] { 0x89, 0xe0             });   //   mov eax, esp
+                    wtr.Write(new byte[] { 0x53                   });   //   push ebx
+                    wtr.Write(new byte[] { 0x57                   });   //   push edi
+                    wtr.Write(new byte[] { 0x56                   });   //   push esi
+                    wtr.Write(new byte[] { 0x29, 0xe0             });   //   sub eax, esp
+                    wtr.Write(new byte[] { 0x83, 0xf8, 0x18       });   //   cmp eax, 24
+                    wtr.Write(new byte[] { 0x74, 0x07             });   //   je n
+                    wtr.Write(new byte[] { 0x8b, 0x44, 0x24, 0x10 });   //   mov eax, [esp + 4]
+                    wtr.Write(new byte[] { 0x50                   });   //   push eax
+                    wtr.Write(new byte[] { 0xeb, 0x01             });   //   jmp z
+                    wtr.Write(new byte[] { 0x51                   });   //n: push ecx
+                    x86Register ret;                                    //z: 
                     var insts = _txt.visitor.GetInstructions(out ret);
                     foreach (var i in insts)
                         wtr.Write(i.Assemble());
@@ -386,6 +393,8 @@ namespace Confuser.Core.Confusions
                                     new x86RegisterOperand() { Register = ret }
                                 }
                             }.Assemble());
+                    wtr.Write(new byte[] { 0x5e });   //pop esi
+                    wtr.Write(new byte[] { 0x5f });   //pop edi
                     wtr.Write(new byte[] { 0x5b });   //pop ebx
                     wtr.Write(new byte[] { 0xc3 });   //ret
                     wtr.Write(new byte[((ms.Length + 3) & ~3) - ms.Length]);

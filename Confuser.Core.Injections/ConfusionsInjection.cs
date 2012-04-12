@@ -21,6 +21,10 @@ static class AntiDebugger
         byte[] ProcessInformation, uint ProcessInformationLength);
     [DllImport("kernel32.dll")]
     static extern bool CloseHandle(IntPtr hObject);
+    [DllImport("kernel32.dll")]
+    static extern bool IsDebuggerPresent();
+    [DllImport("kernel32.dll")]
+    static extern int OutputDebugString(string str);
 
     public static void Initialize()
     {
@@ -48,41 +52,18 @@ static class AntiDebugger
             if (Debugger.IsAttached || Debugger.IsLogging())
                 Environment.FailFast("Debugger detected (Managed)");
 
+            //IsDebuggerPresent
+            if (IsDebuggerPresent())
+                Environment.FailFast("=_=");
+
             //Open process
             IntPtr ps = Process.GetCurrentProcess().Handle;
             if (ps == IntPtr.Zero)
                 Environment.FailFast("Cannot open process");
 
-            //PEB.BeingDebugged
-            byte[] info = new byte[0x18];
-            int len;
-            NtQueryInformationProcess(ps, 0x0, info, 0x18, out len);
-            if (len == 0)
-                Environment.FailFast("Cannot query information (PEB)");
-
-            IntPtr pebAdr;
-            if (IntPtr.Size == 4)
-                pebAdr = (IntPtr)BitConverter.ToInt32(info, 4);
-            else
-                pebAdr = (IntPtr)BitConverter.ToInt64(info, 8);
-
-            byte[] peb = new byte[0x1d8];
-            Marshal.Copy(pebAdr, peb, 0, 0x1d8);
-            if (peb[2] != 0)
-                Environment.FailFast("Debugger detected (PEB)");
-
-            //DebugPort
-            info = new byte[8];
-            NtQueryInformationProcess(ps, 0x7, info, (uint)IntPtr.Size, out len);
-            if (len != IntPtr.Size)
-                Environment.FailFast("Cannot query information (Port)");
-
-            if (BitConverter.ToInt64(info, 0) != 0)
-            {
-                info.Initialize();
-                NtSetInformationProcess(ps, 0x7, info, (uint)IntPtr.Size);
-                Environment.FailFast("Debugger detected (Port)");
-            }
+            //OutputDebugString
+            if (OutputDebugString("=_=") > IntPtr.Size)
+                Environment.FailFast("Debugger detected");
 
             //Close
             try
@@ -91,7 +72,7 @@ static class AntiDebugger
             }
             catch
             {
-                Environment.FailFast("Debugger detected (Closing)");
+                Environment.FailFast("Debugger detected");
             }
 
             if (!th.IsAlive)
@@ -424,7 +405,10 @@ static class Encryptions
                         shift += 7;
                     } while ((b & 0x80) != 0);
 
+                    Console.WriteLine(constTbl.GetHashCode());
+                    Console.WriteLine(count);
                     count = PlaceHolder(count);
+                    Console.WriteLine(count);
                     f[i] = (byte)count;
                 }
             }
