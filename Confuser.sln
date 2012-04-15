@@ -16,7 +16,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{763882E7-24BE-4D7B-84EA-48C1FB3564FA}"
 	ProjectSection(SolutionItems) = preProject
 		confuser.snk = confuser.snk
-		ConfuserConfig.xsd = ConfuserConfig.xsd
+		ConfuserPrj.xsd = ConfuserPrj.xsd
 		license.txt = license.txt
 	EndProjectSection
 EndProject

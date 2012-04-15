@@ -92,6 +92,7 @@
     <Compile Include="Confusions\AntiTamperConfusion.cs" />
     <Compile Include="Confusions\InvalidMdConfusion.cs" />
     <Compile Include="Confusions\MdReduceConfusion.cs" />
+    <None Include="ConfuserPrj.xsd" />
     <None Include="Confusions\ControlFlowConfusion.cs" />
     <Compile Include="Confusions\CtorProxyConfusion.cs" />
     <Compile Include="Analyzers\NameAnalyzer.Ivt.cs" />
@@ -133,6 +134,8 @@
     <Compile Include="Poly\Expressions\XorExpression.cs" />
     <Compile Include="Poly\Expressions\InvExpression.cs" />
     <Compile Include="Poly\Visitors\x86Visitor.cs" />
+    <Compile Include="Project\ConfuserProject.cs" />
+    <Compile Include="Project\ObjectModel.cs" />
     <Content Include="Note.txt" />
   </ItemGroup>
   <ItemGroup>

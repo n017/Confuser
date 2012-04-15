@@ -413,7 +413,7 @@ namespace Confuser.Core.Confusions
             //Compute stacks
             var stacks = GetStacks(body);
 
-            Dictionary<Instruction, Instruction> HdrTbl = new Dictionary<Instruction, Instruction>();
+            Dictionary<Instruction, Instruction> ReplTbl = new Dictionary<Instruction, Instruction>();
             List<Scope> scopes = new List<Scope>();
             foreach (var scope in ScopeDetector.DetectScopes(body))
             {
@@ -490,12 +490,12 @@ namespace Confuser.Core.Confusions
                                 Statement targetSt = sts.Single(_ => _.Instructions[0] == last.Operand);
                                 Statement fallSt = sts.Single(_ => _.Instructions[0] == last.Next);
 
-                                GenFakeBranch(st, targetSt, fallSt, stInsts, stateVar, begin);
+                                ReplTbl[last] = GenFakeBranch(st, targetSt, fallSt, stInsts, stateVar, begin);
                             }
                             else
                             {
                                 Statement targetSt = sts.Single(_ => _.Instructions[0] == last.Operand);
-                                EncryptNum(st.Key, stateVar, targetSt.Key, stInsts);
+                                ReplTbl[last] = EncryptNum(st.Key, stateVar, targetSt.Key, stInsts);
                                 stInsts.Add(Instruction.Create(OpCodes.Br, begin));
                                 stInsts.AddRange(GetJunk(stateVar));
                             }
@@ -507,7 +507,7 @@ namespace Confuser.Core.Confusions
                             Statement targetSt = sts.Single(_ => _.Instructions[0] == last.Operand);
                             Statement fallSt = sts.Single(_ => _.Instructions[0] == last.Next);
 
-                            EncryptNum(st.Key, stateVar, targetSt.Key, stInsts);
+                            ReplTbl[last] = EncryptNum(st.Key, stateVar, targetSt.Key, stInsts);
                             stInsts.Add(Instruction.Create(last.OpCode, begin));
                             EncryptNum(st.Key, stateVar, fallSt.Key, stInsts);
                             stInsts.Add(Instruction.Create(OpCodes.Br, begin));
@@ -577,7 +577,7 @@ namespace Confuser.Core.Confusions
                     }
                 }
 
-                HdrTbl[scope.Instructions[0]] = insts[0];
+                ReplTbl[scope.Instructions[0]] = insts[0];
                 scope.Instructions = insts.ToArray();
             }
 
@@ -586,9 +586,9 @@ namespace Confuser.Core.Confusions
             foreach (var scope in scopes)
                 foreach (var i in scope.Instructions)
                     if (i.Operand is Instruction &&
-                        HdrTbl.ContainsKey(i.Operand as Instruction))
+                        ReplTbl.ContainsKey(i.Operand as Instruction))
                     {
-                        i.Operand = HdrTbl[i.Operand as Instruction];
+                        i.Operand = ReplTbl[i.Operand as Instruction];
                     }
             foreach (var scope in scopes)
             {
@@ -669,15 +669,25 @@ namespace Confuser.Core.Confusions
                 insts.Add(inst);
             return i;
         }
-        void EncryptNum(int original, VariableDefinition varDef, int num, IList<Instruction> insts)
+        Instruction EncryptNum(int original, VariableDefinition varDef, int num, IList<Instruction> insts)
         {
             ExpressionGenerator gen = new ExpressionGenerator();
             Expression exp = gen.Generate(3);
             int i = ExpressionEvaluator.Evaluate(exp, num);
             exp = ExpressionInverser.InverseExpression(exp);
+            bool first = true;
+            Instruction ret = null;
             foreach (var inst in new CecilVisitor(exp, new Instruction[] { Instruction.Create(OpCodes.Ldc_I4, i) }).GetInstructions())
+            {
+                if (first)
+                {
+                    ret = inst;
+                    first = false;
+                }
                 insts.Add(inst);
+            }
             insts.Add(Instruction.Create(OpCodes.Stloc, varDef));
+            return ret;
         }
 
         static void PopStack(MethodBody body, Instruction inst, ref int stack)
@@ -949,43 +959,47 @@ namespace Confuser.Core.Confusions
             }
         }
 
-        void GenFakeBranch(Statement self, Statement target, Statement fake, IList<Instruction> insts,
+        Instruction GenFakeBranch(Statement self, Statement target, Statement fake, IList<Instruction> insts,
             VariableDefinition stateVar, Instruction begin)
         {
+            Instruction ret;
             int num = ComputeRandNum(insts);
             switch (rand.Next(0, 4))
             {
                 case 0: //if (r == r) goto target; else goto fake;
-                    insts.Add(Instruction.Create(OpCodes.Ldc_I4, num));
+                    insts.Add(ret = Instruction.Create(OpCodes.Ldc_I4, num));
                     EncryptNum(self.Key, stateVar, target.Key, insts);
                     insts.Add(Instruction.Create(OpCodes.Beq, begin));
                     EncryptNum(self.Key, stateVar, fake.Key, insts);
                     insts.Add(Instruction.Create(OpCodes.Br, begin));
                     break;
                 case 1: //if (r == r + x) goto fake; else goto target;
-                    insts.Add(Instruction.Create(OpCodes.Ldc_I4, num + (rand.Next() % 2 == 0 ? -1 : 1)));
+                    insts.Add(ret = Instruction.Create(OpCodes.Ldc_I4, num + (rand.Next() % 2 == 0 ? -1 : 1)));
                     EncryptNum(self.Key, stateVar, fake.Key, insts);
                     insts.Add(Instruction.Create(OpCodes.Beq, begin));
                     EncryptNum(self.Key, stateVar, target.Key, insts);
                     insts.Add(Instruction.Create(OpCodes.Br, begin));
                     break;
                 case 2: //if (r != r) goto fake; else goto target;
-                    insts.Add(Instruction.Create(OpCodes.Ldc_I4, num));
+                    insts.Add(ret = Instruction.Create(OpCodes.Ldc_I4, num));
                     EncryptNum(self.Key, stateVar, fake.Key, insts);
                     insts.Add(Instruction.Create(OpCodes.Bne_Un, begin));
                     EncryptNum(self.Key, stateVar, target.Key, insts);
                     insts.Add(Instruction.Create(OpCodes.Br, begin));
                     break;
                 case 3: //if (r != r + x) goto target; else goto fake;
-                    insts.Add(Instruction.Create(OpCodes.Ldc_I4, num + (rand.Next() % 2 == 0 ? -1 : 1)));
+                    insts.Add(ret = Instruction.Create(OpCodes.Ldc_I4, num + (rand.Next() % 2 == 0 ? -1 : 1)));
                     EncryptNum(self.Key, stateVar, target.Key, insts);
                     insts.Add(Instruction.Create(OpCodes.Bne_Un, begin));
                     EncryptNum(self.Key, stateVar, fake.Key, insts);
                     insts.Add(Instruction.Create(OpCodes.Br, begin));
                     break;
+                default:
+                    throw new InvalidOperationException();
             }
             foreach (var i in GetJunk(stateVar))
                 insts.Add(i);
+            return ret;
         }
     }
 }
