@@ -666,7 +666,7 @@ namespace Confuser
                     }
         }
 
-        PrjPreset preset = PrjPreset.None;
+        PrjPreset preset = PrjPreset.Normal;
         public PrjPreset DefaultPreset
         {
             get { return preset; }

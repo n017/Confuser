@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Xml;
 using System.Collections.Specialized;
+using System.Xml.Schema;
 
 namespace Confuser.Core.Project
 {
@@ -117,11 +118,14 @@ namespace Confuser.Core.Project
         public Preset DefaultPreset { get; set; }
         public SettingItem<Packer> Packer { get; set; }
 
+        public static readonly XmlSchema Schema = XmlSchema.Read(typeof(ConfuserProject).Assembly.GetManifestResourceStream("Confuser.Core.ConfuserPrj.xsd"), null);
         public XmlDocument Save()
         {
             XmlDocument xmlDoc = new XmlDocument();
+            xmlDoc.Schemas.Add(Schema);
 
             XmlElement elem = xmlDoc.CreateElement("project");
+            elem.SetAttribute("xmlns", "http://confuser.codeplex.com");
 
             XmlAttribute outputAttr = xmlDoc.CreateAttribute("outputDir");
             outputAttr.Value = OutputPath;
@@ -161,9 +165,11 @@ namespace Confuser.Core.Project
             xmlDoc.AppendChild(elem);
             return xmlDoc;
         }
-
         public void Load(XmlDocument doc)
         {
+            doc.Schemas.Add(Schema);
+            doc.Validate(null);
+
             XmlElement docElem = doc.DocumentElement;
 
             this.OutputPath = docElem.Attributes["outputDir"].Value;

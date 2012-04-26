@@ -2,9 +2,10 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Xml.Linq;
 using System.IO;
 using Confuser.Core;
+using Confuser.Core.Project;
+using System.Xml;
 
 namespace Confuser.Console
 {
@@ -14,77 +15,32 @@ namespace Confuser.Console
         {
             ConsoleColor color = System.Console.ForegroundColor;
             System.Console.ForegroundColor = ConsoleColor.White;
-            
-            WriteLine("Confuser Version " + typeof(Core.Confuser).Assembly.GetName().Version);
+
+            WriteLine("Confuser Version v" + typeof(Core.Confuser).Assembly.GetName().Version);
             WriteLine();
 
             try
             {
-                if (args.Length != 3 && (args.Length != 5 || args[3] != "-sn"))
+                if (args.Length != 1)
                 {
                     PrintUsage();
                     return 1;
                 }
 
-                if(!File.Exists(args[1]))
+                if (!File.Exists(args[0]))
                 {
                     WriteLineWithColor(ConsoleColor.Red, "ERROR: FILE NOT EXIST!");
                     return 2;
                 }
 
-                Marker marker;
-                string[] source;
-                if (args[0] == "-assembly")
-                {
-                    marker = new Marker();
-                    source = new string[] { args[1] };
-                }
-                else if (args[0] == "-config")
-                {
-                    XDocument doc;
-                    try
-                    {
-                        doc = XDocument.Load(args[1], LoadOptions.SetLineInfo | LoadOptions.SetBaseUri);
-                    }
-                    catch
-                    {
-                        WriteLineWithColor(ConsoleColor.Red, "ERROR: INVAILD XML!");
-                        return 3;
-                    }
-                    XmlMarker mkr;
-                    if (!XmlMarker.Create(doc, out mkr))
-                    {
-                        WriteLineWithColor(ConsoleColor.Red, "ERROR: INVAILD CONFIGURATION!");
-                        return 4;
-                    }
-                    marker = mkr;
-                    source = mkr.GetAssemblies();
-                }
-                else
-                {
-                    PrintUsage();
-                    return 1;
-                }
+                var proj = new ConfuserProject();
+                XmlDocument xmlDoc = new XmlDocument();
+                xmlDoc.Load(args[0]);
+                proj.Load(xmlDoc);
 
-                Core.Confuser cr = new Confuser.Core.Confuser();
+                Core.Confuser cr = new Core.Confuser();
                 ConfuserParameter param = new ConfuserParameter();
-
-                List<IConfusion> cions = new List<IConfusion>();
-                List<Packer> packs = new List<Packer>();
-                foreach (Type type in typeof(IConfusion).Assembly.GetTypes())
-                {
-                    if (typeof(Core.IConfusion).IsAssignableFrom(type) && type != typeof(Core.IConfusion))
-                        cions.Add(Activator.CreateInstance(type) as Core.IConfusion);
-                    if (typeof(Core.Packer).IsAssignableFrom(type) && type != typeof(Core.Packer))
-                        packs.Add(Activator.CreateInstance(type) as Core.Packer);
-                }
-                param.Confusions = cions.ToArray();
-                param.Packers = packs.ToArray();
-                param.DestinationPath = args[2];
-                param.DefaultPreset = Preset.None;
-                param.Marker = marker;
-                param.SourceAssemblies = source;
-                param.StrongNameKeyPath = args.Length == 5 ? args[4] : null;
+                param.Project = proj;
                 ConsoleLogger.Initalize(param.Logger);
                 WriteLine("START WORKING.");
                 WriteLine(new string('*', 15));
@@ -101,10 +57,7 @@ namespace Confuser.Console
         static void PrintUsage()
         {
             WriteLine("Usage:");
-            WriteLine("Confuser.Console.exe [-assembly <source assembly>|-config <configuration file>] <target path> [-sn <strong key pair path>]");
-            WriteLine("    -assembly : specify the assembly to obfuscate.");
-            WriteLine("    -config   : specify the obfuscation configuration.");
-            WriteLine("    -sn       : specify the strong name key to sign the output.");
+            WriteLine("Confuser.Console.exe [configuration file]");
         }
 
         static void WriteLineWithColor(ConsoleColor color, string txt)

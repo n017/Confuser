@@ -92,7 +92,7 @@
     <Compile Include="Confusions\AntiTamperConfusion.cs" />
     <Compile Include="Confusions\InvalidMdConfusion.cs" />
     <Compile Include="Confusions\MdReduceConfusion.cs" />
-    <None Include="ConfuserPrj.xsd" />
+    <EmbeddedResource Include="ConfuserPrj.xsd" />
     <None Include="Confusions\ControlFlowConfusion.cs" />
     <Compile Include="Confusions\CtorProxyConfusion.cs" />
     <Compile Include="Analyzers\NameAnalyzer.Ivt.cs" />

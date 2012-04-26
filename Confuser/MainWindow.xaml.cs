@@ -171,7 +171,9 @@ namespace Confuser
                 if (sfd.ShowDialog() ?? false)
                 {
                     ConfuserProject proj = Project.ToCrProj();
-                    proj.Save().Save(sfd.FileName);
+                    XmlWriterSettings wtrSettings=new XmlWriterSettings();
+                    XmlWriter writer = XmlWriter.Create(sfd.FileName, wtrSettings);
+                    proj.Save().Save(writer);
                     Project.IsModified = false;
                     Project.FileName = sfd.FileName;
                     ProjectChanged(proj, new PropertyChangedEventArgs(""));
