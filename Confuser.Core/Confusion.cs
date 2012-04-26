@@ -92,9 +92,9 @@ namespace Confuser.Core
         protected void Log(string message) { cr.Log(message); }
         protected void AddHelperAssembly(AssemblyDefinition asm)
         {
-            CopyMarker mkr = new CopyMarker(cr.settings[0], Confusion);
-            mkr.Initalize(cr.param.Confusions, cr.param.Packers);
-            mkr.MarkHelperAssembly(asm, cr);
+            ObfuscationSettings setting = new ObfuscationSettings((cr.settings.Cast<AssemblySetting?>().SingleOrDefault(_ => _.Value.IsMain) ?? cr.settings[0]).GlobalParameters);
+            setting.Remove(Confusion);
+            cr.param.Marker.MarkHelperAssembly(asm, setting, cr);
             foreach (Analyzer analyzer in cr.analyzers)
                 analyzer.Analyze(new AssemblyDefinition[] { asm });
         }

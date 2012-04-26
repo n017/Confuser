@@ -14,76 +14,25 @@ using Mono.Cecil;
 using System.IO;
 using System.Windows.Forms;
 using System.Reflection;
+using Confuser.Core;
 
 namespace Confuser
 {
     /// <summary>
     /// Interaction logic for Settings.xaml
     /// </summary>
-    public partial class Settings : Page, IPage<AssemblyDefinition[]>
+    public partial class Settings : ConfuserTab, IPage
     {
-        RelayCommand simpleCmd;
-        RelayCommand advancedCmd;
+        static Settings()
+        {
+            TitlePropertyKey.OverrideMetadata(typeof(Settings), new UIPropertyMetadata("Options"));
+        }
         public Settings()
         {
             InitializeComponent();
-            Style = FindResource(typeof(Page)) as Style;
-            simple.Command = simpleCmd = new RelayCommand(CanNext, GoSimple);
-            advanced.Command = advancedCmd = new RelayCommand(CanNext, GoAdvanced);
+            Style = FindResource(typeof(ConfuserTab)) as Style;
         }
 
-        bool CanNext(object parameter)
-        {
-            return
-                //!string.IsNullOrEmpty(sn.Text) &&
-                !string.IsNullOrEmpty(output.Text);
-        }
-
-        class AsmData
-        {
-            public AssemblyDefinition Assembly { get; set; }
-            public BitmapSource Icon { get; set; }
-            public string Filename { get; set; }
-            public string Fullname { get; set; }
-        }
-
-        IHost host;
-        AssemblyDefinition[] parameter;
-        public void Init(IHost host, AssemblyDefinition[] parameter)
-        {
-            this.host = host;
-            this.parameter = parameter;
-            List<AsmData> dat = new List<AsmData>();
-            foreach (var i in parameter)
-                dat.Add(new AsmData() { Assembly = i, Icon = Helper.GetIcon(i.MainModule.FullyQualifiedName), Filename = i.MainModule.FullyQualifiedName, Fullname = i.FullName });
-            asmList.ItemsSource = dat;
-            output.Text = Path.Combine(Path.GetDirectoryName(parameter[0].MainModule.FullyQualifiedName), "Confused\\");
-        }
-
-        private void GoSimple(object parameter)
-        {
-            host.Go<ConfuserDatas>(new Simple(), new ConfuserDatas()
-            {
-                Assemblies = this.parameter,
-                StrongNameKey = sn.Text,
-                OutputPath = output.Text
-            });
-        }
-
-        private void GoAdvanced(object parameter)
-        {
-            host.Go<ConfuserDatas>(new AdvSelection(), new ConfuserDatas()
-            {
-                Assemblies = this.parameter,
-                StrongNameKey = sn.Text,
-                OutputPath = output.Text
-            });
-        }
-
-        private void TextChanged(object sender, TextChangedEventArgs e)
-        {
-            simpleCmd.OnCanExecuteChanged();
-        }
 
         private void OutputSel_Click(object sender, RoutedEventArgs e)
         {
@@ -103,7 +52,34 @@ namespace Confuser
             OpenFileDialog ofd = new OpenFileDialog();
             ofd.Filter = "Plugins (*.dll)|*.dll|All Files (*.*)|*.*";
             if (ofd.ShowDialog() != DialogResult.Cancel)
-                ConfuserDatas.LoadAssembly(Assembly.LoadFile(ofd.FileName), true);
+                host.Project.LoadAssembly(Assembly.LoadFile(ofd.FileName), true);
+        }
+
+        IHost host;
+        public override void Init(IHost host)
+        {
+            this.host = host;
+        }
+        public override void InitProj()
+        {
+            this.DataContext = host.Project;
+            usePacker.IsChecked = host.Project.Packer != null;
+        }
+
+        private void packer_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (usePacker.IsChecked ?? false)
+                host.Project.Packer = new PrjConfig<Packer>((Packer)packer.SelectedItem, host.Project);
+        }
+
+        private void usePacker_Unchecked(object sender, RoutedEventArgs e)
+        {
+            host.Project.Packer = null;
+        }
+
+        private void usePacker_Checked(object sender, RoutedEventArgs e)
+        {
+            host.Project.Packer = new PrjConfig<Packer>((Packer)packer.SelectedItem, host.Project);
         }
     }
 }

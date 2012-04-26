@@ -20,37 +20,89 @@ namespace Confuser
     /// <summary>
     /// Interaction logic for Simple.xaml
     /// </summary>
-    public partial class Simple : Page, IPage<ConfuserDatas>
+    public partial class Simple : ConfuserTab, IPage
     {
+        static Simple()
+        {
+            TitlePropertyKey.OverrideMetadata(typeof(Simple), new UIPropertyMetadata("Basic settings"));
+        }
         public Simple()
         {
             InitializeComponent();
-            Style = FindResource(typeof(Page)) as Style;
-            src = new CollectionViewSource() { Source = ConfuserDatas.Confusions };
-            src.Filter += ConfusionsFilter;
-            src.SortDescriptions.Add(new SortDescription("Preset", ListSortDirection.Ascending));
-            src.SortDescriptions.Add(new SortDescription("Name", ListSortDirection.Ascending));
-            cnList.ItemsSource = src.View;
-            preset.SelectionChanged += (sender, e) =>
-            {
-                src.View.Refresh();
-                cnList.ItemsSource = src.View;
-            };
+            Style = FindResource(typeof(ConfuserTab)) as Style;
+
         }
         CollectionViewSource src;
 
         IHost host;
-        ConfuserDatas parameter;
-        public void Init(IHost host, ConfuserDatas parameter)
+        PrjPreset prevPreset;
+        public override void Init(IHost host)
         {
             this.host = host;
-            this.parameter = parameter;
+
+            //=_=||
+            preset.ApplyTemplate();
+            TextBox tb = preset.Template.FindName("PART_EditableTextBox", preset) as TextBox;
+            tb.IsEnabled = false;
+            tb.IsHitTestVisible = false;
+        }
+        public override void InitProj()
+        {
+            src = new CollectionViewSource() { Source = host.Project.Confusions };
+            src.Filter += ConfusionsFilter;
+            src.SortDescriptions.Add(new SortDescription("Preset", ListSortDirection.Ascending));
+            src.SortDescriptions.Add(new SortDescription("Name", ListSortDirection.Ascending));
+            cnList.ItemsSource = src.View;
+            prevPreset = host.Project.DefaultPreset;
+            host.Project.PropertyChanged += (sender, e) =>
+            {
+                if (e.PropertyName == "DefaultPreset")
+                {
+                    if (prevPreset == PrjPreset.Undefined && host.Project.DefaultPreset != PrjPreset.Undefined)
+                    {
+                        if (MessageBox.Show(
+        @"Are you sure to change the default preset?
+If you do so, you will lose the changes you did at Advanced tab!", "Confuser",
+         MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+                        {
+                            Dispatcher.BeginInvoke(new Action(
+                                () => host.Project.DefaultPreset = PrjPreset.Undefined));
+                        }
+                        else
+                        {
+                            foreach (var i in host.Project.Assemblies)
+                            {
+                                i.Settings = null;
+                                foreach (var j in i.Assembly.Modules)
+                                    foreach (var k in AsmSelector.Childer.GetChildren(j))
+                                        k.Annotations.Clear();
+                                i.Clear();
+                            }
+                            src.View.Refresh();
+                            cnList.ItemsSource = src.View;
+                        }
+                    }
+                    else
+                    {
+                        src.View.Refresh();
+                        cnList.ItemsSource = src.View;
+                    }
+                    prevPreset = host.Project.DefaultPreset;
+                }
+            };
+
+            this.DataContext = host.Project;
         }
 
         void ConfusionsFilter(object sender, FilterEventArgs e)
         {
+            if (host.Project.DefaultPreset == PrjPreset.Undefined)
+            {
+                e.Accepted = false;
+                return;
+            }
             IConfusion item = e.Item as IConfusion;
-            if (item.Preset <= (Preset)preset.SelectedValue)
+            if (item.Preset <= (Preset)host.Project.DefaultPreset)
             {
                 e.Accepted = true;
             }
@@ -58,53 +110,6 @@ namespace Confuser
             {
                 e.Accepted = false;
             }
-        }
-
-        Preset _preset;
-        Packer _packer;
-        ConfuserDatas LoadSummary()
-        {
-            StringBuilder summary = new StringBuilder();
-            summary.AppendLine(string.Format("Output path: {0}", parameter.OutputPath));
-            if (string.IsNullOrEmpty(parameter.StrongNameKey))
-                summary.AppendLine("No strong name key specified.");
-            else
-                summary.AppendLine(string.Format("Strong name key: {0}", parameter.StrongNameKey));
-            summary.AppendLine();
-
-            parameter.Parameter = new ConfuserParameter();
-            summary.AppendLine(string.Format("Protection preset: {0}", parameter.Parameter.DefaultPreset = _preset));
-            SimpleMarker mkr = new SimpleMarker();
-            parameter.Parameter.Marker = mkr;
-            if (_packer != null)
-                summary.AppendLine(string.Format("Packer: {0}", (mkr.packer = _packer).Name));
-            else
-                summary.AppendLine("No packer specified.");
-            summary.AppendLine();
-
-            parameter.Summary = summary.ToString();
-            return parameter;
-        }
-        private void next_Click(object sender, RoutedEventArgs e)
-        {
-            _preset = (Preset)preset.SelectedValue;
-            if (usePacker.IsChecked.GetValueOrDefault())
-                _packer = (Packer)packer.SelectedValue;
-            else
-                _packer = null;
-            host.Load<ConfuserDatas>(LoadSummary, new Summary());
-        }
-    }
-
-    class SimpleMarker : Marker
-    {
-        public Packer packer;
-        public override MarkerSetting MarkAssemblies(IList<AssemblyDefinition> asms, Preset preset, Confuser.Core.Confuser cr, EventHandler<LogEventArgs> err)
-        {
-            var ret = base.MarkAssemblies(asms, preset, cr, err);
-            if (ret.Packer == null)
-                ret.Packer = packer;
-            return ret;
         }
     }
 }

@@ -8,15 +8,15 @@ using System.Xml;
 
 namespace Confuser.Core.Project
 {
-    interface IProjectObject
+    public interface IProjectObject
     {
-        ObfuscationSettings Settings { get; set; }
+        ObfConfig Config { get; set; }
     }
-    class ProjectAssembly : List<ProjectModule>, IProjectObject
+    public class ProjectAssembly : List<ProjectModule>, IProjectObject
     {
-        public ObfuscationSettings Settings { get; set; }
+        public ObfConfig Config { get; set; }
         public string Path { get; set; }
-        public Settings<Packer> Packer { get; set; }
+        public bool IsMain { get; set; }
 
         public void Import(AssemblyDefinition assembly)
         {
@@ -24,7 +24,7 @@ namespace Confuser.Core.Project
         }
         public AssemblyDefinition Resolve()
         {
-            return AssemblyDefinition.ReadAssembly(Path);
+            return AssemblyDefinition.ReadAssembly(Path, new ReaderParameters(ReadingMode.Immediate));
         }
 
         public XmlElement Save(XmlDocument xmlDoc)
@@ -35,21 +35,45 @@ namespace Confuser.Core.Project
             nameAttr.Value = Path;
             elem.Attributes.Append(nameAttr);
 
-            if (Settings != null)
-                elem.AppendChild(Settings.Save(xmlDoc));
+            if (IsMain != false)
+            {
+                XmlAttribute mainAttr = xmlDoc.CreateAttribute("isMain");
+                mainAttr.Value = IsMain.ToString().ToLower();
+                elem.Attributes.Append(mainAttr);
+            }
 
-            if (Packer != null)
-                elem.AppendChild(Packer.Save(xmlDoc));
+            if (Config != null)
+                elem.AppendChild(Config.Save(xmlDoc));
 
             foreach (var i in this)
                 elem.AppendChild(i.Save(xmlDoc));
 
             return elem;
         }
+        public void Load(XmlElement elem)
+        {
+            this.Path = elem.Attributes["path"].Value;
+            if (elem.Attributes["isMain"] != null)
+                this.IsMain = bool.Parse(elem.Attributes["isMain"].Value);
+            foreach (XmlElement i in elem.ChildNodes)
+            {
+                if (i.Name == "config")
+                {
+                    Config = new ObfConfig();
+                    Config.Load(i);
+                }
+                else
+                {
+                    ProjectModule mod = new ProjectModule();
+                    mod.Load(i);
+                    this.Add(mod);
+                }
+            }
+        }
     }
-    class ProjectModule : List<ProjectType>, IProjectObject
+    public class ProjectModule : List<ProjectType>, IProjectObject
     {
-        public ObfuscationSettings Settings { get; set; }
+        public ObfConfig Config { get; set; }
         public string Name { get; set; }
 
         public void Import(ModuleDefinition module)
@@ -69,78 +93,96 @@ namespace Confuser.Core.Project
             nameAttr.Value = Name;
             elem.Attributes.Append(nameAttr);
 
-            if (Settings != null)
-                elem.AppendChild(Settings.Save(xmlDoc));
-
-            HashSet<string> namespaces = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var i in this)
-                namespaces.Add(i.Namespace);
-
-            Dictionary<string, XmlElement> nsElems = new Dictionary<string, XmlElement>(StringComparer.Ordinal);
-            foreach (var i in namespaces)
-            {
-                XmlElement nsElem = xmlDoc.CreateElement("namespace");
-
-                XmlAttribute _nameAttr = xmlDoc.CreateAttribute("name");
-                _nameAttr.Value = i;
-                nsElem.Attributes.Append(_nameAttr);
-
-                nsElems[i] = nsElem;
-            }
-
-            foreach (var i in this)
-                nsElems[i.Namespace].AppendChild(i.Save(xmlDoc));
-
-            return elem;
-        }
-    }
-    class ProjectType : List<ProjectMember>, IProjectObject
-    {
-        public ObfuscationSettings Settings { get; set; }
-        public string Namespace { get; set; }
-        public string Name { get; set; }
-
-        public void Import(TypeDefinition type)
-        {
-            this.Namespace = type.Namespace;
-            this.Name = type.Name;
-        }
-        public TypeDefinition Resolve(ModuleDefinition module)
-        {
-            return module.GetType(Namespace, Name);
-        }
-
-        public XmlElement Save(XmlDocument xmlDoc)
-        {
-            XmlElement elem = xmlDoc.CreateElement("type");
-
-            XmlAttribute nameAttr = xmlDoc.CreateAttribute("name");
-            nameAttr.Value = Name;
-            elem.Attributes.Append(nameAttr);
-
-            if (Settings != null)
-                elem.AppendChild(Settings.Save(xmlDoc));
+            if (Config != null)
+                elem.AppendChild(Config.Save(xmlDoc));
 
             foreach (var i in this)
                 elem.AppendChild(i.Save(xmlDoc));
 
             return elem;
         }
+        public void Load(XmlElement elem)
+        {
+            this.Name = elem.Attributes["name"].Value;
+            foreach (XmlElement i in elem.ChildNodes)
+            {
+                if (i.Name == "config")
+                {
+                    Config = new ObfConfig();
+                    Config.Load(i);
+                }
+                else
+                {
+                    ProjectType type = new ProjectType();
+                    type.Load(i);
+                    this.Add(type);
+                }
+            }
+        }
     }
-    enum ProjectMemberType
+    public class ProjectType : List<ProjectMember>, IProjectObject
+    {
+        public ObfConfig Config { get; set; }
+        public string FullName { get; set; }
+
+        public void Import(TypeDefinition type)
+        {
+            this.FullName = type.FullName;
+        }
+        public TypeDefinition Resolve(ModuleDefinition module)
+        {
+            return module.GetType(FullName);
+        }
+
+        public XmlElement Save(XmlDocument xmlDoc)
+        {
+            XmlElement elem = xmlDoc.CreateElement("type");
+
+            XmlAttribute fnAttr = xmlDoc.CreateAttribute("fullname");
+            fnAttr.Value = FullName;
+            elem.Attributes.Append(fnAttr);
+
+            if (Config != null)
+                elem.AppendChild(Config.Save(xmlDoc));
+
+            foreach (var i in this)
+                elem.AppendChild(i.Save(xmlDoc));
+
+            return elem;
+        }
+        public void Load(XmlElement elem)
+        {
+            this.FullName = elem.Attributes["fullname"].Value;
+            foreach (XmlElement i in elem.ChildNodes)
+            {
+                if (i.Name == "config")
+                {
+                    Config = new ObfConfig();
+                    Config.Load(i);
+                }
+                else
+                {
+                    ProjectMember member = new ProjectMember();
+                    member.Load(i);
+                    this.Add(member);
+                }
+            }
+        }
+    }
+    public enum ProjectMemberType
     {
         Method,
         Field,
         Property,
         Event
     }
-    class ProjectMember : IProjectObject
+    public class ProjectMember : IProjectObject
     {
-        public ObfuscationSettings Settings { get; set; }
+        public ObfConfig Config { get; set; }
         public string Signature { get; set; }
         public ProjectMemberType Type { get; set; }
 
-        public string ReadUntilToken(StringReader reader, params char[] token)
+        string ReadUntilToken(StringReader reader, params char[] token)
         {
             StringBuilder ret = new StringBuilder();
             int c = reader.Read();
@@ -149,7 +191,7 @@ namespace Confuser.Core.Project
                 ret.Append((char)c);
                 c = reader.Read();
             }
-            return ret.ToString();
+            return ret.ToString().Trim();
         }
 
         public void Import(IMemberDefinition member)
@@ -163,7 +205,7 @@ namespace Confuser.Core.Project
                 sig.Append(method.ReturnType.Name);
                 sig.Append(" ");
                 sig.Append(method.Name);
-                sig.Append(" (");
+                sig.Append("(");
                 for (int i = 0; i < method.Parameters.Count; i++)
                 {
                     if (i != 0) sig.Append(", ");
@@ -284,10 +326,23 @@ namespace Confuser.Core.Project
             typeAttr.Value = Type.ToString().ToLower();
             elem.Attributes.Append(typeAttr);
 
-            if (Settings != null)
-                elem.AppendChild(Settings.Save(xmlDoc));
+            if (Config != null)
+                elem.AppendChild(Config.Save(xmlDoc));
 
             return elem;
+        }
+        public void Load(XmlElement elem)
+        {
+            this.Signature = elem.Attributes["sig"].Value;
+            this.Type = (ProjectMemberType)Enum.Parse(typeof(ProjectMemberType), elem.Attributes["type"].Value, true);
+            foreach (XmlElement i in elem.ChildNodes)
+            {
+                if (i.Name == "config")
+                {
+                    Config = new ObfConfig();
+                    Config.Load(i);
+                }
+            }
         }
     }
 }

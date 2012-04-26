@@ -9,6 +9,7 @@ using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
 using Mono.Cecil.Metadata;
 using System.Collections.Specialized;
+using Confuser.Core.Project;
 
 namespace Confuser.Core
 {
@@ -110,23 +111,7 @@ namespace Confuser.Core
 
     public class ConfuserParameter
     {
-        string[] src = new string[0];
-        public string[] SourceAssemblies { get { return src; } set { src = value; } }
-
-        string dstPath = "";
-        public string DestinationPath { get { return dstPath; } set { dstPath = value; } }
-
-        IConfusion[] cions = new IConfusion[0];
-        public IConfusion[] Confusions { get { return cions; } set { cions = value; } }
-
-        Preset preset = Preset.Normal;
-        public Preset DefaultPreset { get { return preset; } set { preset = value; } }
-
-        Packer[] packers = new Packer[0];
-        public Packer[] Packers { get { return packers; } set { packers = value; } }
-
-        string sn = "";
-        public string StrongNameKeyPath { get { return sn; } set { sn = value; } }
+        public ConfuserProject Project { get; set; }
 
         Logger log = new Logger();
         public Logger Logger { get { return log; } }
@@ -168,6 +153,8 @@ namespace Confuser.Core
         internal List<AssemblySetting> settings;
         internal MarkerSetting mkrSettings;
         internal List<Analyzer> analyzers;
+        internal List<IConfusion> confusions;
+        internal List<Packer> packers;
         internal void Log(string message) { param.Logger._Log(message); }
 
         public Thread ConfuseAsync(ConfuserParameter param)
@@ -192,7 +179,7 @@ namespace Confuser.Core
                 Initialize(out sn);
 
                 List<Phase> phases = new List<Phase>();
-                foreach (IConfusion cion in param.Confusions)
+                foreach (IConfusion cion in confusions)
                     foreach (Phase phase in cion.Phases)
                         phases.Add(phase);
 
@@ -242,6 +229,17 @@ namespace Confuser.Core
             {
                 GlobalAssemblyResolver.Instance.AssemblyCache.Clear();
                 GC.Collect();
+            }
+        }
+
+        void LoadAssembly(System.Reflection.Assembly asm)
+        {
+            foreach (Type type in asm.GetTypes())
+            {
+                if (typeof(IConfusion).IsAssignableFrom(type) && type != typeof(IConfusion))
+                    confusions.Add(Activator.CreateInstance(type) as IConfusion);
+                if (typeof(Packer).IsAssignableFrom(type) && type != typeof(Packer))
+                    packers.Add(Activator.CreateInstance(type) as Packer);
             }
         }
 
@@ -321,27 +319,33 @@ namespace Confuser.Core
             if (arr == null || arr.Length == 0) return "null";
             return BitConverter.ToString(arr).Replace("-", "").ToLower();
         }
+
         void Initialize(out System.Reflection.StrongNameKeyPair sn)
         {
             sn = null;
-            if (string.IsNullOrEmpty(param.StrongNameKeyPath))
+            if (string.IsNullOrEmpty(param.Project.SNKeyPath))
                 Log("Strong name key not specified.");
-            else if (!File.Exists(param.StrongNameKeyPath))
+            else if (!File.Exists(param.Project.SNKeyPath))
                 Log("Strong name key not found. Output assembly will not be signed.");
             else
-                sn = new System.Reflection.StrongNameKeyPair(new FileStream(param.StrongNameKeyPath, FileMode.Open));
+                sn = new System.Reflection.StrongNameKeyPair(new FileStream(param.Project.SNKeyPath, FileMode.Open));
 
             Marker mkr = param.Marker;
 
             GlobalAssemblyResolver.Instance.AssemblyCache.Clear();
             GlobalAssemblyResolver.Instance.ClearSearchDirectories();
-            foreach (var i in param.SourceAssemblies)
-                GlobalAssemblyResolver.Instance.AddSearchDirectory(Path.GetDirectoryName(i));
+            foreach (var i in param.Project)
+                GlobalAssemblyResolver.Instance.AddSearchDirectory(Path.GetDirectoryName(i.Path));
+
+            confusions = new List<IConfusion>();
+            packers = new List<Packer>();
+            LoadAssembly(typeof(Confuser).Assembly);
+            foreach (var i in param.Project.Plugins)
+                LoadAssembly(System.Reflection.Assembly.LoadFile(i));
 
             Log(string.Format("Loading assemblies..."));
-            mkr.Initalize(param.Confusions, param.Packers);
-            var assemblies = new List<AssemblyDefinition>(param.SourceAssemblies.Select(_ => AssemblyDefinition.ReadAssembly(_, new ReaderParameters(ReadingMode.Immediate))));
-            mkrSettings = mkr.MarkAssemblies(assemblies, param.DefaultPreset, this, (sender, e) => Log(e.Message));
+            mkr.Initalize(confusions, packers);
+            mkrSettings = mkr.MarkAssemblies(this, (sender, e) => Log(e.Message));
             settings = mkrSettings.Assemblies.ToList();
 
             if (mkrSettings.Packer != null && (
@@ -353,30 +357,31 @@ namespace Confuser.Core
             }
 
             Dictionary<string, string> repl = new Dictionary<string, string>();
-            foreach (var i in assemblies)
+            foreach (var i in settings)
             {
-                string o1 = ToString(i.Name.PublicKeyToken);
-                string o2 = ToString(i.Name.PublicKey);
+                AssemblyDefinition asm = i.Assembly;
+                string o1 = ToString(asm.Name.PublicKeyToken);
+                string o2 = ToString(asm.Name.PublicKey);
                 if (sn != null)
                 {
-                    i.Name.PublicKey = sn.PublicKey;
-                    i.MainModule.Attributes |= ModuleAttributes.StrongNameSigned;
+                    asm.Name.PublicKey = sn.PublicKey;
+                    asm.MainModule.Attributes |= ModuleAttributes.StrongNameSigned;
                 }
                 else
                 {
-                    i.Name.PublicKey = null;
-                    i.MainModule.Attributes &= ~ModuleAttributes.StrongNameSigned;
+                    asm.Name.PublicKey = null;
+                    asm.MainModule.Attributes &= ~ModuleAttributes.StrongNameSigned;
                 }
-                string n1 = ToString(i.Name.PublicKeyToken);
-                string n2 = ToString(i.Name.PublicKey);
+                string n1 = ToString(asm.Name.PublicKeyToken);
+                string n2 = ToString(asm.Name.PublicKey);
                 if (o1 != n1 && !repl.ContainsKey(o1))
                     repl.Add(o1, n1);
                 if (o2 != n2 && !repl.ContainsKey(o2))
                     repl.Add(o2, n2);
             }
 
-            foreach (var asm in assemblies)
-                foreach (var mod in asm.Modules)
+            foreach (var asm in settings)
+                foreach (var mod in asm.Assembly.Modules)
                 {
                     //global cctor which used in many confusion
                     if (mod.GetType("<Module>").GetStaticConstructor() == null)
@@ -397,10 +402,10 @@ namespace Confuser.Core
                     for (int i = 0; i < mod.AssemblyReferences.Count; i++)
                     {
                         AssemblyNameReference nameRef = mod.AssemblyReferences[i];
-                        foreach (var asmRef in assemblies)
-                            if (asmRef.Name.Name == nameRef.Name)
+                        foreach (var asmRef in settings)
+                            if (asmRef.Assembly.Name.Name == nameRef.Name)
                             {
-                                nameRef = asmRef.Name;
+                                nameRef = asmRef.Assembly.Name;
                                 break;
                             }
                         mod.AssemblyReferences[i] = nameRef;
@@ -409,10 +414,10 @@ namespace Confuser.Core
 
             foreach (var i in repl)
             {
-                foreach (var j in assemblies)
+                foreach (var j in settings)
                 {
-                    UpdateCustomAttributeRef(j);
-                    foreach (var k in j.Modules)
+                    UpdateCustomAttributeRef(j.Assembly);
+                    foreach (var k in j.Assembly.Modules)
                     {
                         UpdateCustomAttributeRef(k);
                         foreach (var l in k.Types)
@@ -421,21 +426,21 @@ namespace Confuser.Core
                 }
             }
 
-            foreach (var i in assemblies)
-                GlobalAssemblyResolver.Instance.AssemblyCache.Add(i.FullName, i);
+            foreach (var i in settings)
+                GlobalAssemblyResolver.Instance.AssemblyCache.Add(i.Assembly.FullName, i.Assembly);
             helpers = new Dictionary<IMemberDefinition, HelperAttribute>();
 
             Log(string.Format("Analyzing assemblies..."));
             analyzers = new List<Analyzer>();
             Dictionary<Analyzer, string> aPhases = new Dictionary<Analyzer, string>();
-            foreach (IConfusion cion in param.Confusions)
+            foreach (IConfusion cion in confusions)
                 foreach (Phase phase in cion.Phases)
                 {
                     Analyzer analyzer = phase.GetAnalyzer();
                     if (analyzer != null)
                     {
                         analyzers.Add(analyzer);
-                        aPhases.Add(analyzer,cion.Name);
+                        aPhases.Add(analyzer, cion.Name);
                         analyzer.SetLogger(param.Logger);
                         analyzer.SetProgresser(param.Logger);
                     }
@@ -443,13 +448,13 @@ namespace Confuser.Core
             foreach (var i in analyzers)
             {
                 Log(string.Format("Analyzing {0}...", aPhases[i]));
-                i.Analyze(assemblies);
+                i.Analyze(settings.Select(_ => _.Assembly));
             }
         }
         void ProcessStructuralPhases(ModuleSetting mod, ObfuscationSettings globalParams, IEnumerable<Phase> phases)
         {
             if (mkrSettings.Packer != null)
-                mkrSettings.Packer.ProcessModulePhase1(mod.Module, 
+                mkrSettings.Packer.ProcessModulePhase1(mod.Module,
                     mod.Module.IsMain && mkrSettings.Assemblies[0].Assembly == mod.Module.Assembly);
 
             ConfusionParameter cParam = new ConfusionParameter();
@@ -565,7 +570,7 @@ namespace Confuser.Core
                     param.ProcessMetadata(accessor);
             });
             psr.AfterWriteTables += new MetadataProcessor.MetadataProcess(delegate(MetadataProcessor.MetadataAccessor accessor)
-            {               
+            {
                 foreach (MetadataPhase i in from i in phases where (i is MetadataPhase) && i.PhaseID == 3 orderby i.Priority ascending select i)
                 {
                     if (GetTargets(mod, i.Confusion).Count == 0) continue;
@@ -589,7 +594,7 @@ namespace Confuser.Core
                         mod.Module.IsMain && mkrSettings.Assemblies[0].Assembly == mod.Module.Assembly);
                 if (param.ProcessImage != null)
                     param.ProcessImage(accessor);
-               
+
                 ImagePhase[] imgPhases = (from i in phases where (i is ImagePhase) orderby (int)i.Priority + i.PhaseID * 10 ascending select (ImagePhase)i).ToArray();
                 for (int i = 0; i < imgPhases.Length; i++)
                 {
@@ -632,20 +637,21 @@ namespace Confuser.Core
             Packer packer = mkrSettings.Packer;
             if (packer != null)
             {
-                if (!Directory.Exists(param.DestinationPath))
-                    Directory.CreateDirectory(param.DestinationPath);
+                if (!Directory.Exists(param.Project.OutputPath))
+                    Directory.CreateDirectory(param.Project.OutputPath);
 
                 Log("Packing output assemblies...");
                 packer.Confuser = this;
                 PackerParameter pParam = new PackerParameter();
+                pParam.Assemblies = settings.ToArray();
                 pParam.Modules = mods; pParam.PEs = pes;
                 pParam.Parameters = mkrSettings.PackerParameters;
                 string[] final = packer.Pack(param, pParam);
                 for (int i = 0; i < final.Length; i++)
                 {
-                    string path = Path.Combine(param.DestinationPath, Path.GetFileName(final[i]));
+                    string path = Path.Combine(param.Project.OutputPath, Path.GetFileName(final[i]));
                     if (File.Exists(path)) File.Delete(path);
-                    File.Move(final[i], Path.Combine(param.DestinationPath, Path.GetFileName(final[i])));
+                    File.Move(final[i], Path.Combine(param.Project.OutputPath, Path.GetFileName(final[i])));
                 }
             }
             else
@@ -656,7 +662,7 @@ namespace Confuser.Core
                     string filename = Path.GetFileName(mods[i].FullyQualifiedName);
                     if (string.IsNullOrEmpty(filename)) filename = mods[i].Name;
 
-                    string dest = Path.Combine(param.DestinationPath, Path.GetFileName(mods[i].FullyQualifiedName));
+                    string dest = Path.Combine(param.Project.OutputPath, Path.GetFileName(mods[i].FullyQualifiedName));
                     if (!Directory.Exists(Path.GetDirectoryName(dest)))
                         Directory.CreateDirectory(Path.GetDirectoryName(dest));
                     Stream dstStream = new FileStream(dest, FileMode.Create, FileAccess.Write);

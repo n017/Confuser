@@ -1,33 +1,17 @@
-﻿<Page x:Class="Confuser.Simple"
+﻿<local:ConfuserTab x:Class="Confuser.Simple"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="clr-namespace:Confuser"
     xmlns:cr="clr-namespace:Confuser.Core;assembly=Confuser.Core"
-    xmlns:sys="clr-namespace:System;assembly=mscorlib"
-    Title="Simple">
-    <Page.Resources>
-        <ObjectDataProvider x:Key="preset"
-                    MethodName="GetValues" 
+    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+    <Grid.Resources>
+        <ObjectDataProvider x:Key="presets"
+                    MethodName="GetNames" 
                     ObjectType="{x:Type sys:Enum}">
             <ObjectDataProvider.MethodParameters>
                 <x:Type TypeName="cr:Preset" />
             </ObjectDataProvider.MethodParameters>
         </ObjectDataProvider>
-        <DataTemplate x:Key="packer">
-            <Grid Height="50">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="25px"/>
-                    <RowDefinition Height="25px"/>
-                </Grid.RowDefinitions>
-                <Label Grid.Row="0">
-                    <TextBlock>
-                        <TextBlock FontSize="12" Text="{Binding Name}"/>
-                        <TextBlock FontSize="10" Foreground="#808080" Text="{Binding ID}" TextAlignment="Right"/>
-                    </TextBlock>
-                </Label>
-                <Label Grid.Row="1" FontSize="10" Foreground="#808080" Content="{Binding Description}"/>
-            </Grid>
-        </DataTemplate>
         <DataTemplate x:Key="cn">
             <Border CornerRadius="3" BorderBrush="#DDDDDD" BorderThickness="1" Margin="2">
                 <Grid Height="65">
@@ -42,54 +26,45 @@
                         <TextBlock FontSize="10" Foreground="#808080" Text="{Binding ID}" TextAlignment="Right"/>
                     </TextBlock>
                     </Label>
-                    <Label Grid.Row="1" FontSize="10" Foreground="#808080" Content="{Binding Description}"/>
+                    <Label Grid.Row="1" FontSize="10" Foreground="#808080">
+                        <TextBlock Text="{Binding Description}" TextWrapping="WrapWithOverflow"/>
+                    </Label>
                 </Grid>
             </Border>
         </DataTemplate>
-    </Page.Resources>
-    <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="300px"/>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="40px"/>
-            <RowDefinition Height="5px"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="5px"/>
-            <RowDefinition Height="40px"/>
-        </Grid.RowDefinitions>
+    </Grid.Resources>
+    <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="200"/>
+        <ColumnDefinition Width="*"/>
+    </Grid.ColumnDefinitions>
+    <Border Grid.Row="2" Grid.Column="0" Padding="10" VerticalAlignment="Top">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="70px"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Label Grid.Row="0" Grid.Column="0" Content="Preset : " HorizontalAlignment="Right"/>
+            <ComboBox x:Name="preset" Grid.Row="0" Grid.Column="1"
+                      ItemsSource="{Binding Source={StaticResource presets}}" IsEditable="True"
+                      Text="{Binding DefaultPreset, Converter={x:Static local:PresetConverter.Instance}}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock x:Name="p" Text="{Binding}"/>
+                        <DataTemplate.Triggers>
+                            <DataTrigger Binding="{Binding}" Value="{x:Static local:PrjPreset.Undefined}">
+                                <Setter TargetName="p" Property="Text" Value="Custom"/>
+                            </DataTrigger>
+                        </DataTemplate.Triggers>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+        </Grid>
+    </Border>
 
-        <Label Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Content="Choose protection preset :" FontSize="18" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="10,0,0,0"/>
-        <Separator Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"/>
-        <Separator Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"/>
-        <Border Grid.Row="4" Padding="5" Grid.Column="0" Grid.ColumnSpan="2">
-            <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft" VerticalAlignment="Center">
-                <Button x:Name="next" Content="Next" Width="70" Height="25" Click="next_Click" IsDefault="True" />
-            </StackPanel>
-        </Border>
-
-        <Border Grid.Row="2" Grid.Column="0" Padding="5" VerticalAlignment="Top">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="70px"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="30px"/>
-                    <RowDefinition Height="60px"/>
-                </Grid.RowDefinitions>
-                <Label Grid.Row="0" Grid.Column="0" Content="Preset : " HorizontalAlignment="Right"/>
-                <ComboBox x:Name="preset" Grid.Row="0" Grid.Column="1" ItemsSource="{Binding Source={StaticResource preset}}" SelectedIndex="2"/>
-                <CheckBox x:Name="usePacker" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Content="Use Packer" VerticalAlignment="Center" HorizontalAlignment="Stretch" Margin="5"/>
-                <Label Grid.Row="2" Grid.Column="0" Content="Packer : " HorizontalAlignment="Right" IsEnabled="{Binding IsChecked, ElementName=usePacker}"/>
-                <ComboBox x:Name="packer" Grid.Row="2" Grid.Column="1" ItemsSource="{Binding Source={x:Static local:ConfuserDatas.Packers}}" ItemTemplate="{StaticResource packer}" IsEnabled="{Binding IsChecked, ElementName=usePacker}" SelectedIndex="0"/>
-            </Grid>
-        </Border>
-
-        <ScrollViewer Grid.Row="2" Grid.Column="1" Focusable="False">
-            <ItemsControl x:Name="cnList" Focusable="False" ItemTemplate="{StaticResource cn}"/>
-        </ScrollViewer>
-    </Grid>
-</Page>
+    <ScrollViewer Grid.Row="2" Grid.Column="1" Focusable="False" Margin="10">
+        <ItemsControl x:Name="cnList" Focusable="False" ItemTemplate="{StaticResource cn}"/>
+    </ScrollViewer>
+</local:ConfuserTab>

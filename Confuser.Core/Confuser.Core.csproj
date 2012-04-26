@@ -107,7 +107,7 @@
     <Compile Include="Confusion.cs" />
     <Compile Include="Analyzers\NameAnalyzer.cs" />
     <Compile Include="Analyzer.cs" />
-    <Compile Include="Marker.cs" />
+    <None Include="Marker.cs" />
     <Compile Include="ObfuscationHelper.cs" />
     <Compile Include="Packer.cs" />
     <Compile Include="Poly\ExpressionEvaluator.cs" />
@@ -130,6 +130,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Confusions\ControlFlowConfusion.New.cs" />
+    <Compile Include="Marker.New.cs" />
     <Compile Include="Poly\ExpressionInverser.cs" />
     <Compile Include="Poly\Expressions\XorExpression.cs" />
     <Compile Include="Poly\Expressions\InvExpression.cs" />

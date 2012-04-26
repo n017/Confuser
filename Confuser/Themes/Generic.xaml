@@ -700,10 +700,15 @@
             <HierarchicalDataTemplate ItemsSource="{Binding Children}" DataType="{x:Type asmsel:AsmTreeModel}">
                 <StackPanel Orientation="Horizontal" Height="18">
                     <asmsel:AsmIcon Width="16" Height="16" Object="{Binding Object}" Margin="2,0,5,0"/>
-                    <TextBlock Foreground="{Binding Object, Converter={x:Static asmsel:AsmColorConverter.Instance}}"
+                    <TextBlock x:Name="txt" Foreground="{Binding Object, Converter={x:Static asmsel:AsmColorConverter.Instance}}"
                                Text="{Binding Object, Converter={x:Static asmsel:AsmTextConverter.Instance}}"
                                VerticalAlignment="Center" Margin="2,0,5,0"/>
                 </StackPanel>
+                <HierarchicalDataTemplate.Triggers>
+                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                        <Setter TargetName="txt" Property="Foreground" Value="{StaticResource SelectedForegroundBrush}"/>
+                    </DataTrigger>
+                </HierarchicalDataTemplate.Triggers>
             </HierarchicalDataTemplate>
         </Style.Resources>
         <Setter Property="ItemContainerStyle">
@@ -711,8 +716,18 @@
                 <Style TargetType="{x:Type TreeViewItem}" BasedOn="{StaticResource {x:Type TreeViewItem}}">
                     <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
                     <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
+                    <!--<Style.Triggers>
+                        <DataTrigger Binding="{Binding Object}" Value="{x:Null}">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                        </DataTrigger>
+                    </Style.Triggers>-->
                 </Style>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <Style TargetType="{x:Type local:ConfuserTab}">
+        <Setter Property="Background" Value="{StaticResource BackgroundBrush}"/>
+        <!--<Setter Property="Foreground" Value="{StaticResource ForegroundBrush}"/>-->
     </Style>
 </ResourceDictionary>

@@ -1,55 +1,57 @@
-﻿<Page x:Class="Confuser.Settings"
+﻿<local:ConfuserTab x:Class="Confuser.Settings"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:controls="clr-namespace:System.Windows.Controls"
-    Title="Settings">
-    <Grid HorizontalAlignment="Stretch" VerticalAlignment="Center">
+    xmlns:local="clr-namespace:Confuser"
+    xmlns:controls="clr-namespace:System.Windows.Controls">
+    <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="100px"/>
             <ColumnDefinition Width="*"/>
             <ColumnDefinition Width="30px"/>
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
+            <RowDefinition Height="30px"/>
+            <RowDefinition Height="30px"/>
+            <RowDefinition Height="70px"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="30px"/>
-            <RowDefinition Height="30px"/>
-            <RowDefinition Height="30px"/>
-            <RowDefinition Height="100px"/>
         </Grid.RowDefinitions>
-        <ScrollViewer Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3" MaxHeight="300" Focusable="False" Margin="10,0,10,0">
-            <ItemsControl x:Name="asmList" Focusable="False">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="40px"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="*"/>
-                                <RowDefinition Height="*"/>
-                            </Grid.RowDefinitions>
-                            <Image Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" Width="32" Height="32" Source="{Binding Icon}"/>
-                            <Label Grid.Row="0" Grid.Column="1" Content="{Binding Filename}" FontSize="12"/>
-                            <Label Grid.Row="1" Grid.Column="1" Content="{Binding Fullname}" FontSize="10" Foreground="#808080"/>
-                        </Grid>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </ScrollViewer>
-        <Label Grid.Row="1" Grid.Column="0" HorizontalContentAlignment="Right" VerticalAlignment="Center">Output Directory:</Label>
-        <TextBox Grid.Row="1" Grid.Column="1" Margin="5" x:Name="output" TextChanged="TextChanged"></TextBox>
-        <Button Grid.Row="1" Grid.Column="2" Margin="5" Click="OutputSel_Click">...</Button>
 
-        <Label Grid.Row="2" Grid.Column="0" HorizontalContentAlignment="Right" VerticalAlignment="Center">Strong name key:</Label>
-        <TextBox Grid.Row="2" Grid.Column="1" Margin="5" x:Name="sn" TextChanged="TextChanged"></TextBox>
-        <Button Grid.Row="2" Grid.Column="2" Margin="5" Click="SnSel_Click">...</Button>
-        
-        <Button Grid.Row="3" Grid.Column="0" Margin="5" Click="LoadPlugin_Click">+ Plugins</Button>
+        <Label Grid.Row="0" Grid.Column="0" HorizontalContentAlignment="Right" VerticalAlignment="Center">Output Directory:</Label>
+        <TextBox Grid.Row="0" Grid.Column="1" Margin="5" x:Name="output" Text="{Binding OutputPath}"/>
+        <Button Grid.Row="0" Grid.Column="2" Margin="5" Click="OutputSel_Click">...</Button>
 
-        <DockPanel Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="3">
-            <controls:CommandLink x:Name="advanced" Margin="10" DockPanel.Dock="Right" Content="Select protections" Note="Customize your protection manually (advanced option)"/>
-            <controls:CommandLink x:Name="simple" Margin="10" DockPanel.Dock="Left" Content="Use presets" Note="Choose your protection preset and you're good to go" IsDefault="True"/>
-        </DockPanel>
+        <Label Grid.Row="1" Grid.Column="0" HorizontalContentAlignment="Right" VerticalAlignment="Center">Strong name key:</Label>
+        <TextBox Grid.Row="1" Grid.Column="1" Margin="5" x:Name="sn" Text="{Binding StrongNameKey}"/>
+        <Button Grid.Row="1" Grid.Column="2" Margin="5" Click="SnSel_Click">...</Button>
+
+        <CheckBox x:Name="usePacker" Grid.Row="2" Grid.Column="0" Content="Use Packer" 
+                  VerticalAlignment="Center" HorizontalAlignment="Stretch" Margin="5"
+                  Unchecked="usePacker_Unchecked" Checked="usePacker_Checked"/>
+        <ComboBox x:Name="packer" Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2"
+                  ItemsSource="{Binding Packers}" SelectedIndex="0" Margin="5"
+                  IsEnabled="{Binding IsChecked, ElementName=usePacker}" SelectionChanged="packer_SelectionChanged">
+            <ComboBox.ItemTemplate>
+                <DataTemplate>
+                    <Grid Height="50">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="25px"/>
+                            <RowDefinition Height="25px"/>
+                        </Grid.RowDefinitions>
+                        <Label Grid.Row="0">
+                            <TextBlock>
+                                <TextBlock FontSize="12" Text="{Binding Name}"/>
+                                <TextBlock FontSize="10" Foreground="#808080" Text="{Binding ID}" TextAlignment="Right"/>
+                            </TextBlock>
+                        </Label>
+                        <Label Grid.Row="1">
+                            <TextBlock FontSize="10" Foreground="#808080" Text="{Binding Description}"/>
+                        </Label>
+                    </Grid>
+                </DataTemplate>
+            </ComboBox.ItemTemplate>
+        </ComboBox>
+
+        <Button Grid.Row="3" Grid.Column="0" Margin="5" Click="LoadPlugin_Click" Height="30" VerticalAlignment="Top">Add Plugin</Button>
+        <ListBox ItemsSource="{Binding Plugins}" Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" VerticalAlignment="Stretch" Margin="5"/>
     </Grid>
-</Page>
+</local:ConfuserTab>

@@ -48,7 +48,7 @@ namespace Confuser.AsmSelector
                 return (mod as IAnnotationProvider).Annotations[NS] as IEnumerable<Namespace>;
             else
             {
-                SortedDictionary<string, Namespace> ns = new SortedDictionary<string, Namespace>();
+                SortedDictionary<string, Namespace> ns = new SortedDictionary<string, Namespace>(StringComparer.Ordinal);
                 foreach (var i in mod.Types)
                 {
                     Namespace n;
@@ -58,6 +58,15 @@ namespace Confuser.AsmSelector
                 }
                 return ((mod as IAnnotationProvider).Annotations[NS] = ns.Values.ToArray()) as IEnumerable<Namespace>;
             }
+        }
+        public static Namespace GetNamespace(ModuleDefinition mod, string ns)
+        {
+            return GetNamespaces(mod).Single(_ => _.Name == ns);
+        }
+        public static void ResetNamespaces(ModuleDefinition mod)
+        {
+            if ((mod as IAnnotationProvider).Annotations.Contains(NS))
+                (mod as IAnnotationProvider).Annotations.Remove(NS);
         }
 
         public static void AddChildren(object obj, IList<AsmTreeModel> children)

@@ -6,7 +6,7 @@ using System.Windows.Media.Imaging;
 
 namespace Confuser
 {
-    class Bitmap : UIElement
+    public class Bitmap : FrameworkElement
     {
         public Bitmap()
         {
@@ -39,9 +39,9 @@ namespace Confuser
         }
 
         public event EventHandler<ExceptionEventArgs> BitmapFailed;
-
+        
         // Return our measure size to be the size needed to display the bitmap pixels.
-        protected override Size MeasureCore(Size availableSize)
+        protected override Size MeasureOverride(Size availableSize)
         {
             Size measureSize = new Size();
 

@@ -122,12 +122,13 @@ namespace Confuser.Core
             }
             return 0;
         }
-        protected override void PackCore(out AssemblyDefinition asm, PackerParameter parameter)
+        public override string[] Pack(ConfuserParameter crParam, PackerParameter param)
         {
-            ModuleDefinition originMain = parameter.Modules[0];
-            asm = AssemblyDefinition.CreateAssembly(originMain.Assembly.Name, "Stub.exe", new ModuleParameters() { Architecture = originMain.Architecture, Kind = oKind, Runtime = originMain.Runtime });
+            ModuleDefinition originMain = param.Assemblies.Single(_ => _.IsMain).Assembly.MainModule;
+            int originIndex = Array.IndexOf(param.Modules, originMain);
+            var asm = AssemblyDefinition.CreateAssembly(originMain.Assembly.Name, "Stub.exe", new ModuleParameters() { Architecture = originMain.Architecture, Kind = oKind, Runtime = originMain.Runtime });
             ModuleDefinition mod = asm.MainModule;
-            hash = new ByteBuffer(SHA1Managed.Create().ComputeHash(parameter.PEs[0]));
+            hash = new ByteBuffer(SHA1Managed.Create().ComputeHash(param.PEs[originIndex]));
 
             Random rand = new Random();
             int key0 = rand.Next(0, 0xff);
@@ -146,13 +147,13 @@ namespace Confuser.Core
 
 
 
-            EmbeddedResource res = new EmbeddedResource(Encoding.UTF8.GetString(Guid.NewGuid().ToByteArray()), ManifestResourceAttributes.Private, Encrypt(parameter.PEs[0], key0));
+            EmbeddedResource res = new EmbeddedResource(Encoding.UTF8.GetString(Guid.NewGuid().ToByteArray()), ManifestResourceAttributes.Private, Encrypt(param.PEs[originIndex], key0));
             mod.Resources.Add(res);
-            for (int i = 1; i < parameter.Modules.Length; i++)
-                if (parameter.Modules[i].IsMain)
-                    mod.Resources.Add(new EmbeddedResource(GetNewName(parameter.Modules[i].Assembly.Name.FullName, key1), ManifestResourceAttributes.Private, Encrypt(parameter.PEs[i], key0)));
+            for (int i = 1; i < param.Modules.Length; i++)
+                if (param.Modules[i].IsMain)
+                    mod.Resources.Add(new EmbeddedResource(GetNewName(param.Modules[i].Assembly.Name.FullName, key1), ManifestResourceAttributes.Private, Encrypt(param.PEs[i], key0)));
                 else
-                    mod.Resources.Add(new EmbeddedResource(GetNewName(parameter.Modules[i].Name, key1), ManifestResourceAttributes.Private, Encrypt(parameter.PEs[i], key0)));  //TODO: Support for multi-module asssembly
+                    mod.Resources.Add(new EmbeddedResource(GetNewName(param.Modules[i].Name, key1), ManifestResourceAttributes.Private, Encrypt(param.PEs[i], key0)));  //TODO: Support for multi-module asssembly
 
             AssemblyDefinition ldrC = AssemblyDefinition.ReadAssembly(typeof(Iid).Assembly.Location);
             TypeDefinition t = CecilHelper.Inject(mod, ldrC.MainModule.GetType("CompressShell"));
@@ -193,6 +194,8 @@ namespace Confuser.Core
 
             MethodDefinition main = t.Methods.FirstOrDefault(mtd => mtd.Name == "Main");
             mod.EntryPoint = main;
+
+            return ProtectStub(asm);
         }
         static string GetNewName(string n, int key)
         {

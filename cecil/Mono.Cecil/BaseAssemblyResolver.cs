@@ -125,7 +125,14 @@ namespace Mono.Cecil {
 			if (parameters.AssemblyResolver == null)
 				parameters.AssemblyResolver = this;
 
-			return ModuleDefinition.ReadModule (file, parameters).Assembly;
+            try
+            {
+                return ModuleDefinition.ReadModule(file, parameters).Assembly;
+            }
+            catch
+            {
+                return null;
+            }
 		}
 
 		public virtual AssemblyDefinition Resolve (AssemblyNameReference name)

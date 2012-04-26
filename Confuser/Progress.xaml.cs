@@ -19,25 +19,39 @@ namespace Confuser
     /// <summary>
     /// Interaction logic for Progress.xaml
     /// </summary>
-    public partial class Progress : Page, IPage<ConfuserParameter>
+    public partial class Progress : ConfuserTab, IPage
     {
+        static Progress()
+        {
+            TitlePropertyKey.OverrideMetadata(typeof(Progress), new UIPropertyMetadata("Confuse!"));
+        }
         public Progress()
         {
             InitializeComponent();
-            Style = FindResource(typeof(Page)) as Style;
+            Style = FindResource(typeof(ConfuserTab)) as Style;
         }
 
-        Confuser.Core.Confuser cr;
+        Core.Confuser cr;
         Thread thread;
 
         IHost host;
-        ConfuserParameter parameter;
-        public void Init(IHost host, ConfuserParameter parameter)
+        public override void Init(IHost host)
         {
             this.host = host;
-            this.parameter = parameter;
-            parameter.Confusions = ConfuserDatas.Confusions.ToArray();
-            parameter.Packers = ConfuserDatas.Packers.ToArray();
+        }
+
+        class AsmData
+        {
+            public AssemblyDefinition Assembly { get; set; }
+            public BitmapSource Icon { get; set; }
+            public string Filename { get; set; }
+            public string Fullname { get; set; }
+        }
+
+        void Begin()
+        {
+            var parameter = new ConfuserParameter();
+            parameter.Project = host.Project.ToCrProj();
             parameter.Logger.BeginAssembly += Logger_BeginAssembly;
             parameter.Logger.EndAssembly += Logger_EndAssembly;
             parameter.Logger.Phase += Logger_Phase;
@@ -48,8 +62,8 @@ namespace Confuser
 
             cr = new Confuser.Core.Confuser();
             thread = cr.ConfuseAsync(parameter);
-            btn.Content = "Cancel";
-            host.DisabledNavigation = true;
+            host.EnabledNavigation = false;
+            btn.IsEnabled = true;
 
             Action check = null;
             check = new Action(() =>
@@ -61,12 +75,11 @@ namespace Confuser
             check();
         }
 
-        class AsmData
+        public override void OnActivated()
         {
-            public AssemblyDefinition Assembly { get; set; }
-            public BitmapSource Icon { get; set; }
-            public string Filename { get; set; }
-            public string Fullname { get; set; }
+            base.OnActivated();
+            log.Clear();
+            Begin();
         }
 
         void Logger_End(object sender, LogEventArgs e)
@@ -88,12 +101,10 @@ namespace Confuser
             progress.Value = 10000;
 
             thread = null;
-            ex = null;
-            btn.Content = "Next";
-            host.DisabledNavigation = false;
+            btn.IsEnabled = false;
+            host.EnabledNavigation = true;
             p = -1;
         }
-        Exception ex = null;
         void Logger_Fault(object sender, ExceptionEventArgs e)
         {
             if (!CheckAccess())
@@ -114,14 +125,20 @@ namespace Confuser
             }
             else
             {
-                log.AppendText("Failure!\r\n");
+                log.AppendText("\r\n\r\n\r\n");
+                log.AppendText("Oops... Confuser crushed...\r\n");
+                log.AppendText("\r\n");
+                log.AppendText(e.Exception.GetType().FullName + "\r\n");
                 log.AppendText("Message : " + e.Exception.Message + "\r\n");
+                log.AppendText("Stack Trace :\r\n");
+                log.AppendText(e.Exception.StackTrace + "\r\n");
+                log.AppendText("\r\n");
+                log.AppendText("Please report it!!!\r\n");
             }
 
             thread = null;
-            ex = e.Exception;
-            btn.Content = "Next";
-            host.DisabledNavigation = false;
+            btn.IsEnabled = false;
+            host.EnabledNavigation = true;
             p = -1;
         }
         double p;
@@ -186,31 +203,6 @@ namespace Confuser
         {
             if (thread != null)
                 thread.Abort();
-            else
-            {
-                if (ex == null)
-                {
-                    host.Go<string>(new Success(), parameter.DestinationPath);
-                }
-                else
-                {
-                    if (ex is ThreadAbortException)
-                        host.Go<string>(new Failure(), "Operation cancelled.");
-                    else
-                    {
-                        StringBuilder sb = new StringBuilder();
-                        sb.AppendLine("Oops... Confuser crushed...");
-                        sb.AppendLine();
-                        sb.AppendLine(ex.GetType().FullName);
-                        sb.AppendLine("Message : " + ex.Message);
-                        sb.AppendLine("Stack Trace :");
-                        sb.AppendLine(ex.StackTrace);
-                        sb.AppendLine();
-                        sb.AppendLine("Please report it!!!");
-                        host.Go<string>(new Failure(), sb.ToString());
-                    }
-                }
-            }
         }
     }
 }

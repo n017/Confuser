@@ -14,6 +14,7 @@ using System.Windows.Shapes;
 using System.ComponentModel;
 using System.Collections.ObjectModel;
 using Mono.Cecil;
+using System.Reflection;
 
 namespace Confuser.AsmSelector
 {
@@ -33,6 +34,7 @@ namespace Confuser.AsmSelector
         {
             if (base.SelectedItem != null)
                 (base.SelectedItem as AsmTreeModel).IsSelected = false;
+            FocusManager.SetFocusedElement(FocusManager.GetFocusScope(this), this);
         }
 
         public new IAnnotationProvider SelectedItem { get { if (base.SelectedItem != null) return (IAnnotationProvider)(base.SelectedItem as AsmTreeModel).Object; else return null; } }

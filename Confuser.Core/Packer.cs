@@ -8,51 +8,20 @@ using Mono.Cecil;
 using Mono.Cecil.Rocks;
 using Mono.Cecil.Cil;
 using Mono.Cecil.PE;
+using Confuser.Core.Project;
 
 namespace Confuser.Core
 {
     public class PackerParameter
     {
-        ModuleDefinition[] mods = null;
-        byte[][] pes = null;
-        NameValueCollection parameters = new NameValueCollection();
-
-        public ModuleDefinition[] Modules { get { return mods; } internal set { mods = value; } }
-        public byte[][] PEs { get { return pes; } internal set { pes = value; } }
-        public NameValueCollection Parameters { get { return parameters; } internal set { parameters = value; } }
+        public AssemblySetting[] Assemblies { get; internal set; }
+        public ModuleDefinition[] Modules { get; internal set; }
+        public byte[][] PEs { get; internal set; }
+        public NameValueCollection Parameters { get; internal set; }
     }
 
     public abstract class Packer
     {
-        class PackerMarker : Marker
-        {
-            AssemblySetting origin;
-            public PackerMarker(AssemblySetting origin) { this.origin = origin; }
-
-            protected override AssemblySetting MarkAssembly(AssemblyDefinition asm, Marking mark, out bool exclude)
-            {
-                mark.CurrentConfusions.Clear();
-                AssemblySetting ret = new AssemblySetting(asm);
-                foreach (var i in origin.GlobalParameters)
-                    mark.CurrentConfusions.Add(i.Key, i.Value);
-                //ret.Packer = origin.Packer;
-                //ret.PackerParameters = origin.PackerParameters;
-                mark.StartLevel();
-                exclude = false;
-                return ret;
-            }
-            protected override ModuleSetting MarkModule(ModuleDefinition mod, Marking mark, out bool exclude)
-            {
-                mark.CurrentConfusions.Clear();
-                ModuleSetting ret = new ModuleSetting(mod);
-                foreach (var i in origin.Modules[0].Parameters)
-                    mark.CurrentConfusions.Add(i.Key, i.Value);
-                mark.StartLevel();
-                exclude = false;
-                return ret;
-            }
-        }
-
         public abstract string ID { get; }
         public abstract string Name { get; }
         public abstract string Description { get; }
@@ -69,17 +38,14 @@ namespace Confuser.Core
         internal protected virtual void PostProcessMetadata(MetadataProcessor.MetadataAccessor accessor) { }
         internal protected virtual void PostProcessImage(MetadataProcessor.ImageAccessor accessor) { }
 
-
-        public string[] Pack(ConfuserParameter crParam, PackerParameter param)
+        protected string[] ProtectStub(AssemblyDefinition asm)
         {
-            AssemblyDefinition asm;
-            PackCore(out asm, param);
-
             string tmp = Path.GetTempPath() + "\\" + Path.GetRandomFileName() + "\\";
             Directory.CreateDirectory(tmp);
+            ModuleDefinition modDef = this.cr.settings.Single(_ => _.IsMain).Assembly.MainModule;
             MetadataProcessor psr = new MetadataProcessor();
             Section oldRsrc = null;
-            foreach (Section s in param.Modules[0].GetSections())
+            foreach (Section s in modDef.GetSections())
                 if (s.Name == ".rsrc") { oldRsrc = s; break; }
             if (oldRsrc != null)
             {
@@ -113,24 +79,26 @@ namespace Confuser.Core
                     sect.Data = buff.GetBuffer();
                 };
             }
-            psr.Process(asm.MainModule, tmp + Path.GetFileName(param.Modules[0].FullyQualifiedName));
+            psr.Process(asm.MainModule, tmp + Path.GetFileName(modDef.FullyQualifiedName));
 
             Confuser cr = new Confuser();
+
+            ConfuserProject proj = new ConfuserProject();
+            proj.Add(new ProjectAssembly() { Path = tmp + Path.GetFileName(modDef.FullyQualifiedName) });
+            proj.OutputPath = tmp;
+            foreach (var i in this.cr.param.Project.Plugins) proj.Plugins.Add(i);
+            proj.DefaultPreset = this.cr.param.Project.DefaultPreset;
+            proj.SNKeyPath = this.cr.param.Project.SNKeyPath;
+
             ConfuserParameter par = new ConfuserParameter();
-            par.SourceAssemblies = new string[] { tmp + Path.GetFileName(param.Modules[0].FullyQualifiedName) };
-            tmp = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + "\\");
-            par.DestinationPath = tmp;
-            par.Confusions = crParam.Confusions;
-            par.DefaultPreset = crParam.DefaultPreset;
-            par.StrongNameKeyPath = crParam.StrongNameKeyPath;
-            par.Marker = new PackerMarker(this.cr.settings[0]);
+            par.Project = proj;
             par.ProcessMetadata = PostProcessMetadata;
             par.ProcessImage = PostProcessImage;
             cr.Confuse(par);
 
             return Directory.GetFiles(tmp);
         }
-        protected abstract void PackCore(out AssemblyDefinition asm, PackerParameter parameter);
+        public abstract string[] Pack(ConfuserParameter crParam, PackerParameter param);
 
         static void PatchResourceDirectoryTable(ByteBuffer resources, Section old, Section @new)
         {

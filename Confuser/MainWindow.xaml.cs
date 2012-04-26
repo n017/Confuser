@@ -1,19 +1,18 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+using System.ComponentModel;
+using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Data;
-using System.Windows.Documents;
 using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
-using System.Windows.Navigation;
-using WPF.JoshSmith.Adorners;
 using System.Windows.Interop;
-using System.Runtime.InteropServices;
+using System.Xml;
+using Confuser.Core;
+using Confuser.Core.Project;
+using Microsoft.Win32;
+using WPF.JoshSmith.Adorners;
 
 namespace Confuser
 {
@@ -24,80 +23,59 @@ namespace Confuser
     {
         UIElementAdorner adorner;
 
+        static string VerStr;
+        static MainWindow()
+        {
+            VerStr = "Confuser v" + typeof(Core.Confuser).Assembly.GetName().Version.ToString();
+        }
         public MainWindow()
         {
             InitializeComponent();
             this.Width = 800; this.Height = 600;
-            Go<object>(new Start(), null);
-            back.CommandTarget = frame;
-            this.DataContext = frame;
-            frame.CommandBindings.Add(new CommandBinding(NavigationCommands.BrowseForward, (sender, e) =>
-            {
-                e.Handled = true;
-            }, (sender, e) =>
-            {
-                e.CanExecute = false;
-                e.Handled = true;
-            }));
-            frame.CommandBindings.Add(new CommandBinding(NavigationCommands.BrowseBack, (sender, e) => { }, (sender, e) =>
-            {
-                if (DisabledNavigation)
-                {
-                    e.CanExecute = false;
-                    e.Handled = true;
-                }
-            }));
+
+            //=_=||
+            Tab.ApplyTemplate();
+            TabPanel panel = Tab.Template.FindName("HeaderPanel", Tab) as TabPanel;
+            panel.SetBinding(TabPanel.IsEnabledProperty, new Binding() { Path = new PropertyPath(EnabledNavigationProperty), Source = this });
+
+            IPage page;
+
+            page = new Asms();
+            page.Init(this);
+            Tab.Items.Add(page);
+
+            page = new Settings();
+            page.Init(this);
+            Tab.Items.Add(page);
+
+            page = new Simple();
+            page.Init(this);
+            Tab.Items.Add(page);
+
+            page = new AdvSelection();
+            page.Init(this);
+            Tab.Items.Add(page);
+
+            page = new Progress();
+            page.Init(this);
+            Tab.Items.Add(page);
+
+            Project = new Prj();
+            foreach (ConfuserTab i in Tab.Items)
+                i.InitProj();
+            Project.PropertyChanged += new PropertyChangedEventHandler(ProjectChanged);
+            ProjectChanged(Project, new PropertyChangedEventArgs(""));
         }
 
-        public bool DisabledNavigation
+        public bool EnabledNavigation
         {
-            get { return (bool)GetValue(DisabledNavigationProperty); }
-            set { SetValue(DisabledNavigationProperty, value); }
+            get { return (bool)GetValue(EnabledNavigationProperty); }
+            set { SetValue(EnabledNavigationProperty, value); }
         }
-        public static readonly DependencyProperty DisabledNavigationProperty =
-            DependencyProperty.Register("DisabledNavigation", typeof(bool), typeof(MainWindow), new UIPropertyMetadata(false, DisabledNavigationChanged));
+        public static readonly DependencyProperty EnabledNavigationProperty =
+            DependencyProperty.Register("EnabledNavigation", typeof(bool), typeof(MainWindow), new UIPropertyMetadata(true));
 
-        static void DisabledNavigationChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-        {
-            CommandManager.InvalidateRequerySuggested();
-        }
-
-        public void Go<T>(IPage<T> page, T parameter) where T : class
-        {
-            page.Init(this, parameter);
-            frame.Navigate(page);
-        }
-
-        public void Load<T>(Func<T> load, IPage<T> page) where T : class
-        {
-            adorner = new UIElementAdorner(Root, new Loading());
-            adorner.Width = this.ActualWidth;
-            adorner.Height = this.ActualHeight;
-            frame.IsEnabled = false;
-            AdornerLayer.GetAdornerLayer(Root).Add(adorner);
-
-            load.BeginInvoke(Complete<T>, new LoadData<T>() { load = load, page = page });
-        }
-        struct LoadData<T> where T : class
-        {
-            public Func<T> load;
-            public IPage<T> page;
-        }
-        void Complete<T>(IAsyncResult ar) where T : class
-        {
-            if (!CheckAccess())
-            {
-                Dispatcher.Invoke(new AsyncCallback(Complete<T>), ar);
-                return;
-            }
-            frame.IsEnabled = true;
-            AdornerLayer.GetAdornerLayer(Root).Remove(adorner);
-            adorner = null;
-
-            LoadData<T> dat = (LoadData<T>)ar.AsyncState;
-            dat.page.Init(this, dat.load.EndInvoke(ar));
-            frame.Navigate(dat.page);
-        }
+        public Prj Project { get; private set; }
 
         private void Close_Click(object sender, RoutedEventArgs e)
         {
@@ -125,6 +103,148 @@ namespace Confuser
             System.IntPtr handle = (new WindowInteropHelper(this)).Handle;
             HwndSource.FromHwnd(handle).AddHook(new HwndSourceHook(WindowProc));
         }
+
+        private void Tab_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            TabItem tab = e.OriginalSource as TabItem ?? Helper.FindParent<TabItem>((DependencyObject)e.OriginalSource);
+            if (tab != null)
+            {
+                tab.IsSelected = true;
+                e.Handled = true;
+            }
+        }
+
+        private void New_Click(object sender, RoutedEventArgs e)
+        {
+            if (Project.IsModified)
+            {
+                switch (MessageBox.Show(
+                    "You have unsaved changes in this project!\r\nDo you want to save them?",
+                    "Confuser", MessageBoxButton.YesNoCancel, MessageBoxImage.Question))
+                {
+                    case MessageBoxResult.Yes:
+                        Save_Click(this, new RoutedEventArgs());
+                        break;
+                    case MessageBoxResult.No:
+                        break;
+                    case MessageBoxResult.Cancel:
+                        return;
+                }
+            }
+
+            Project = new Prj();
+            foreach (ConfuserTab i in Tab.Items)
+                i.InitProj();
+            Project.PropertyChanged += new PropertyChangedEventHandler(ProjectChanged);
+            ProjectChanged(Project, new PropertyChangedEventArgs(""));
+        }
+        private void Open_Click(object sender, RoutedEventArgs e)
+        {
+            OpenFileDialog sfd = new OpenFileDialog();
+            sfd.Filter = "Confuser Project (*.crproj)|*.crproj|All Files (*.*)|*.*";
+            if (sfd.ShowDialog() ?? false)
+            {
+                XmlDocument xmlDoc = new XmlDocument();
+                xmlDoc.Load(sfd.FileName);
+
+                ConfuserProject proj = new ConfuserProject();
+                proj.Load(xmlDoc);
+
+                Prj prj = new Prj();
+                prj.FromConfuserProject(proj);
+                prj.FileName = sfd.FileName;
+                prj.IsModified = false;
+
+                Project = prj;
+                foreach (ConfuserTab i in Tab.Items)
+                    i.InitProj();
+                prj.PropertyChanged += new PropertyChangedEventHandler(ProjectChanged);
+                ProjectChanged(Project, new PropertyChangedEventArgs(""));
+            }
+        }
+        private void Save_Click(object sender, RoutedEventArgs e)
+        {
+            if (Project.FileName == null)
+            {
+                SaveFileDialog sfd = new SaveFileDialog();
+                sfd.Filter = "Confuser Project (*.crproj)|*.crproj|All Files (*.*)|*.*";
+                if (sfd.ShowDialog() ?? false)
+                {
+                    ConfuserProject proj = Project.ToCrProj();
+                    proj.Save().Save(sfd.FileName);
+                    Project.IsModified = false;
+                    Project.FileName = sfd.FileName;
+                    ProjectChanged(proj, new PropertyChangedEventArgs(""));
+                }
+            }
+            else
+            {
+                ConfuserProject proj = Project.ToCrProj();
+                proj.Save().Save(Project.FileName);
+                Project.IsModified = false;
+                ProjectChanged(proj, new PropertyChangedEventArgs(""));
+            }
+        }
+
+        protected override void OnClosing(CancelEventArgs e)
+        {
+            if (Project.IsModified)
+            {
+                switch (MessageBox.Show(
+                    "You have unsaved changes in this project!\r\nDo you want to save them?",
+                    "Confuser", MessageBoxButton.YesNoCancel, MessageBoxImage.Question))
+                {
+                    case MessageBoxResult.Yes:
+                        Save_Click(this, new RoutedEventArgs());
+                        break;
+                    case MessageBoxResult.No:
+                        break;
+                    case MessageBoxResult.Cancel:
+                        e.Cancel = true;
+                        break;
+                }
+            }
+            base.OnClosing(e);
+        }
+
+        void ProjectChanged(object sender, PropertyChangedEventArgs e)
+        {
+            Title = string.Format("{0} - {1} {2}",
+                VerStr,
+                Path.GetFileName(Project.FileName ?? "Untitled.crproj"),
+                Project.IsModified ? "*" : "");
+        }
+
+        int tabSel;
+        private void Tab_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (e.OriginalSource == Tab)
+            {
+                if (Tab.SelectedIndex != Tab.Items.Count - 1)
+                {
+                    tabSel = Tab.SelectedIndex;
+                    (Tab.SelectedItem as ConfuserTab).OnActivated();
+                }
+                else if (Tab.SelectedIndex != tabSel)
+                {
+                    if (Project.Assemblies.Count == 0)
+                        MessageBox.Show("No input assemblies!", "Confuser", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    else if (string.IsNullOrEmpty(Project.OutputPath))
+                        MessageBox.Show("No output path specified!", "Confuser", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    else
+                    {
+                        tabSel = Tab.SelectedIndex;
+                        (Tab.SelectedItem as ConfuserTab).OnActivated();
+                        return;
+                    }
+                    e.Handled = true;
+                    Tab.SelectedIndex = tabSel;
+                }
+
+            }
+        }
+
+
 
         private static System.IntPtr WindowProc(
               System.IntPtr hwnd,
@@ -288,13 +408,13 @@ namespace Confuser
 
     public interface IHost
     {
-        void Go<T>(IPage<T> page, T parameter) where T : class;
-        void Load<T>(Func<T> load, IPage<T> page) where T : class;
-        bool DisabledNavigation { get; set; }
+        bool EnabledNavigation { get; set; }
+        Prj Project { get; }
     }
 
-    public interface IPage<T> where T : class
+    public interface IPage
     {
-        void Init(IHost host, T parameter);
+        void Init(IHost host);
+        void InitProj();
     }
 }

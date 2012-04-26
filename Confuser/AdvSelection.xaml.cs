@@ -24,68 +24,250 @@ namespace Confuser
     /// <summary>
     /// Interaction logic for AdvSelection.xaml
     /// </summary>
-    public partial class AdvSelection : Page, IPage<ConfuserDatas>
+    public partial class AdvSelection : ConfuserTab, IPage
     {
+        static AdvSelection()
+        {
+            TitlePropertyKey.OverrideMetadata(typeof(AdvSelection), new UIPropertyMetadata("Advanced Settings"));
+        }
         public AdvSelection()
         {
             InitializeComponent();
-            Style = FindResource(typeof(Page)) as Style;
+            Style = FindResource(typeof(ConfuserTab)) as Style;
+        }
+
+        class ProjToTree : IEnumerable<AsmTreeModel>, INotifyCollectionChanged
+        {
+            public ProjToTree(IHost host)
+            {
+                this.host = host;
+                enumerable = host.Project.Assemblies.Select(_ => new AsmTreeModel(_.Assembly));
+                host.Project.Assemblies.CollectionChanged += (sender, e) =>
+                    {
+                        if (CollectionChanged != null)
+                            CollectionChanged(this, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+                    };
+            }
+            IHost host;
+            IEnumerable<AsmTreeModel> enumerable;
+
+            public IEnumerator<AsmTreeModel> GetEnumerator()
+            {
+                return enumerable.GetEnumerator();
+            }
+
+            System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+            {
+                return enumerable.GetEnumerator();
+            }
+
+            public event NotifyCollectionChangedEventHandler CollectionChanged;
+        }
+        class ProjToCns : IEnumerable<ConfusionListItem>, INotifyCollectionChanged
+        {
+            public ProjToCns(IHost host)
+            {
+                this.host = host;
+                enumerable = host.Project.Confusions.Select(_ => new ConfusionListItem(_));
+                host.Project.Confusions.CollectionChanged += (sender, e) =>
+                {
+                    if (CollectionChanged != null)
+                        CollectionChanged(this, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+                };
+            }
+            IHost host;
+            IEnumerable<ConfusionListItem> enumerable;
+
+            public IEnumerator<ConfusionListItem> GetEnumerator()
+            {
+                return enumerable.GetEnumerator();
+            }
+
+            System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+            {
+                return enumerable.GetEnumerator();
+            }
+
+            public event NotifyCollectionChangedEventHandler CollectionChanged;
         }
 
         IHost host;
-        ConfuserDatas parameter;
-        public void Init(IHost host, ConfuserDatas parameter)
+        public override void Init(IHost host)
         {
             this.host = host;
-            this.parameter = parameter;
-
-            foreach (var i in parameter.Assemblies)
-                asmSel.AddAssembly(i);
 
             asmSel.SelectedItemChanged += asmSel_SelectedItemChanged;
             asmSel.MouseDown += (sender, e) =>
             {
                 asmSel.ClearSelection();
             };
+
+            this.DataContext = this;
+
+            //=_=||
+            preset.ApplyTemplate();
+            TextBox tb = preset.Template.FindName("PART_EditableTextBox", preset) as TextBox;
+            tb.IsEnabled = false;
+            tb.IsHitTestVisible = false;
+        }
+        public override void InitProj()
+        {
+            this.asmSel.ItemsSource = new ProjToTree(host);
+            this.cnList.ItemsSource = new ProjToCns(host);
+
+            host.Project.PropertyChanged += (sender, e) =>
+            {
+                if (e.PropertyName == "DefaultPreset" && host.Project.DefaultPreset != PrjPreset.Undefined)
+                    RefrSelection();
+            };
         }
 
         static readonly object ADVSEL = new object();
 
-        IList<IConfusion> cions;
-        void asmSel_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
+        PrjAssembly GetAssembly(AssemblyDefinition asmDef)
+        {
+            var ret = host.Project.Assemblies.SingleOrDefault(_ => _.Assembly == asmDef);
+            if (ret == null) throw new InvalidOperationException(); //...what? should already existed! or how can the user select it?
+            return ret;
+        }
+        PrjModule GetModule(ModuleDefinition modDef)
+        {
+            var asm = GetAssembly(modDef.Assembly);
+            var ret = asm.SingleOrDefault(_ => _.Name == modDef.Name);
+            if (ret == null)
+                asm.Add(ret = new PrjModule(asm) { Name = modDef.Name });
+            return ret;
+        }
+        PrjMember GetMember(IMemberDefinition member)
+        {
+            var mod = GetModule(member.Module);
+            var ret = mod.SingleOrDefault(_ => _.Member == member);
+            if (ret == null)
+                mod.Add(ret = new PrjMember(mod) { Member = member });
+            return ret;
+        }
+        PrjSettings CreateSettings(object obj, INotifyChildrenChanged self)
+        {
+            PrjSettings parentSettings;
+            INotifyChildrenChanged x;
+            if (obj is AssemblyDefinition)
+                parentSettings = null;
+            else if (obj is ModuleDefinition)
+                parentSettings = GetSettings((obj as ModuleDefinition).Assembly, out x);
+            else if (obj is TypeDefinition)
+                parentSettings = GetSettings((obj as TypeDefinition).Module, out x);
+            else if (obj is IMemberDefinition)
+                parentSettings = GetSettings((obj as IMemberDefinition).DeclaringType, out x);
+            else
+                throw new InvalidOperationException();
+            if (parentSettings != null && parentSettings.ApplyToMembers)
+                return parentSettings.Clone(self);
+            else
+                return new PrjSettings(self);
+        }
+        PrjSettings GetSettings(object obj, out INotifyChildrenChanged model)
+        {
+            if (obj is AssemblyDefinition)
+            {
+                var asm = GetAssembly(obj as AssemblyDefinition);
+                model = asm;
+                if (asm.Settings == null)
+                    asm.Settings = CreateSettings(obj, asm);
+                return asm.Settings;
+            }
+            else if (obj is ModuleDefinition)
+            {
+                var mod = GetModule(obj as ModuleDefinition);
+                model = mod;
+                if (mod.Settings == null)
+                    mod.Settings = CreateSettings(obj, mod);
+                return mod.Settings;
+            }
+            else if (obj is IMemberDefinition)
+            {
+                var mem = GetMember(obj as IMemberDefinition);
+                model = mem;
+                if (mem.Settings == null)
+                    mem.Settings = CreateSettings(obj, mem);
+                return mem.Settings;
+            }
+            else
+                throw new InvalidOperationException();
+        }
+
+        PrjSettings settings;
+        INotifyChildrenChanged obj;
+
+        class ConfusionListItem : INotifyPropertyChanged
+        {
+            public ConfusionListItem(IConfusion cn) { Confusion = cn; }
+            public IConfusion Confusion { get; private set; }
+            bool sel;
+            public bool IsSelected
+            {
+                get { return sel; }
+                set
+                {
+                    if (sel != value)
+                    {
+                        sel = value;
+                        if (PropertyChanged != null)
+                            PropertyChanged(this, new PropertyChangedEventArgs("IsSelected"));
+                    }
+                }
+            }
+
+            public event PropertyChangedEventHandler PropertyChanged;
+        }
+
+
+        void RefrSelection()
         {
             IAnnotationProvider obj = asmSel.SelectedItem;
             if (obj == null)
             {
-                cnList.ItemsSource = cions = null;
                 panel.IsEnabled = false;
             }
             else
             {
-                if (!obj.Annotations.Contains(ADVSEL))
-                    obj.Annotations[ADVSEL] = new ObservableCollection<IConfusion>();
-                cions = obj.Annotations[ADVSEL] as ObservableCollection<IConfusion>;
-                var src = new CollectionViewSource() { Source = cions };
-                src.SortDescriptions.Add(new SortDescription("Name", ListSortDirection.Ascending));
-                cnList.ItemsSource = src.View;
+                if (obj is Namespace)
+                {
+                    if (!obj.Annotations.Contains(ADVSEL))
+                        obj.Annotations[ADVSEL] = settings = new PrjSettings(null);
+                    else
+                        settings = obj.Annotations[ADVSEL] as PrjSettings;
+                }
+                else
+                {
+                    object r = asmSel.SelectedItem;
+                    settings = GetSettings(r, out this.obj);
+                }
+
+                inChanging = true;
+                foreach (ConfusionListItem i in cnList.Items)
+                    i.IsSelected = settings.Any(_ => _.Object == i.Confusion);
+                Preset p = Preset.None;
+                foreach (ConfusionListItem i in cnList.SelectedItems)
+                    if (i.Confusion.Preset > p) p = i.Confusion.Preset;
+
+                PrjPreset active = (PrjPreset)p;
+                foreach (ConfusionListItem i in cnList.Items)
+                    if (i.Confusion.Preset <= p && !i.IsSelected)
+                    {
+                        active = PrjPreset.Undefined;
+                        break;
+                    }
+                ActivePreset = active;
+                inChanging = false;
+
                 panel.IsEnabled = true;
             }
         }
+        void asmSel_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
+        {
+            RefrSelection();
+        }
 
-        private void Add_Click(object sender, RoutedEventArgs e)
-        {
-            if (!cions.Contains(cnSel.SelectedItem as IConfusion))
-                cions.Add(cnSel.SelectedItem as IConfusion);
-        }
-        private void Remove_Click(object sender, RoutedEventArgs e)
-        {
-            if (cions.Contains(cnSel.SelectedItem as IConfusion))
-                cions.Remove(cnSel.SelectedItem as IConfusion);
-        }
-        private void Clear_Click(object sender, RoutedEventArgs e)
-        {
-            cions.Clear();
-        }
         private void ApplyToMembers_Click(object sender, RoutedEventArgs e)
         {
             Action<IAnnotationProvider> apply = null;
@@ -93,206 +275,69 @@ namespace Confuser
             {
                 foreach (var i in Childer.GetChildren(_))
                 {
-                    if (i.Annotations.Contains(ADVSEL))
+                    if (i is Namespace)
                     {
-                        var list = i.Annotations[ADVSEL] as IList<IConfusion>;
-                        list.Clear();
-                        foreach (var j in cions) list.Add(j);
+                        if (!i.Annotations.Contains(ADVSEL))
+                            i.Annotations[ADVSEL] = new PrjSettings(null);
+                        var settings = i.Annotations[ADVSEL] as PrjSettings;
+                        settings.Clear();
+                        foreach (var j in this.settings) settings.Add(j);
                     }
                     else
-                        i.Annotations[ADVSEL] = new ObservableCollection<IConfusion>(cions);
+                    {
+                        object r = i;
+                        INotifyChildrenChanged x;
+                        var settings = GetSettings(r, out x);
+                        settings.Clear();
+                        foreach (var j in this.settings) settings.Add(j);
+                    }
                     apply(i);
                 }
             };
             apply(asmSel.SelectedItem);
         }
-        private void ApplyPreset_Click(object sender, RoutedEventArgs e)
-        {
-            Preset preset = (Preset)this.preset.SelectedItem;
-            foreach (var i in ConfuserDatas.Confusions)
-                if (i.Preset <= preset && !cions.Contains(i))
-                    cions.Add(i);
-        }
 
-        Dictionary<string, AdvAssembly> SerializeAsm()
+        bool inChanging = false;
+        private void ConfusionsSelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            var ret = new Dictionary<string, AdvAssembly>();
-            foreach (var i in parameter.Assemblies)
-            {
-                AdvAssembly asm = new AdvAssembly() { FullName = i.FullName };
-                if ((i as IAnnotationProvider).Annotations.Contains(ADVSEL))
-                    asm.Confusions = (i as IAnnotationProvider).Annotations[ADVSEL] as IList<IConfusion>;
+            if (inChanging) return;
 
-                asm.Modules = new Dictionary<string, AdvModule>();
-                foreach (var j in i.Modules)
+            host.Project.DefaultPreset = PrjPreset.Undefined;
+
+            Preset p = Preset.None;
+            foreach (ConfusionListItem i in cnList.SelectedItems)
+                if (i.Confusion.Preset > p) p = i.Confusion.Preset;
+
+            PrjPreset active = (PrjPreset)p;
+            foreach (ConfusionListItem i in cnList.Items)
+                if (i.Confusion.Preset <= p && !i.IsSelected)
                 {
-                    AdvModule mod = new AdvModule() { Name = j.Name };
-                    if ((j as IAnnotationProvider).Annotations.Contains(ADVSEL))
-                        mod.Confusions = (j as IAnnotationProvider).Annotations[ADVSEL] as IList<IConfusion>;
-
-                    List<AdvMember> mems = new List<AdvMember>();
-                    foreach (var k in j.Types)
-                        SerializeMember(k, mems);
-                    mod.Members = mems.ToArray();
-                    asm.Modules.Add(j.Name, mod);
+                    active = PrjPreset.Undefined;
+                    break;
                 }
-                ret.Add(i.FullName, asm);
-            }
-            return ret;
-        }
-        void SerializeMember(TypeDefinition typeDef, List<AdvMember> mems)
-        {
-            if ((typeDef as IAnnotationProvider).Annotations.Contains(ADVSEL))
-            {
-                AdvMember type = new AdvMember() { DeclaringType = MetadataToken.Zero, MemberToken = typeDef.MetadataToken };
-                type.Confusions = (typeDef as IAnnotationProvider).Annotations[ADVSEL] as IList<IConfusion>;
-                mems.Add(type);
-            }
+            ActivePreset = active;
 
-            foreach (var i in typeDef.NestedTypes)
-                SerializeMember(i, mems);
-            foreach (var i in typeDef.Methods.Where(_ => (_ as IAnnotationProvider).Annotations.Contains(ADVSEL)))
-            {
-                AdvMember mem = new AdvMember() { DeclaringType = typeDef.MetadataToken, MemberToken = i.MetadataToken };
-                mem.Confusions = (i as IAnnotationProvider).Annotations[ADVSEL] as IList<IConfusion>;
-                mems.Add(mem);
-            }
-            foreach (var i in typeDef.Fields.Where(_ => (_ as IAnnotationProvider).Annotations.Contains(ADVSEL)))
-            {
-                AdvMember mem = new AdvMember() { DeclaringType = typeDef.MetadataToken, MemberToken = i.MetadataToken };
-                mem.Confusions = (i as IAnnotationProvider).Annotations[ADVSEL] as IList<IConfusion>;
-                mems.Add(mem);
-            }
-            foreach (var i in typeDef.Properties.Where(_ => (_ as IAnnotationProvider).Annotations.Contains(ADVSEL)))
-            {
-                AdvMember mem = new AdvMember() { DeclaringType = typeDef.MetadataToken, MemberToken = i.MetadataToken };
-                mem.Confusions = (i as IAnnotationProvider).Annotations[ADVSEL] as IList<IConfusion>;
-                mems.Add(mem);
-            }
-            foreach (var i in typeDef.Events.Where(_ => (_ as IAnnotationProvider).Annotations.Contains(ADVSEL)))
-            {
-                AdvMember mem = new AdvMember() { DeclaringType = typeDef.MetadataToken, MemberToken = i.MetadataToken };
-                mem.Confusions = (i as IAnnotationProvider).Annotations[ADVSEL] as IList<IConfusion>;
-                mems.Add(mem);
-            }
+            foreach (ConfusionListItem i in e.RemovedItems)
+                settings.Remove(settings.Single(_ => _.Object == i.Confusion));
+            foreach (ConfusionListItem i in e.AddedItems)
+                settings.Add(new PrjConfig<IConfusion>(i.Confusion, settings));
         }
 
-        Packer _packer;
-        ConfuserDatas Load()
+        PrjPreset ActivePreset
         {
-            var dat = SerializeAsm();
-
-            StringBuilder summary = new StringBuilder();
-            summary.AppendLine(string.Format("Output path: {0}", parameter.OutputPath));
-            if (string.IsNullOrEmpty(parameter.StrongNameKey))
-                summary.AppendLine("No strong name key specified.");
-            else
-                summary.AppendLine(string.Format("Strong name key: {0}", parameter.StrongNameKey));
-            summary.AppendLine();
-
-            parameter.Parameter = new ConfuserParameter();
-            AdvMarker mkr = new AdvMarker() { Data = dat };
-            parameter.Parameter.Marker = mkr;
-            if (_packer != null)
-                summary.AppendLine(string.Format("Packer: {0}", (mkr.packer = _packer).Name));
-            else
-                summary.AppendLine("No packer specified.");
-            summary.AppendLine();
-
-            parameter.Summary = summary.ToString();
-            return parameter;
+            get { return (PrjPreset)GetValue(ActivePresetProperty); }
+            set { SetValue(ActivePresetProperty, value); }
         }
-        private void next_Click(object sender, RoutedEventArgs e)
+        static readonly DependencyProperty ActivePresetProperty = DependencyProperty.Register("ActivePreset", typeof(PrjPreset), typeof(AdvSelection), new UIPropertyMetadata(PrjPreset.None, ActivePresetChanged));
+
+        static void ActivePresetChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            (panel.FindResource("indicate") as Storyboard).Stop();
-            if (usePacker.IsChecked.GetValueOrDefault())
-                _packer = (Packer)packer.SelectedValue;
-            else
-                _packer = null;
-            host.Load<ConfuserDatas>(Load, new Summary());
-        }
-    }
-
-    struct AdvAssembly
-    {
-        public string FullName;
-        public IList<IConfusion> Confusions;
-        public Dictionary<string, AdvModule> Modules;
-    }
-    struct AdvModule
-    {
-        public string Name;
-        public IList<IConfusion> Confusions;
-        public AdvMember[] Members;
-    }
-    struct AdvMember
-    {
-        public MetadataToken DeclaringType;
-        public MetadataToken MemberToken;
-        public IList<IConfusion> Confusions;
-    }
-    class AdvMarker : Marker
-    {
-        public Dictionary<string, AdvAssembly> Data { get; set; }
-
-        public Packer packer;
-        public override MarkerSetting MarkAssemblies(IList<AssemblyDefinition> asms, Preset preset, Confuser.Core.Confuser cr, EventHandler<LogEventArgs> err)
-        {
-            var ret = base.MarkAssemblies(asms, preset, cr, err);
-            ret.Packer = packer;
-            return ret;
-        }
-
-        protected override AssemblySetting MarkAssembly(AssemblyDefinition asm, Marking mark, out bool exclude)
-        {
-            mark.CurrentConfusions.Clear();
-            AdvAssembly advAsm = Data[asm.FullName];
-            if (advAsm.Confusions != null)
-                foreach (var i in advAsm.Confusions)
-                    mark.CurrentConfusions.Add(i, new NameValueCollection());
-            exclude = false;
-            mark.StartLevel();
-            return new AssemblySetting(asm);
-        }
-
-        protected override ModuleSetting MarkModule(ModuleDefinition mod, Marker.Marking mark, out bool exclude)
-        {
-            mark.CurrentConfusions.Clear();
-            AdvModule advMod = Data[mod.Assembly.FullName].Modules[mod.Name];
-            if (advMod.Confusions != null)
-                foreach (var i in advMod.Confusions)
-                    mark.CurrentConfusions.Add(i, new NameValueCollection());
-            exclude = true;
-            mark.StartLevel();
-            var ret = new ModuleSetting(mod);
-
-            List<MemberSetting> mems = new List<MemberSetting>();
-            foreach (var i in advMod.Members)
+            if ((PrjPreset)e.NewValue != PrjPreset.Undefined)
             {
-                MemberSetting mem = new MemberSetting();
-                if (i.DeclaringType == MetadataToken.Zero)
-                {
-                    mem = new MemberSetting(mod.LookupToken(i.MemberToken) as TypeDefinition);
-                }
-                else
-                {
-                    TypeDefinition declType = mod.LookupToken(i.DeclaringType) as TypeDefinition;
-                    if (i.MemberToken.TokenType == TokenType.Method)
-                        mem = new MemberSetting(declType.Methods.Single(_ => _.MetadataToken == i.MemberToken));
-                    else if (i.MemberToken.TokenType == TokenType.Field)
-                        mem = new MemberSetting(declType.Fields.Single(_ => _.MetadataToken == i.MemberToken));
-                    else if (i.MemberToken.TokenType == TokenType.Property)
-                        mem = new MemberSetting(declType.Properties.Single(_ => _.MetadataToken == i.MemberToken));
-                    else if (i.MemberToken.TokenType == TokenType.Event)
-                        mem = new MemberSetting(declType.Events.Single(_ => _.MetadataToken == i.MemberToken));
-                }
-                mem.Parameters = new ObfuscationSettings();
-                foreach (var j in i.Confusions)
-                    mem.Parameters.Add(j, new NameValueCollection());
-                mems.Add(mem);
+                Preset p = (Preset)e.NewValue;
+                foreach (ConfusionListItem i in (d as AdvSelection).cnList.Items)
+                    i.IsSelected = i.Confusion.Preset <= p;
             }
-            ret.Members = mems.ToArray();
-            return ret;
         }
     }
 }

@@ -10,81 +10,47 @@ using System.Windows;
 using System.Windows.Media;
 using Mono.Cecil;
 using System.Drawing;
+using System.Windows.Controls;
+using System.Globalization;
+using Confuser.Core;
 
 namespace Confuser
 {
-    class CultureConverter : IValueConverter
+    class TabSizeConverter : IValueConverter
     {
-        public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+        public static TabSizeConverter Instance = new TabSizeConverter();
+
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            if ((string)value == string.Empty) return "null";
-            else return value;
+            TabControl tabControl = value as TabControl;
+            double maxWidth = 0;
+            for (int i = 0; i < tabControl.Items.Count; i++)
+            {
+                var container = tabControl.ItemContainerGenerator.ContainerFromIndex(i);
+                maxWidth = Math.Max(maxWidth, (container as UIElement).DesiredSize.Width);
+            }
+            return maxWidth + 10;
         }
 
-        public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+        public object ConvertBack(object value, Type targetTypes, object parameter, CultureInfo culture)
         {
-            if (value.ToString() == "null") return string.Empty;
-            else return value;
+            throw new NotSupportedException();
         }
     }
-    class ByteArrConverter : IValueConverter
+    class PresetConverter : IValueConverter
     {
-        public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+        public static PresetConverter Instance = new PresetConverter();
+
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            if (value == null || !(value is byte[]) || (value as byte[]).Length == 0)
-                return "null";
-            StringBuilder sb = new StringBuilder();
-            foreach (byte i in value as byte[])
-                sb.Append(i.ToString("x2"));
-            return sb.ToString();
+            if ((PrjPreset)value == PrjPreset.Undefined) return "Custom";
+            return value.ToString();
         }
 
-        public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+        public object ConvertBack(object value, Type targetTypes, object parameter, CultureInfo culture)
         {
-            if (value.ToString() == "null" || value == null) return new byte[0];
-            List<byte> ret = new List<byte>();
-            string str = value.ToString();
-            for (int i = 0; i < str.Length; i += 2)
-                ret.Add(System.Convert.ToByte(str.Substring(i, 2), 16));
-            return ret.ToArray();
-        }
-    }
-    class KindConverter : IValueConverter
-    {
-        public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
-        {
-            if (!(value is ModuleKind))
-                return "Unknown";
-            switch ((ModuleKind)value)
-            {
-                case ModuleKind.Console:
-                    return "Console Application";
-                case ModuleKind.Dll:
-                    return "Class Library";
-                case ModuleKind.NetModule:
-                    return "Net Module(???)";
-                case ModuleKind.Windows:
-                    return "Windows Application";
-                default:
-                    return "Unknown";
-            }
-        }
-
-        public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
-        {
-            switch (value.ToString())
-            {
-                case "Console Application":
-                    return ModuleKind.Console;
-                case "Class Library":
-                    return ModuleKind.Dll;
-                case "Net Module(???)":
-                    return ModuleKind.NetModule;
-                case "Windows Application":
-                    return ModuleKind.Windows;
-                default:
-                    return (ModuleKind)0;
-            }
+            if ((string)value == "Custom") return PrjPreset.Undefined;
+            return (PrjPreset)Enum.Parse(typeof(PrjPreset), (string)value);
         }
     }
     static class Helper
@@ -290,6 +256,18 @@ namespace Confuser
             }
 
             return foundChild;
+        }
+
+        public static T FindParent<T>(DependencyObject child)
+            where T : DependencyObject
+        {
+            DependencyObject d = child;
+            while (d != null)
+            {
+                d = VisualTreeHelper.GetParent(d);
+                if (d is T) return (T)d;
+            }
+            return null;
         }
     }
 
