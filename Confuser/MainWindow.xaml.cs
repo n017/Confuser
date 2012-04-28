@@ -135,11 +135,32 @@ namespace Confuser
             Project = new Prj();
             foreach (ConfuserTab i in Tab.Items)
                 i.InitProj();
+
+            Project = new Prj();
+            foreach (ConfuserTab i in Tab.Items)
+                i.InitProj();
             Project.PropertyChanged += new PropertyChangedEventHandler(ProjectChanged);
             ProjectChanged(Project, new PropertyChangedEventArgs(""));
+            Tab.SelectedIndex = 0;
         }
         private void Open_Click(object sender, RoutedEventArgs e)
         {
+            if (Project.IsModified)
+            {
+                switch (MessageBox.Show(
+                    "You have unsaved changes in this project!\r\nDo you want to save them?",
+                    "Confuser", MessageBoxButton.YesNoCancel, MessageBoxImage.Question))
+                {
+                    case MessageBoxResult.Yes:
+                        Save_Click(this, new RoutedEventArgs());
+                        break;
+                    case MessageBoxResult.No:
+                        break;
+                    case MessageBoxResult.Cancel:
+                        return;
+                }
+            }
+
             OpenFileDialog sfd = new OpenFileDialog();
             sfd.Filter = "Confuser Project (*.crproj)|*.crproj|All Files (*.*)|*.*";
             if (sfd.ShowDialog() ?? false)
@@ -160,6 +181,7 @@ namespace Confuser
                     i.InitProj();
                 prj.PropertyChanged += new PropertyChangedEventHandler(ProjectChanged);
                 ProjectChanged(Project, new PropertyChangedEventArgs(""));
+                Tab.SelectedIndex = 0;
             }
         }
         private void Save_Click(object sender, RoutedEventArgs e)

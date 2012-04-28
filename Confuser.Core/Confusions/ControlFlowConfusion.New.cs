@@ -562,7 +562,7 @@ namespace Confuser.Core.Confusions
                          scope.Level.Type.Contains(LevelType.TryEnd))
                 {
                     Instruction last = scope.Instructions[scope.Instructions.Length - 1];
-                    insts.Add(Instruction.Create(OpCodes.Leave, last.OpCode != OpCodes.Leave ? last.Next : last.Operand as Instruction));
+                    insts.Add(Instruction.Create(OpCodes.Leave, last.OpCode != OpCodes.Leave ? scope.Level.Handler[0].HandlerEnd : last.Operand as Instruction));
                 }
                 else if (scope.Level.Type.Contains(LevelType.Handler) ||
                          scope.Level.Type.Contains(LevelType.HandlerEnd))
@@ -573,7 +573,7 @@ namespace Confuser.Core.Confusions
                     else
                     {
                         Instruction last = scope.Instructions[scope.Instructions.Length - 1];
-                        insts.Add(Instruction.Create(OpCodes.Leave, last.OpCode != OpCodes.Leave ? last.Next : last.Operand as Instruction));
+                        insts.Add(Instruction.Create(OpCodes.Leave, last.OpCode != OpCodes.Leave ? scope.Level.Handler[0].HandlerEnd : last.Operand as Instruction));
                     }
                 }
 
@@ -585,11 +585,20 @@ namespace Confuser.Core.Confusions
             body.Instructions.Clear();
             foreach (var scope in scopes)
                 foreach (var i in scope.Instructions)
+                {
                     if (i.Operand is Instruction &&
                         ReplTbl.ContainsKey(i.Operand as Instruction))
                     {
                         i.Operand = ReplTbl[i.Operand as Instruction];
                     }
+                    else if (i.Operand is Instruction[])
+                    {
+                        Instruction[] insts = i.Operand as Instruction[];
+                        for (int j = 0; j < insts.Length; j++)
+                            if (ReplTbl.ContainsKey(insts[j]))
+                                insts[j] = ReplTbl[insts[j]];
+                    }
+                }
             foreach (var scope in scopes)
             {
                 SetLvHandler(scope, body, scope.Instructions);
@@ -881,7 +890,7 @@ namespace Confuser.Core.Confusions
                                                     0xc7ff, 0xc8ff, 0xc9ff, 0xcaff, 0xcbff,
                                                     0xccff, 0xcdff, 0xceff, 0xcfff, 0x08fe,
                                                     0x19fe, 0x1bfe, 0x1ffe};
-        IEnumerable<Instruction> GetJunk(VariableDefinition stateVar)
+        IEnumerable<Instruction> GetJunk_(VariableDefinition stateVar)
         {
             yield return Instruction.Create(OpCodes.Break);
             if (genJunk)
@@ -957,6 +966,10 @@ namespace Confuser.Core.Confusions
                         break;
                 }
             }
+        }
+        IEnumerable<Instruction> GetJunk(VariableDefinition stateVar)
+        {
+            return GetJunk_(stateVar);
         }
 
         Instruction GenFakeBranch(Statement self, Statement target, Statement fake, IList<Instruction> insts,
