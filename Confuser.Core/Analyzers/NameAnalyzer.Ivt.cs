@@ -6,7 +6,7 @@ using Mono.Cecil;
 
 namespace Confuser.Core.Analyzers
 {
-	partial class NameAnalyzer
+    partial class NameAnalyzer
     {
         static string NormalizeIva(string asmname)
         {
@@ -65,28 +65,17 @@ namespace Confuser.Core.Analyzers
                 {
                     TypeDefinition typeDef = typeRef.Resolve();
                     if (typeDef != null && ivts.Contains(typeDef.Module.Assembly.FullName))
-                    {
-                        ivtRefs.Add(typeRef.MetadataToken, typeRef);
-                        ((typeDef as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new IvtMemberReference(typeRef));
-                    }
+                        (typeDef as IAnnotationProvider).Annotations["RenOk"] = false;
                 }
                 foreach (MemberReference memRef in mod.GetMemberReferences())
                 {
                     IMemberDefinition memDef;
                     if (memRef is MethodReference && (memDef = ((MethodReference)memRef).Resolve()) != null && ivts.Contains(((MethodDefinition)memDef).Module.Assembly.FullName))
-                    {
-                        ivtRefs.Add(memRef.MetadataToken, memRef);
-                        if (mod.LookupToken(memRef.MetadataToken) != memRef)
-                            ((memDef as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new IvtMemberReference(memRef));
-                    }
+                        (memDef as IAnnotationProvider).Annotations["RenOk"] = false;
                     if (memRef is FieldReference && (memDef = ((FieldReference)memRef).Resolve()) != null && ivts.Contains(((FieldDefinition)memDef).Module.Assembly.FullName))
-                    {
-                        ivtRefs.Add(memRef.MetadataToken, memRef);
-                        if (mod.LookupToken(memRef.MetadataToken) != memRef)
-                            ((memDef as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new IvtMemberReference(memRef));
-                    }
+                        (memDef as IAnnotationProvider).Annotations["RenOk"] = false;
                 }
             }
         }
-	}
+    }
 }

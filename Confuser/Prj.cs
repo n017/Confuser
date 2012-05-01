@@ -423,6 +423,7 @@ namespace Confuser
             {
                 PrjMember type = new PrjMember(this);
                 type.Member = i.Resolve(modDef);
+                if (type.Member == null) continue;  //Ignore cannot resolve
                 if (i.Config != null)
                 {
                     type.Settings = settings[i.Config.Id].Clone(type);
@@ -437,6 +438,7 @@ namespace Confuser
                 {
                     PrjMember mem = new PrjMember(this);
                     mem.Member = j.Resolve(type.Member as TypeDefinition);
+                    if (mem.Member == null) continue;  //Ignore cannot resolve
                     if (j.Config != null)
                     {
                         mem.Settings = settings[j.Config.Id].Clone(mem);
@@ -752,7 +754,7 @@ namespace Confuser
             Dictionary<string, PrjSettings> map = new Dictionary<string, PrjSettings>();
             foreach (var i in prj.Settings)
             {
-                PrjSettings x = new PrjSettings(null);
+                PrjSettings x = new PrjSettings(this);
                 x.FromCrSettings(this, i);
                 map[x.name] = x;
             }
@@ -766,6 +768,8 @@ namespace Confuser
             {
                 PrjAssembly asm = new PrjAssembly(this);
                 asm.FromCrAssembly(this, map, i);
+                if (asm.Count != 0 || asm.Settings != null)
+                    preset = PrjPreset.Undefined;
                 Assemblies.Add(asm);
             }
         }

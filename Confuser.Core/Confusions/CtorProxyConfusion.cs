@@ -179,7 +179,7 @@ namespace Confuser.Core.Confusions
                     ctor.Parameters.Add(new ParameterDefinition(_txt.ptr));
                     txt.dele.Methods.Add(ctor);
 
-                    MethodDefinition invoke = new MethodDefinition("Invoke", 0, MtdRef.DeclaringType);
+                    MethodDefinition invoke = new MethodDefinition("Invoke", 0, mod.Import(MtdRef.DeclaringType.Resolve()));
                     invoke.IsRuntime = true;
                     invoke.HasThis = true;
                     invoke.IsHideBySig = true;
@@ -212,20 +212,21 @@ namespace Confuser.Core.Confusions
                 MethodDefinition bdge;
                 if (!_txt.bridges.TryGetValue(bridgeId, out bdge))
                 {
-                    bdge = new MethodDefinition(bridgeId, MethodAttributes.Static | MethodAttributes.Assembly, txt.mtdRef.DeclaringType);
+                    bdge = new MethodDefinition(bridgeId, MethodAttributes.Static | MethodAttributes.Assembly, 
+                        mod.Import(txt.mtdRef.DeclaringType.Resolve()));
                     for (int i = 0; i < txt.mtdRef.Parameters.Count; i++)
                     {
                         bdge.Parameters.Add(new ParameterDefinition(GetNameO(txt.mtdRef.Parameters[i]), txt.mtdRef.Parameters[i].Attributes, txt.mtdRef.Parameters[i].ParameterType));
                     }
                     {
-                        ILProcessor wkr = bdge.Body.GetILProcessor();
-                        wkr.Emit(OpCodes.Ldsfld, txt.fld);
+                        ILProcessor psr = bdge.Body.GetILProcessor();
+                        psr.Emit(OpCodes.Ldsfld, txt.fld);
                         for (int i = 0; i < bdge.Parameters.Count; i++)
                         {
-                            wkr.Emit(OpCodes.Ldarg, bdge.Parameters[i]);
+                            psr.Emit(OpCodes.Ldarg, bdge.Parameters[i]);
                         }
-                        wkr.Emit(OpCodes.Call, txt.dele.Methods.FirstOrDefault(mtd => mtd.Name == "Invoke"));
-                        wkr.Emit(OpCodes.Ret);
+                        psr.Emit(OpCodes.Call, txt.dele.Methods.FirstOrDefault(mtd => mtd.Name == "Invoke"));
+                        psr.Emit(OpCodes.Ret);
                     }
                     txt.dele.Methods.Add(bdge);
                     _txt.bridges.Add(bridgeId, bdge);

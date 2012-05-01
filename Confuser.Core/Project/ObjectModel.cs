@@ -29,7 +29,7 @@ namespace Confuser.Core.Project
 
         public XmlElement Save(XmlDocument xmlDoc)
         {
-            XmlElement elem = xmlDoc.CreateElement("assembly");
+            XmlElement elem = xmlDoc.CreateElement("assembly", ConfuserProject.Namespace);
 
             XmlAttribute nameAttr = xmlDoc.CreateAttribute("path");
             nameAttr.Value = Path;
@@ -55,7 +55,7 @@ namespace Confuser.Core.Project
             this.Path = elem.Attributes["path"].Value;
             if (elem.Attributes["isMain"] != null)
                 this.IsMain = bool.Parse(elem.Attributes["isMain"].Value);
-            foreach (XmlElement i in elem.ChildNodes)
+            foreach (XmlElement i in elem.ChildNodes.OfType<XmlElement>())
             {
                 if (i.Name == "config")
                 {
@@ -87,7 +87,7 @@ namespace Confuser.Core.Project
 
         public XmlElement Save(XmlDocument xmlDoc)
         {
-            XmlElement elem = xmlDoc.CreateElement("module");
+            XmlElement elem = xmlDoc.CreateElement("module", ConfuserProject.Namespace);
 
             XmlAttribute nameAttr = xmlDoc.CreateAttribute("name");
             nameAttr.Value = Name;
@@ -104,7 +104,7 @@ namespace Confuser.Core.Project
         public void Load(XmlElement elem)
         {
             this.Name = elem.Attributes["name"].Value;
-            foreach (XmlElement i in elem.ChildNodes)
+            foreach (XmlElement i in elem.ChildNodes.OfType<XmlElement>())
             {
                 if (i.Name == "config")
                 {
@@ -136,7 +136,7 @@ namespace Confuser.Core.Project
 
         public XmlElement Save(XmlDocument xmlDoc)
         {
-            XmlElement elem = xmlDoc.CreateElement("type");
+            XmlElement elem = xmlDoc.CreateElement("type", ConfuserProject.Namespace);
 
             XmlAttribute fnAttr = xmlDoc.CreateAttribute("fullname");
             fnAttr.Value = FullName;
@@ -153,7 +153,7 @@ namespace Confuser.Core.Project
         public void Load(XmlElement elem)
         {
             this.FullName = elem.Attributes["fullname"].Value;
-            foreach (XmlElement i in elem.ChildNodes)
+            foreach (XmlElement i in elem.ChildNodes.OfType<XmlElement>())
             {
                 if (i.Name == "config")
                 {
@@ -193,122 +193,258 @@ namespace Confuser.Core.Project
             }
             return ret.ToString().Trim();
         }
+        string ReadUntilToken(StringReader reader, out char t, params char[] token)
+        {
+            StringBuilder ret = new StringBuilder();
+            int c = reader.Read();
+            while (c != -1 && Array.IndexOf(token, (char)c) == -1)
+            {
+                ret.Append((char)c);
+                c = reader.Read();
+            }
+            t = (char)c;
+            return ret.ToString().Trim();
+        }
 
-        public void Import(IMemberDefinition member)
+        static string GetTypeRefName(TypeReference typeRef, bool full)
+        {
+            StringBuilder sb = new StringBuilder();
+            WriteTypeReference(sb, typeRef, full);
+            return sb.ToString();
+        }
+        static void WriteTypeReference(StringBuilder sb, TypeReference typeRef, bool full)
+        {
+            WriteTypeReference(sb, typeRef, false, full);
+        }
+        static void WriteTypeReference(StringBuilder sb, TypeReference typeRef, bool isGenericInstance, bool full)
+        {
+            if (typeRef is TypeSpecification)
+            {
+                TypeSpecification typeSpec = typeRef as TypeSpecification;
+                if (typeSpec is ArrayType)
+                {
+                    WriteTypeReference(sb, typeSpec.ElementType, full);
+                    sb.Append("[");
+                    var dims = (typeSpec as ArrayType).Dimensions;
+                    for (int i = 0; i < dims.Count; i++)
+                    {
+                        if (i != 0) sb.Append(", ");
+                        if (dims[i].IsSized)
+                        {
+                            sb.Append(dims[i].LowerBound.HasValue ?
+                                            dims[i].LowerBound.ToString() : ".");
+                            sb.Append("..");
+                            sb.Append(dims[i].UpperBound.HasValue ?
+                                            dims[i].UpperBound.ToString() : ".");
+                        }
+                    }
+                    sb.Append("]");
+                }
+                else if (typeSpec is ByReferenceType)
+                {
+                    WriteTypeReference(sb, typeSpec.ElementType, full);
+                    sb.Append("&");
+                }
+                else if (typeSpec is PointerType)
+                {
+                    WriteTypeReference(sb, typeSpec.ElementType, full);
+                    sb.Append("*");
+                }
+                else if (typeSpec is OptionalModifierType)
+                {
+                    WriteTypeReference(sb, typeSpec.ElementType, full);
+                    sb.Append(" ");
+                    sb.Append("modopt");
+                    sb.Append("(");
+                    WriteTypeReference(sb, (typeSpec as OptionalModifierType).ModifierType, full);
+                    sb.Append(")");
+                }
+                else if (typeSpec is RequiredModifierType)
+                {
+                    WriteTypeReference(sb, typeSpec.ElementType, full);
+                    sb.Append(" ");
+                    sb.Append("modreq");
+                    sb.Append("(");
+                    WriteTypeReference(sb, (typeSpec as RequiredModifierType).ModifierType, full);
+                    sb.Append(")");
+                }
+                else if (typeSpec is FunctionPointerType)
+                {
+                    FunctionPointerType funcPtr = typeSpec as FunctionPointerType;
+                    WriteTypeReference(sb, funcPtr.ReturnType, full);
+                    sb.Append(" *(");
+                    for (int i = 0; i < funcPtr.Parameters.Count; i++)
+                    {
+                        if (i != 0) sb.Append(", ");
+                        WriteTypeReference(sb, funcPtr.Parameters[i].ParameterType, full);
+                    }
+                    sb.Append(")");
+                }
+                else if (typeSpec is SentinelType)
+                {
+                    sb.Append("...");
+                }
+                else if (typeSpec is GenericInstanceType)
+                {
+                    WriteTypeReference(sb, typeSpec.ElementType, true);
+                    sb.Append("<");
+                    var args = (typeSpec as GenericInstanceType).GenericArguments;
+                    for (int i = 0; i < args.Count; i++)
+                    {
+                        if (i != 0) sb.Append(", ");
+                        WriteTypeReference(sb, args[i], full);
+                    }
+                    sb.Append(">");
+                }
+            }
+            else if (typeRef is GenericParameter)
+            {
+                sb.Append((typeRef as GenericParameter).Name);
+            }
+            else
+            {
+                string name = typeRef.Name;
+                var genParamsCount = 0;
+                if (typeRef.HasGenericParameters)
+                {
+                    genParamsCount = typeRef.GenericParameters.Count - (typeRef.DeclaringType == null ? 0 : typeRef.DeclaringType.GenericParameters.Count);
+                    string str = "`" + genParamsCount.ToString();
+                    if (typeRef.Name.EndsWith(str)) name = typeRef.Name.Substring(0, typeRef.Name.Length - str.Length);
+                }
+
+                if (typeRef.IsNested)
+                {
+                    WriteTypeReference(sb, typeRef.DeclaringType, full);
+                    sb.Append(".");
+                    sb.Append(name);
+                }
+                else
+                {
+                    if (full)
+                    {
+                        sb.Append(typeRef.Namespace);
+                        if (!string.IsNullOrEmpty(typeRef.Namespace)) sb.Append(".");
+                    }
+                    sb.Append(name);
+                }
+                if (typeRef.HasGenericParameters && genParamsCount != 0 && !isGenericInstance)
+                {
+                    sb.Append("<");
+                    for (int i = typeRef.GenericParameters.Count - genParamsCount; i < typeRef.GenericParameters.Count; i++)
+                    {
+                        if (i != 0) sb.Append(", ");
+                        WriteTypeReference(sb, typeRef.GenericParameters[i], full);
+                    }
+                    sb.Append(">");
+                }
+            }
+        }
+
+        string GetSig(IMemberDefinition member, out ProjectMemberType type)
         {
             StringBuilder sig = new StringBuilder();
             if (member is MethodReference)
             {
-                Type = ProjectMemberType.Method;
+                type = ProjectMemberType.Method;
                 MethodReference method = member as MethodReference;
 
-                sig.Append(method.ReturnType.Name);
+                WriteTypeReference(sig, method.ReturnType, false);
                 sig.Append(" ");
-                sig.Append(method.Name);
+
+
+                string name = method.Name;
+                var genParamsCount = 0;
+                if (method.HasGenericParameters)
+                {
+                    genParamsCount = method.GenericParameters.Count;
+                    string str = "`" + genParamsCount.ToString();
+                    if (method.Name.EndsWith(str)) name = method.Name.Substring(0, method.Name.Length - str.Length);
+                }
+                sig.Append(name);
+                if (method.HasGenericParameters)
+                {
+                    sig.Append("<");
+                    sig.Append(method.GenericParameters.Count.ToString());
+                    sig.Append(">");
+                }
+
                 sig.Append("(");
                 for (int i = 0; i < method.Parameters.Count; i++)
                 {
                     if (i != 0) sig.Append(", ");
-                    sig.Append(method.Parameters[i].ParameterType.Name);
+                    WriteTypeReference(sig, method.Parameters[i].ParameterType, false);
                 }
                 sig.Append(")");
             }
             else if (member is FieldReference)
             {
-                Type = ProjectMemberType.Field;
+                type = ProjectMemberType.Field;
                 FieldReference field = member as FieldReference;
 
-                sig.Append(field.FieldType.Name);
+                WriteTypeReference(sig, field.FieldType, false);
                 sig.Append(" ");
                 sig.Append(field.Name);
             }
             else if (member is PropertyReference)
             {
-                Type = ProjectMemberType.Property;
+                type = ProjectMemberType.Property;
                 PropertyReference prop = member as PropertyReference;
 
-                sig.Append(prop.PropertyType.Name);
+                WriteTypeReference(sig, prop.PropertyType, false);
                 sig.Append(" ");
                 sig.Append(prop.Name);
             }
             else if (member is EventReference)
             {
-                Type = ProjectMemberType.Event;
+                type = ProjectMemberType.Event;
                 EventReference evt = member as EventReference;
 
-                sig.Append(evt.EventType.Name);
+                WriteTypeReference(sig, evt.EventType, false);
                 sig.Append(" ");
                 sig.Append(evt.Name);
             }
-            Signature = sig.ToString();
+            else
+                throw new NotSupportedException();
+            return sig.ToString();
+        }
+        public void Import(IMemberDefinition member)
+        {
+            ProjectMemberType t;
+            Signature = GetSig(member, out t);
+            Type = t;
         }
         public IMemberDefinition Resolve(TypeDefinition type)
         {
             StringReader reader = new StringReader(Signature);
+            ProjectMemberType x;
             switch (Type)
             {
                 case ProjectMemberType.Method:
                     {
-                        string retType = ReadUntilToken(reader, ' ');
-                        string name = ReadUntilToken(reader, '(');
-                        List<string> argTypes = new List<string>();
-                        string s = ReadUntilToken(reader, ',', ')');
-                        while (!string.IsNullOrEmpty(s))
-                        {
-                            argTypes.Add(s);
-                            s = ReadUntilToken(reader, ',', ')');
-                        }
-
                         foreach (var i in type.Methods)
-                        {
-                            if (i.Name != name || i.ReturnType.Name != retType) continue;
-                            if (i.Parameters.Count != argTypes.Count) continue;
-                            bool yes = true;
-                            for (int j = 0; j < argTypes.Count; j++)
-                                if (i.Parameters[j].ParameterType.Name != argTypes[j])
-                                {
-                                    yes = false;
-                                    break;
-                                }
-                            if (yes)
+                            if (GetSig(i, out x) == Signature && x == Type)
                                 return i;
-                        }
                         return null;
                     }
                 case ProjectMemberType.Field:
                     {
-                        string fieldType = ReadUntilToken(reader, ' ');
-                        string name = ReadUntilToken(reader, '\0');
-
                         foreach (var i in type.Fields)
-                        {
-                            if (i.Name == name && i.FieldType.Name == fieldType)
+                            if (GetSig(i, out x) == Signature && x == Type)
                                 return i;
-                        }
                         return null;
                     }
                 case ProjectMemberType.Property:
                     {
-                        string propType = ReadUntilToken(reader, ' ');
-                        string name = ReadUntilToken(reader, '\0');
-
                         foreach (var i in type.Properties)
-                        {
-                            if (i.Name == name && i.PropertyType.Name == propType)
+                            if (GetSig(i, out x) == Signature && x == Type)
                                 return i;
-                        }
                         return null;
                     }
                 case ProjectMemberType.Event:
                     {
-                        string evtType = ReadUntilToken(reader, ' ');
-                        string name = ReadUntilToken(reader, '\0');
-
                         foreach (var i in type.Events)
-                        {
-                            if (i.Name == name && i.EventType.Name == evtType)
+                            if (GetSig(i, out x) == Signature && x == Type)
                                 return i;
-                        }
                         return null;
                     }
             }
@@ -317,7 +453,7 @@ namespace Confuser.Core.Project
 
         public XmlElement Save(XmlDocument xmlDoc)
         {
-            XmlElement elem = xmlDoc.CreateElement("member");
+            XmlElement elem = xmlDoc.CreateElement("member", ConfuserProject.Namespace);
 
             XmlAttribute sigAttr = xmlDoc.CreateAttribute("sig");
             sigAttr.Value = Signature;
@@ -335,7 +471,7 @@ namespace Confuser.Core.Project
         {
             this.Signature = elem.Attributes["sig"].Value;
             this.Type = (ProjectMemberType)Enum.Parse(typeof(ProjectMemberType), elem.Attributes["type"].Value, true);
-            foreach (XmlElement i in elem.ChildNodes)
+            foreach (XmlElement i in elem.ChildNodes.OfType<XmlElement>())
             {
                 if (i.Name == "config")
                 {

@@ -14,7 +14,7 @@ namespace Confuser.Core.Project
 
         public XmlElement Save(XmlDocument xmlDoc)
         {
-            XmlElement elem = xmlDoc.CreateElement(typeof(T) == typeof(Packer) ? "packer" : "confusion");
+            XmlElement elem = xmlDoc.CreateElement(typeof(T) == typeof(Packer) ? "packer" : "confusion", ConfuserProject.Namespace);
 
             XmlAttribute idAttr = xmlDoc.CreateAttribute("id");
             idAttr.Value = Id;
@@ -22,7 +22,7 @@ namespace Confuser.Core.Project
 
             foreach (var i in this.AllKeys)
             {
-                XmlElement arg = xmlDoc.CreateElement("argument");
+                XmlElement arg = xmlDoc.CreateElement("argument", ConfuserProject.Namespace);
 
                 XmlAttribute nameAttr = xmlDoc.CreateAttribute("name");
                 nameAttr.Value = i;
@@ -40,7 +40,7 @@ namespace Confuser.Core.Project
         public void Load(XmlElement elem)
         {
             this.Id = elem.Attributes["id"].Value;
-            foreach (XmlElement i in elem.ChildNodes)
+            foreach (XmlElement i in elem.ChildNodes.OfType<XmlElement>())
                 this.Add(i.Attributes["name"].Value, i.Attributes["value"].Value);
         }
     }
@@ -50,7 +50,7 @@ namespace Confuser.Core.Project
 
         public XmlElement Save(XmlDocument xmlDoc)
         {
-            XmlElement elem = xmlDoc.CreateElement("settings");
+            XmlElement elem = xmlDoc.CreateElement("settings", ConfuserProject.Namespace);
 
             XmlAttribute attr = xmlDoc.CreateAttribute("name");
             attr.Value = Name;
@@ -65,12 +65,27 @@ namespace Confuser.Core.Project
         public void Load(XmlElement elem)
         {
             this.Name = elem.Attributes["name"].Value;
-            foreach (XmlElement i in elem.ChildNodes)
+            foreach (XmlElement i in elem.ChildNodes.OfType<XmlElement>())
             {
                 var x = new SettingItem<IConfusion>();
                 x.Load(i);
                 this.Add(x);
             }
+        }
+
+        public ObfSettings Clone()
+        {
+            ObfSettings ret = new ObfSettings();
+            ret.Name = this.Name;
+            foreach (var i in this)
+            {
+                var item = new SettingItem<IConfusion>();
+                item.Id = i.Id;
+                foreach (var j in i.AllKeys)
+                    item.Add(j, i[j]);
+                ret.Add(item);
+            }
+            return ret;
         }
     }
     public class ObfConfig
@@ -80,7 +95,7 @@ namespace Confuser.Core.Project
 
         public XmlElement Save(XmlDocument xmlDoc)
         {
-            XmlElement elem = xmlDoc.CreateElement("config");
+            XmlElement elem = xmlDoc.CreateElement("config", ConfuserProject.Namespace);
 
             XmlAttribute idAttr = xmlDoc.CreateAttribute("id");
             idAttr.Value = Id;
@@ -88,7 +103,7 @@ namespace Confuser.Core.Project
 
             if (ApplyToMembers != false)
             {
-                XmlAttribute attr = xmlDoc.CreateAttribute("applytomember");
+                XmlAttribute attr = xmlDoc.CreateAttribute("applytomembers");
                 attr.Value = ApplyToMembers.ToString().ToLower();
                 elem.Attributes.Append(attr);
             }
@@ -99,8 +114,8 @@ namespace Confuser.Core.Project
         public void Load(XmlElement elem)
         {
             this.Id = elem.Attributes["id"].Value;
-            if (elem.Attributes["applytomember"] != null)
-                this.ApplyToMembers = bool.Parse(elem.Attributes["applytomember"].Value);
+            if (elem.Attributes["applytomembers"] != null)
+                this.ApplyToMembers = bool.Parse(elem.Attributes["applytomembers"].Value);
         }
     }
 
@@ -119,13 +134,13 @@ namespace Confuser.Core.Project
         public SettingItem<Packer> Packer { get; set; }
 
         public static readonly XmlSchema Schema = XmlSchema.Read(typeof(ConfuserProject).Assembly.GetManifestResourceStream("Confuser.Core.ConfuserPrj.xsd"), null);
+        public const string Namespace = "http://confuser.codeplex.com";
         public XmlDocument Save()
         {
             XmlDocument xmlDoc = new XmlDocument();
             xmlDoc.Schemas.Add(Schema);
 
-            XmlElement elem = xmlDoc.CreateElement("project");
-            elem.SetAttribute("xmlns", "http://confuser.codeplex.com");
+            XmlElement elem = xmlDoc.CreateElement("project", Namespace);
 
             XmlAttribute outputAttr = xmlDoc.CreateAttribute("outputDir");
             outputAttr.Value = OutputPath;
@@ -144,7 +159,7 @@ namespace Confuser.Core.Project
 
             foreach (var i in Plugins)
             {
-                XmlElement plug = xmlDoc.CreateElement("plugin");
+                XmlElement plug = xmlDoc.CreateElement("plugin", Namespace);
 
                 XmlAttribute pathAttr = xmlDoc.CreateAttribute("path");
                 pathAttr.Value = i;

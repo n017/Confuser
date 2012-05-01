@@ -19,7 +19,7 @@ namespace Confuser.Core.Confusions
 
         public override Priority Priority
         {
-            get { return Priority.MetadataLevel; }
+            get { return Priority.Safe; }
         }
 
         public override bool WholeRun

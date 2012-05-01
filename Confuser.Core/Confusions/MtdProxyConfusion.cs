@@ -255,7 +255,8 @@ namespace Confuser.Core.Confusions
                         {
                             psr.Emit(OpCodes.Ldarg, bdge.Parameters[i]);
                         }
-                        psr.Emit(txt.inst.OpCode, txt.dele.Methods.FirstOrDefault(mtd => mtd.Name == "Invoke"));
+                        //psr.Emit(txt.inst.OpCode, txt.mtdRef);
+                        psr.Emit(OpCodes.Call, txt.dele.Methods.FirstOrDefault(mtd => mtd.Name == "Invoke"));
                         psr.Emit(OpCodes.Ret);
                     }
                     txt.dele.Methods.Add(bdge);

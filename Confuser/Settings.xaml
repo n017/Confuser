@@ -17,11 +17,11 @@
         </Grid.RowDefinitions>
 
         <Label Grid.Row="0" Grid.Column="0" HorizontalContentAlignment="Right" VerticalAlignment="Center">Output Directory:</Label>
-        <TextBox Grid.Row="0" Grid.Column="1" Margin="5" x:Name="output" Text="{Binding OutputPath}"/>
+        <TextBox Grid.Row="0" Grid.Column="1" Margin="5" x:Name="output" Text="{Binding OutputPath, Mode=TwoWay}"/>
         <Button Grid.Row="0" Grid.Column="2" Margin="5" Click="OutputSel_Click">...</Button>
 
         <Label Grid.Row="1" Grid.Column="0" HorizontalContentAlignment="Right" VerticalAlignment="Center">Strong name key:</Label>
-        <TextBox Grid.Row="1" Grid.Column="1" Margin="5" x:Name="sn" Text="{Binding StrongNameKey}"/>
+        <TextBox Grid.Row="1" Grid.Column="1" Margin="5" x:Name="sn" Text="{Binding StrongNameKey, Mode=TwoWay}"/>
         <Button Grid.Row="1" Grid.Column="2" Margin="5" Click="SnSel_Click">...</Button>
 
         <CheckBox x:Name="usePacker" Grid.Row="2" Grid.Column="0" Content="Use Packer" 

@@ -315,7 +315,7 @@ namespace Confuser.Core.Confusions
         }
         public Preset Preset
         {
-            get { return Preset.Normal; }
+            get { return Preset.Aggressive; }
         }
         public Phase[] Phases
         {

@@ -38,14 +38,16 @@ namespace Confuser
         {
             FolderBrowserDialog fd = new FolderBrowserDialog();
             if (fd.ShowDialog() != DialogResult.Cancel)
-                output.Text = fd.SelectedPath;
+                host.Project.OutputPath = fd.SelectedPath;
         }
         private void SnSel_Click(object sender, RoutedEventArgs e)
         {
             OpenFileDialog ofd = new OpenFileDialog();
             ofd.Filter = "Strong name key file (*.snk)|*.snk|All Files (*.*)|*.*";
             if (ofd.ShowDialog() != DialogResult.Cancel)
-                sn.Text = ofd.FileName;
+            {
+                host.Project.StrongNameKey = ofd.FileName;;
+            }
         }
         private void LoadPlugin_Click(object sender, RoutedEventArgs e)
         {

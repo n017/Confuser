@@ -83,8 +83,35 @@ namespace Confuser.Core
 
             Confuser cr = new Confuser();
 
+            ObfSettings settings;
+            {
+                ConfuserProject p = this.cr.param.Project;
+                ProjectAssembly main = this.cr.param.Project.Single(_ => _.IsMain);
+                if (main.Config != null)
+                    settings = p.Settings.Single(_ => _.Name == main.Config.Id).Clone();
+                else if (main.Count != 0 && main[0].Config != null)
+                    settings = p.Settings.Single(_ => _.Name == main[0].Config.Id).Clone();
+                else
+                {
+                    settings = new ObfSettings();
+                    foreach (var i in cr.confusions)
+                        if (i.Preset >= this.cr.param.Project.DefaultPreset)
+                            settings.Add(new SettingItem<IConfusion>() { Id = i.ID });
+                }
+                settings.Name = "packerSettings";
+            }
+
             ConfuserProject proj = new ConfuserProject();
-            proj.Add(new ProjectAssembly() { Path = tmp + Path.GetFileName(modDef.FullyQualifiedName) });
+            proj.Settings.Add(settings);
+            proj.Add(new ProjectAssembly()
+            {
+                Path = tmp + Path.GetFileName(modDef.FullyQualifiedName),
+                Config = new ObfConfig()
+                {
+                    Id = "packerSettings",
+                    ApplyToMembers = true
+                }
+            });
             proj.OutputPath = tmp;
             foreach (var i in this.cr.param.Project.Plugins) proj.Plugins.Add(i);
             proj.DefaultPreset = this.cr.param.Project.DefaultPreset;

@@ -114,6 +114,43 @@ namespace Confuser
             }
         }
 
+        public void LoadPrj(string path)
+        {
+            if (Project.IsModified)
+            {
+                switch (MessageBox.Show(
+                    "You have unsaved changes in this project!\r\nDo you want to save them?",
+                    "Confuser", MessageBoxButton.YesNoCancel, MessageBoxImage.Question))
+                {
+                    case MessageBoxResult.Yes:
+                        Save_Click(this, new RoutedEventArgs());
+                        break;
+                    case MessageBoxResult.No:
+                        break;
+                    case MessageBoxResult.Cancel:
+                        return;
+                }
+            }
+
+            XmlDocument xmlDoc = new XmlDocument();
+            xmlDoc.Load(path);
+
+            ConfuserProject proj = new ConfuserProject();
+            proj.Load(xmlDoc);
+
+            Prj prj = new Prj();
+            prj.FromConfuserProject(proj);
+            prj.FileName = path;
+            prj.IsModified = false;
+
+            Project = prj;
+            foreach (ConfuserTab i in Tab.Items)
+                i.InitProj();
+            prj.PropertyChanged += new PropertyChangedEventHandler(ProjectChanged);
+            ProjectChanged(Project, new PropertyChangedEventArgs(""));
+            Tab.SelectedIndex = 0;
+
+        }
         private void New_Click(object sender, RoutedEventArgs e)
         {
             if (Project.IsModified)
@@ -193,7 +230,7 @@ namespace Confuser
                 if (sfd.ShowDialog() ?? false)
                 {
                     ConfuserProject proj = Project.ToCrProj();
-                    XmlWriterSettings wtrSettings=new XmlWriterSettings();
+                    XmlWriterSettings wtrSettings = new XmlWriterSettings();
                     XmlWriter writer = XmlWriter.Create(sfd.FileName, wtrSettings);
                     proj.Save().Save(writer);
                     Project.IsModified = false;
@@ -247,7 +284,8 @@ namespace Confuser
                 if (Tab.SelectedIndex != Tab.Items.Count - 1)
                 {
                     tabSel = Tab.SelectedIndex;
-                    (Tab.SelectedItem as ConfuserTab).OnActivated();
+                    FocusManager.SetFocusedElement(FocusManager.GetFocusScope(Tab), Tab.SelectedItem as ConfuserTab);
+                    Dispatcher.BeginInvoke(new Action((Tab.SelectedItem as ConfuserTab).OnActivated), System.Windows.Threading.DispatcherPriority.Loaded);
                 }
                 else if (Tab.SelectedIndex != tabSel)
                 {
@@ -258,7 +296,8 @@ namespace Confuser
                     else
                     {
                         tabSel = Tab.SelectedIndex;
-                        (Tab.SelectedItem as ConfuserTab).OnActivated();
+                        FocusManager.SetFocusedElement(FocusManager.GetFocusScope(Tab), Tab.SelectedItem as ConfuserTab);
+                        Dispatcher.BeginInvoke(new Action((Tab.SelectedItem as ConfuserTab).OnActivated), System.Windows.Threading.DispatcherPriority.Loaded);
                         return;
                     }
                     e.Handled = true;
@@ -434,6 +473,7 @@ namespace Confuser
     {
         bool EnabledNavigation { get; set; }
         Prj Project { get; }
+        void LoadPrj(string path);
     }
 
     public interface IPage

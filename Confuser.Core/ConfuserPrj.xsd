@@ -7,7 +7,7 @@
 
   <xs:complexType name="argument">
     <xs:attribute name="name" type="xs:string" use="required" />
-    <xs:attribute name="value" type="xs:boolean" use="required" />
+    <xs:attribute name="value" type="xs:string" use="required" />
   </xs:complexType>
 
   <xs:complexType name="objSettings">
@@ -89,7 +89,7 @@
     <xs:complexType>
       <xs:sequence>
         <xs:element name="plugin" type="plugin" minOccurs="0" maxOccurs="unbounded"/>
-        <xs:element name="settings" type="settings" minOccurs="1" maxOccurs="unbounded"/>
+        <xs:element name="settings" type="settings" minOccurs="0" maxOccurs="unbounded"/>
         <xs:element name="packer" type="objSettings" minOccurs="0" maxOccurs="1"/>
         <xs:element name="assembly" type="assembly" minOccurs="1" maxOccurs="unbounded"/>
       </xs:sequence>

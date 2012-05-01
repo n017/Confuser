@@ -133,7 +133,7 @@ namespace Confuser.Core.Confusions
                 for (int i = 0; i < codes.Length; i++)
                 {
                     size += 4;
-                    if (ptrs[i] == 0) continue;
+                    if (rvas[i] == 0) continue;
                     size += 8;
                 }
                 size = (((uint)size + 0x7f) & ~0x7fu) + 0x28;

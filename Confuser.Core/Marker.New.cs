@@ -10,6 +10,7 @@ using System.Collections.Specialized;
 using System.IO;
 using System.Xml;
 using Confuser.Core.Project;
+using System.Collections;
 
 namespace Confuser.Core
 {
@@ -152,6 +153,13 @@ namespace Confuser.Core
                 if (i.Preset <= preset && !cs.ContainsKey(i))
                     cs.Add(i, new NameValueCollection());
         }
+        static NameValueCollection Clone(NameValueCollection src)
+        {
+            NameValueCollection ret = new NameValueCollection();
+            foreach (var i in src.AllKeys)
+                ret.Add(i.ToLowerInvariant(), src[i]);
+            return ret;
+        }
 
         Confuser cr;
         protected Confuser Confuser { get { return cr; } set { cr = value; } }
@@ -169,11 +177,12 @@ namespace Confuser.Core
             using (setting.Level())
             {
                 for (int i = 0; i < proj.Count; i++)
-                    ret.Assemblies[i] = MarkAssembly(proj[i], setting);
+                    using (setting.Level())
+                        ret.Assemblies[i] = MarkAssembly(proj[i], setting);
                 if (proj.Packer != null)
                 {
                     ret.Packer = Packers[proj.Packer.Id];
-                    ret.PackerParameters = new NameValueCollection(proj.Packer);
+                    ret.PackerParameters = Clone(proj.Packer);
                 }
             }
 
@@ -217,8 +226,9 @@ namespace Confuser.Core
             if (asm.Config != null)
             {
                 ret.ApplyToMember = applyToMember = asm.Config.ApplyToMembers;
+                mark.CurrentConfusions.Clear();
                 foreach (var i in proj.Settings.Single(_ => _.Name == asm.Config.Id))
-                    mark.CurrentConfusions[Confusions[i.Id]] = new NameValueCollection(i);
+                    mark.CurrentConfusions[Confusions[i.Id]] = Clone(i);
             }
             return ret;
         }
@@ -251,8 +261,9 @@ namespace Confuser.Core
             if (mod.Config != null)
             {
                 ret.ApplyToMember = applyToMember = mod.Config.ApplyToMembers;
+                mark.CurrentConfusions.Clear();
                 foreach (var i in proj.Settings.Single(_ => _.Name == mod.Config.Id))
-                    mark.CurrentConfusions[Confusions[i.Id]] = new NameValueCollection(i);
+                    mark.CurrentConfusions[Confusions[i.Id]] = Clone(i);
             }
             return ret;
         }
@@ -295,8 +306,9 @@ namespace Confuser.Core
             if (type.Config != null)
             {
                 ret.ApplyToMember = applyToMember = type.Config.ApplyToMembers;
+                mark.CurrentConfusions.Clear();
                 foreach (var i in proj.Settings.Single(_ => _.Name == type.Config.Id))
-                    mark.CurrentConfusions[Confusions[i.Id]] = new NameValueCollection(i);
+                    mark.CurrentConfusions[Confusions[i.Id]] = Clone(i);
             }
             return ret;
         }
@@ -316,8 +328,9 @@ namespace Confuser.Core
             if (mem.Config != null)
             {
                 ret.ApplyToMember = applyToMember = mem.Config.ApplyToMembers;
+                mark.CurrentConfusions.Clear();
                 foreach (var i in proj.Settings.Single(_ => _.Name == mem.Config.Id))
-                    mark.CurrentConfusions[Confusions[i.Id]] = new NameValueCollection(i);
+                    mark.CurrentConfusions[Confusions[i.Id]] = Clone(i);
             }
             return ret;
         }

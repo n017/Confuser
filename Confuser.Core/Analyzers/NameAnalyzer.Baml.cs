@@ -376,8 +376,8 @@ namespace Confuser.Core.Analyzers
                             mems.Add(prop.Name, prop);
                         foreach (EventDefinition evt in root.Events)
                             mems.Add(evt.Name, evt);
-                        foreach (MethodDefinition mtd in root.Methods)
-                            mems.Add(mtd.Name, mtd);
+                        //foreach (MethodDefinition mtd in root.Methods)
+                        //    mems.Add(mtd.Name, mtd);
 
                         foreach (var rec in doc.OfType<PropertyRecord>())
                         {

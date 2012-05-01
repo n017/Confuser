@@ -43,6 +43,11 @@ namespace Confuser
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
             {
                 string[] file = e.Data.GetData(DataFormats.FileDrop, true) as string[];
+                if (file.Length == 1 && Path.GetExtension(file[0]) == ".crproj")
+                {
+                    host.LoadPrj(file[0]);
+                    return;
+                }
                 foreach (var i in file)
                 {
                     if (host.Project.Assemblies.Any(_ => _.Path == i)) continue;
