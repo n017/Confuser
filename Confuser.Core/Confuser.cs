@@ -328,7 +328,7 @@ namespace Confuser.Core
             else if (!File.Exists(param.Project.SNKeyPath))
                 Log("Strong name key not found. Output assembly will not be signed.");
             else
-                sn = new System.Reflection.StrongNameKeyPair(new FileStream(param.Project.SNKeyPath, FileMode.Open));
+                sn = new System.Reflection.StrongNameKeyPair(new FileStream(param.Project.SNKeyPath, FileMode.Open, FileAccess.Read, FileShare.Read));
 
             Marker mkr = param.Marker;
 

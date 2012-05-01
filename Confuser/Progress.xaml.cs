@@ -65,6 +65,7 @@ namespace Confuser
             host.EnabledNavigation = false;
             btn.IsEnabled = true;
 
+            p = 0;
             Action check = null;
             check = new Action(() =>
             {
@@ -144,7 +145,9 @@ namespace Confuser
         double p;
         void Logger_Progress(object sender, ProgressEventArgs e)
         {
-            p = e.Progress * 10000 / e.Total;
+            if (e.Progress == 0) p = 0;
+            else
+                p = e.Progress * 10000 / e.Total;
         }
         void Logger_Log(object sender, LogEventArgs e)
         {

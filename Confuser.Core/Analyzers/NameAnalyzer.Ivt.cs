@@ -35,7 +35,7 @@ namespace Confuser.Core.Analyzers
                         internalVis.Add(NormalizeIva((string)attr.ConstructorArguments[0].Value));
                 if (internalVis.Count != 0)
                 {
-                    Logger._Log("InternalsVisibleToAttribute found in " + asm.FullName + "!");
+                    Logger._Log("> InternalsVisibleToAttribute found in " + asm.FullName + "!");
 
                     List<AssemblyDefinition> refAsms = new List<AssemblyDefinition>();
                     foreach (AssemblyDefinition asmm in asms)
@@ -43,9 +43,9 @@ namespace Confuser.Core.Analyzers
                             refAsms.Add(asmm);
 
                     if (refAsms.Count == 0)
-                        Logger._Log("Internal assemblies NOT found!");
+                        Logger._Log("> Internal assemblies NOT found!");
                     else
-                        Logger._Log("Internal assemblies found!");
+                        Logger._Log("> Internal assemblies found!");
                     foreach (AssemblyDefinition i in refAsms)
                     {
                         if (!ivtMap.ContainsKey(i)) ivtMap.Add(i, new List<string>());

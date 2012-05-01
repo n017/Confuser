@@ -94,7 +94,7 @@ namespace Confuser.Core
                 else
                 {
                     settings = new ObfSettings();
-                    foreach (var i in cr.confusions)
+                    foreach (var i in this.cr.confusions)
                         if (i.Preset >= this.cr.param.Project.DefaultPreset)
                             settings.Add(new SettingItem<IConfusion>() { Id = i.ID });
                 }

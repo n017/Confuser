@@ -12,12 +12,21 @@ namespace Confuser.Core.Analyzers
     {
         Dictionary<TypeDefinition, VTable> vTbls = new Dictionary<TypeDefinition, VTable>();
 
+        int modCount;
+        int progressMod;
         public override void Analyze(IEnumerable<AssemblyDefinition> asms)
         {
+            Logger._Log("> Initializing Name Analyzer...");
+            modCount = asms.Sum(_ => _.Modules.Count);
+            progressMod = 0;
             foreach (AssemblyDefinition asm in asms)
                 foreach (ModuleDefinition mod in asm.Modules)
+                {
                     Init(mod);
+                    progressMod++;
+                }
 
+            Logger._Log("> Analyzing IVT attributes...");
             AnalyzeIvtMap(asms);
             foreach (AssemblyDefinition asm in asms)
             {
@@ -27,18 +36,38 @@ namespace Confuser.Core.Analyzers
                 }
                 catch { }
                 foreach (ModuleDefinition mod in asm.Modules)
+                {
+                    Logger._Log("> Analyzing " + mod.Name + "...");
+                    Logger._Progress(0, 1);
                     Analyze(mod);
+                }
             }
+
+            Logger._Log("> Analyzing virtual inheritance...");
+            progressMod = 0;
             foreach (AssemblyDefinition asm in asms)
                 foreach (ModuleDefinition mod in asm.Modules)
+                {
+                    int p = 1;
                     foreach (TypeDefinition type in mod.Types)
+                    {
                         ConstructVTable(type);
+                        Logger._Progress(mod.Types.Count * progressMod + p, mod.Types.Count * (modCount + 1));
+                        p++;
+                    }
+                    progressMod++;
+                }
         }
         void Init(ModuleDefinition mod)
         {
             (mod as IAnnotationProvider).Annotations["RenMode"] = NameMode.Unreadable;
+            int p = 1;
             foreach (TypeDefinition type in mod.Types)
+            {
                 Init(type);
+                Logger._Progress(mod.Types.Count * progressMod + p, mod.Types.Count * (modCount + 1));
+                p++;
+            }
             foreach (Resource res in mod.Resources)
             {
                 (res as IAnnotationProvider).Annotations["RenId"] = new Identifier() { scope = res.Name, hash = res.GetHashCode() };
@@ -97,8 +126,13 @@ namespace Confuser.Core.Analyzers
             for (int i = 0; i < mod.Resources.Count; i++)
                 if (mod.Resources[i].Name.EndsWith(".g.resources") && mod.Resources[i] is EmbeddedResource)
                     AnalyzeResource(mod, i);
+            int p = 1;
             foreach (TypeDefinition type in mod.Types)
+            {
                 Analyze(type);
+                Logger._Progress(p, mod.Types.Count);
+                p++;
+            }
         }
         void Analyze(TypeDefinition type)
         {
