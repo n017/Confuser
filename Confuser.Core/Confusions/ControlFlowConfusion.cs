@@ -222,7 +222,6 @@ namespace Confuser.Core.Confusions
             double trueLv = slv / 10.0;
 
             MethodBody body = method.Body;
-            body.SimplifyMacros();
             body.ComputeHeader();
             body.MaxStackSize += 5;
             Dictionary<Instruction, Level> Ids = GetIds(body);
@@ -278,7 +277,6 @@ namespace Confuser.Core.Confusions
                 //}
             }
 
-            //bdy.OptimizeMacros();
             body.ComputeOffsets();
             body.PreserveMaxStackSize = true;
         }

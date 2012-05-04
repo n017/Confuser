@@ -327,21 +327,23 @@ namespace Mono.Cecil.Rocks {
 
 		static void OptimizeBranches (MethodBody body)
 		{
-			ComputeOffsets (body.instructions[0], 0);
+			ComputeOffsets (body, 0);
 
-			foreach (var instruction in body.Instructions) {
+			for (int i = 0; i < body.Instructions.Count; i++) {
+                var instruction = body.Instructions[i];
 				if (instruction.OpCode.OperandType != OperandType.InlineBrTarget)
 					continue;
 
-				OptimizeBranch (instruction);
+				if (OptimizeBranch (instruction))
+					ComputeOffsets (body, i);
 			}
 		}
 
-		static void OptimizeBranch (Instruction instruction)
+		static bool OptimizeBranch (Instruction instruction)
 		{
 			var offset = ((Instruction) instruction.Operand).Offset - (instruction.Offset + instruction.OpCode.Size + 4);
 			if (!(offset >= -128 && offset <= 127))
-				return;
+				return false;
 
 			switch (instruction.OpCode.Code) {
 			case Code.Br:
@@ -388,26 +390,19 @@ namespace Mono.Cecil.Rocks {
 				break;
 			}
 
-			Instruction first = offset >= 0 ? instruction : (Instruction)instruction.Operand;
-			ComputeOffsets (first, first.Offset);
+			return true;
 		}
 
-		static void ComputeOffsets (MethodBody body)
+		static void ComputeOffsets (MethodBody body, int index)
 		{
 			var offset = 0;
-			foreach (var instruction in body.Instructions) {
+            if (index > 0)
+                offset = body.Instructions[index - 1].offset + body.Instructions[index - 1].GetSize();
+			for (int i = index; i < body.Instructions.Count; i++) {
+                var instruction = body.Instructions[i];
 				instruction.Offset = offset;
 				offset += instruction.GetSize ();
 			}
-		}
-
-		static void ComputeOffsets (Instruction instr, int offset)
-		{
-			do {
-				instr.Offset = offset;
-				offset += instr.GetSize ();
-				instr = instr.Next;
-			} while (instr != null);
 		}
 	}
 }

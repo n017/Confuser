@@ -160,7 +160,7 @@ namespace Confuser.Core.Analyzers
                     var p = GetProperty(name, out hasImport);
                     if (p != null)
                         foreach (var prop in p)
-                            (prop as IAnnotationProvider).Annotations["RenOk"] = false;
+                            (prop as IAnnotationProvider).Annotations[RenOk] = false;
                     //if (p != null && prevSym == '.')
                     //{
                     //    var specProp = p.SingleOrDefault(_ => _.DeclaringType.Name == prev);
@@ -168,14 +168,14 @@ namespace Confuser.Core.Analyzers
                     //    {
                     //        BamlPathReference refer = new BamlPathReference(rec, idx, i - 1);
                     //        refers.Add(refer);
-                    //        ((specProp as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(refer);
+                    //        ((specProp as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(refer);
                     //    }
                     //    else
                     //        foreach (var prop in p)
                     //        {
                     //            BamlPathReference refer = new BamlPathReference(rec, idx, i - 1);
                     //            refers.Add(refer);
-                    //            ((prop as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(refer);
+                    //            ((prop as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(refer);
                     //        }
                     //}
 
@@ -199,11 +199,11 @@ namespace Confuser.Core.Analyzers
                 //    {
                 //        BamlPathReference refer = new BamlPathReference(rec, idx, path.Length - 1);
                 //        refers.Add(refer);
-                //        ((prop as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(refer);
+                //        ((prop as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(refer);
                 //    }
                 if (p != null)
                     foreach (var prop in p)
-                        (prop as IAnnotationProvider).Annotations["RenOk"] = false;
+                        (prop as IAnnotationProvider).Annotations[RenOk] = false;
             }
             else
             {
@@ -215,11 +215,11 @@ namespace Confuser.Core.Analyzers
                 //    {
                 //        BamlPathReference refer = new BamlPathReference(rec, idx, path.Length - 1);
                 //        refers.Add(refer);
-                //        ((prop as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(refer);
+                //        ((prop as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(refer);
                 //    }
                 if (p != null)
                     foreach (var prop in p)
-                        (prop as IAnnotationProvider).Annotations["RenOk"] = false;
+                        (prop as IAnnotationProvider).Annotations[RenOk] = false;
             }
 
             foreach (var i in refers)
@@ -251,7 +251,7 @@ namespace Confuser.Core.Analyzers
                 {
                     cc++;
                     BamlDocument doc = BamlReader.ReadDocument(stream);
-                    (mod as IAnnotationProvider).Annotations["RenMode"] = NameMode.Letters;
+                    (mod as IAnnotationProvider).Annotations[RenMode] = NameMode.Letters;
 
                     for (int i = 0; i < doc.Count; i++)
                     {
@@ -301,7 +301,7 @@ namespace Confuser.Core.Analyzers
                             if (type != null)
                             {
                                 types.Add(rec.TypeId, type);
-                                ((type as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new BamlTypeReference(rec));
+                                ((type as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new BamlTypeReference(rec));
                             }
                         }
 
@@ -317,12 +317,12 @@ namespace Confuser.Core.Analyzers
                             PropertyDefinition prop = types[rec.OwnerTypeId].Properties.FirstOrDefault(p => p.Name == rec.Name);
                             if (prop != null)
                             {
-                                ((prop as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new BamlAttributeReference(rec));
+                                ((prop as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new BamlAttributeReference(rec));
                             }
                             FieldDefinition field = types[rec.OwnerTypeId].Fields.FirstOrDefault(p => p.Name == rec.Name);
                             if (field != null)
                             {
-                                ((field as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new BamlAttributeReference(rec));
+                                ((field as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new BamlAttributeReference(rec));
                             }
                         }
                         ps.Add(rec.AttributeId, rec.Name);
@@ -347,7 +347,7 @@ namespace Confuser.Core.Analyzers
                             TypeDefinition typeDef;
                             if ((typeDef = ResolveXmlns(xmlNamespace, type, mod.Assembly, assemblies)) != null)
                             {
-                                ((typeDef as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new BamlTypeExtReference(rec, doc, typeDef.Module.Assembly.Name.Name));
+                                ((typeDef as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new BamlTypeExtReference(rec, doc, typeDef.Module.Assembly.Name.Name));
                             }
                         }
                         if (rec.ConverterTypeId == 0xff77 || rec.ConverterTypeId == 0xfe14 || rec.ConverterTypeId == 0xfd99)
@@ -384,7 +384,7 @@ namespace Confuser.Core.Analyzers
                             if (!(rec.Value is string)) continue;
                             if (mems.ContainsKey((string)rec.Value))
                             {
-                                ((mems[(string)rec.Value] as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new BamlPropertyReference(rec));
+                                ((mems[(string)rec.Value] as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new BamlPropertyReference(rec));
                             }
                         }
                     }
@@ -393,7 +393,7 @@ namespace Confuser.Core.Analyzers
                 }
             }
             if (cc != 0)
-                ((res as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new SaveBamlsReference(mod, resId));
+                ((res as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new SaveBamlsReference(mod, resId));
             else
                 System.Diagnostics.Debugger.Break();
         }

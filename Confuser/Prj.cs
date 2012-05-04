@@ -65,6 +65,20 @@ namespace Confuser
 
         public T Object { get; private set; }
 
+        SettingItemAction action;
+        public SettingItemAction Action
+        {
+            get { return action; }
+            set
+            {
+                if (action != value)
+                {
+                    action = value;
+                    OnPropertyChanged(new PropertyChangedEventArgs("Action"));
+                }
+            }
+        }
+
         protected override void OnPropertyChanged(PropertyChangedEventArgs e)
         {
             if (parent != null) parent.OnChildChanged();
@@ -82,6 +96,7 @@ namespace Confuser
                 ret.Id = (Object as Packer).ID;
             else
                 ret.Id = (Object as IConfusion).ID;
+            ret.Action = action;
             foreach (var i in this)
                 ret.Add(i.Name, i.Value);
             return ret;
@@ -93,6 +108,7 @@ namespace Confuser
             if (cfg == null) return false;
             if (!cfg.Object.Equals(this.Object)) return false;
             if (cfg.Count != this.Count) return false;
+            if (cfg.action != this.action) return false;
             for (int i = 0; i < this.Count; i++)
                 if (cfg[i].Name != this[i].Name ||
                     cfg[i].Value != this[i].Value) return false;
@@ -101,7 +117,7 @@ namespace Confuser
 
         public override int GetHashCode()
         {
-            int ret = Object.GetHashCode();
+            int ret = Object.GetHashCode() ^ (int)action;
             for (int i = 0; i < this.Count; i++)
                 ret ^= this[i].Name.GetHashCode() ^ this[i].Value.GetHashCode();
             return ret;
@@ -115,6 +131,20 @@ namespace Confuser
             this.parent = parent;
         }
 
+        Preset preset;
+        public Preset Preset
+        {
+            get { return preset; }
+            set
+            {
+                if (preset != value)
+                {
+                    preset = value;
+                    OnPropertyChanged(new PropertyChangedEventArgs("Preset"));
+                }
+            }
+        }
+
         bool apply;
         public bool ApplyToMembers
         {
@@ -125,6 +155,20 @@ namespace Confuser
                 {
                     apply = value;
                     OnPropertyChanged(new PropertyChangedEventArgs("ApplyToMembers"));
+                }
+            }
+        }
+
+        bool inherit;
+        public bool Inherit
+        {
+            get { return inherit; }
+            set
+            {
+                if (inherit != value)
+                {
+                    inherit = value;
+                    OnPropertyChanged(new PropertyChangedEventArgs("Inherit"));
                 }
             }
         }
@@ -145,6 +189,8 @@ namespace Confuser
         {
             PrjSettings ret = new PrjSettings(parent);
             ret.apply = apply;
+            ret.inherit = inherit;
+            ret.preset = preset;
             foreach (PrjConfig<IConfusion> i in this)
             {
                 PrjConfig<IConfusion> n = new PrjConfig<IConfusion>(i.Object, ret);
@@ -159,6 +205,7 @@ namespace Confuser
         {
             ObfSettings ret = new ObfSettings();
             ret.Name = name;
+            ret.Preset = Preset;
             foreach (var i in this)
                 ret.Add(i.ToCrConfig());
             return ret;
@@ -166,6 +213,7 @@ namespace Confuser
         public void FromCrSettings(Prj prj, ObfSettings settings)
         {
             name = settings.Name;
+            preset = settings.Preset;
             foreach (var i in settings)
             {
                 PrjConfig<IConfusion> cfg = new PrjConfig<IConfusion>(prj.Confusions.Single(_ => _.ID == i.Id), this);
@@ -179,6 +227,7 @@ namespace Confuser
         {
             ObfConfig ret = new ObfConfig();
             ret.ApplyToMembers = apply;
+            ret.Inherit = inherit;
             ret.Id = name;
             return ret;
         }
@@ -186,8 +235,9 @@ namespace Confuser
         public override bool Equals(object obj)
         {
             PrjSettings settings = obj as PrjSettings;
-            if (settings == null) return false; //Don't compare ApplyToMember
+            if (settings == null) return false; //Don't compare ApplyToMember/Inherit
             if (settings.Count != this.Count) return false;
+            if (settings.Preset != this.Preset) return false;
             for (int i = 0; i < this.Count; i++)
                 if (!settings[i].Equals(this[i])) return false;
             return true;
@@ -195,7 +245,7 @@ namespace Confuser
 
         public override int GetHashCode()
         {
-            int ret = 0;
+            int ret = (int)Preset;
             for (int i = 0; i < this.Count; i++)
                 ret ^= this[i].GetHashCode();
             return ret;
@@ -296,6 +346,7 @@ namespace Confuser
             {
                 this.settings = settings[asm.Config.Id].Clone(this);
                 this.settings.ApplyToMembers = asm.Config.ApplyToMembers;
+                this.settings.Inherit = asm.Config.Inherit;
             }
             foreach (var i in asm)
             {
@@ -415,8 +466,9 @@ namespace Confuser
             {
                 this.settings = settings[mod.Config.Id].Clone(this);
                 this.settings.ApplyToMembers = mod.Config.ApplyToMembers;
+                this.settings.Inherit = mod.Config.Inherit;
             }
-            else if ((parent as PrjAssembly).Settings.ApplyToMembers)
+            else if ((parent as PrjAssembly).Settings != null && (parent as PrjAssembly).Settings.ApplyToMembers)
                 this.settings = (parent as PrjAssembly).Settings.Clone(this);
             var modDef = (parent as PrjAssembly).Assembly.Modules.Single(_ => _.Name == mod.Name);
             foreach (var i in mod)
@@ -428,9 +480,10 @@ namespace Confuser
                 {
                     type.Settings = settings[i.Config.Id].Clone(type);
                     type.Settings.ApplyToMembers = i.Config.ApplyToMembers;
+                    type.Settings.Inherit = i.Config.Inherit;
                     prj.DefaultPreset = PrjPreset.Undefined;
                 }
-                else if (this.settings.ApplyToMembers)
+                else if (this.settings != null && this.settings.ApplyToMembers)
                     type.Settings = this.settings.Clone(type);
                 this.Add(type);
 
@@ -443,9 +496,10 @@ namespace Confuser
                     {
                         mem.Settings = settings[j.Config.Id].Clone(mem);
                         mem.Settings.ApplyToMembers = j.Config.ApplyToMembers;
+                        mem.Settings.Inherit = j.Config.Inherit;
                         prj.DefaultPreset = PrjPreset.Undefined;
                     }
-                    else if (type.Settings.ApplyToMembers)
+                    else if (type.Settings != null && type.Settings.ApplyToMembers)
                         mem.Settings = type.Settings.Clone(type);
                     this.Add(mem);
                 }

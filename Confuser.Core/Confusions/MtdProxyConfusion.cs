@@ -113,6 +113,16 @@ namespace Confuser.Core.Confusions
             {
                 _Context txt = mc.txts[mod];
                 txt.isNative = parameter.GlobalParameters["type"] == "native";
+                bool onlyExternal = true;
+                if (Array.IndexOf(parameter.GlobalParameters.AllKeys, "onlyExternal") != -1)
+                {
+                    if (!bool.TryParse(parameter.GlobalParameters["onlyExternal"], out onlyExternal))
+                    {
+                        Log("Invaild onlyExternal parameter, only external reference will be proxied.");
+                        onlyExternal = true;
+                    }
+                }
+
                 IList<Tuple<IAnnotationProvider, NameValueCollection>> targets = parameter.Target as IList<Tuple<IAnnotationProvider, NameValueCollection>>;
                 for (int i = 0; i < targets.Count; i++)
                 {
@@ -123,16 +133,17 @@ namespace Confuser.Core.Confusions
                     foreach (Instruction inst in bdy.Instructions)
                     {
                         if ((inst.OpCode.Code == Code.Call || inst.OpCode.Code == Code.Callvirt) &&
+                            (!onlyExternal || !(inst.Operand is MethodDefinition)) &&
 
                             (inst.Operand as MethodReference).Name != ".ctor" && (inst.Operand as MethodReference).Name != ".cctor" &&  //no constructor
 
                             !((inst.Operand as MethodReference).DeclaringType is GenericInstanceType) &&                                //no generic
 
                             ((inst.Operand as MethodReference).DeclaringType.Resolve() == null ||
-                             !(inst.Operand as MethodReference).DeclaringType.Resolve().IsInterface) &&                                  //no interface
+                             !(inst.Operand as MethodReference).DeclaringType.Resolve().IsInterface) &&                                 //no interface
 
                             (!(inst.Operand is MethodDefinition) ||
-                             (inst.Operand as MethodDefinition).ImplAttributes != MethodImplAttributes.Native) &&                           //no native
+                             (inst.Operand as MethodDefinition).ImplAttributes != MethodImplAttributes.Native) &&                       //no native
 
                             (inst.Previous == null || inst.Previous.OpCode.OpCodeType != OpCodeType.Prefix))                            //no prefix
                         {
@@ -401,17 +412,17 @@ namespace Confuser.Core.Confusions
                 MemoryStream ms = new MemoryStream();
                 using (BinaryWriter wtr = new BinaryWriter(ms))
                 {
-                    wtr.Write(new byte[] { 0x89, 0xe0             });   //   mov eax, esp
-                    wtr.Write(new byte[] { 0x53                   });   //   push ebx
-                    wtr.Write(new byte[] { 0x57                   });   //   push edi
-                    wtr.Write(new byte[] { 0x56                   });   //   push esi
-                    wtr.Write(new byte[] { 0x29, 0xe0             });   //   sub eax, esp
-                    wtr.Write(new byte[] { 0x83, 0xf8, 0x18       });   //   cmp eax, 24
-                    wtr.Write(new byte[] { 0x74, 0x07             });   //   je n
+                    wtr.Write(new byte[] { 0x89, 0xe0 });   //   mov eax, esp
+                    wtr.Write(new byte[] { 0x53 });   //   push ebx
+                    wtr.Write(new byte[] { 0x57 });   //   push edi
+                    wtr.Write(new byte[] { 0x56 });   //   push esi
+                    wtr.Write(new byte[] { 0x29, 0xe0 });   //   sub eax, esp
+                    wtr.Write(new byte[] { 0x83, 0xf8, 0x18 });   //   cmp eax, 24
+                    wtr.Write(new byte[] { 0x74, 0x07 });   //   je n
                     wtr.Write(new byte[] { 0x8b, 0x44, 0x24, 0x10 });   //   mov eax, [esp + 4]
-                    wtr.Write(new byte[] { 0x50                   });   //   push eax
-                    wtr.Write(new byte[] { 0xeb, 0x01             });   //   jmp z
-                    wtr.Write(new byte[] { 0x51                   });   //n: push ecx
+                    wtr.Write(new byte[] { 0x50 });   //   push eax
+                    wtr.Write(new byte[] { 0xeb, 0x01 });   //   jmp z
+                    wtr.Write(new byte[] { 0x51 });   //n: push ecx
                     x86Register ret;                                    //z: 
                     var insts = _txt.visitor.GetInstructions(out ret);
                     foreach (var i in insts)

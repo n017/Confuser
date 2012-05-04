@@ -297,9 +297,10 @@ namespace Mono.Cecil.Cil {
                 int offset = 0;
                 for (int i = 0; i < this.Count; i++)
                 {
-                    this[i].Offset = offset;
-                    this[i].Previous = (i == 0 ? null : this[i - 1]);
-                    this[i].Next = (i == this.Count - 1 ? null : this[i + 1]);
+                    this[i].index = i;
+                    this[i].offset = offset;
+                    this[i].previous = (i == 0 ? null : this[i - 1]);
+                    this[i].next = (i == this.Count - 1 ? null : this[i + 1]);
                     offset += this[i].GetSize();
                 }
             }

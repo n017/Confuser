@@ -19,6 +19,16 @@ namespace Confuser.Console
             WriteLine("Confuser Version v" + typeof(Core.Confuser).Assembly.GetName().Version);
             WriteLine();
 
+#if DEBUG
+            for (int i = 0; i < 3; i++)
+            {
+                System.Console.Write('.');
+                System.Threading.Thread.Sleep(1000);
+            }
+            WriteLine();
+#endif
+
+
             try
             {
                 if (args.Length != 1)

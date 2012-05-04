@@ -113,6 +113,16 @@ namespace Confuser.Core.Confusions
             {
                 _Context txt = cc.txts[mod];
                 txt.isNative = parameter.GlobalParameters["type"] == "native";
+                bool onlyExternal = true;
+                if (Array.IndexOf(parameter.GlobalParameters.AllKeys, "onlyExternal") != -1)
+                {
+                    if (!bool.TryParse(parameter.GlobalParameters["onlyExternal"], out onlyExternal))
+                    {
+                        Log("Invaild onlyExternal parameter, only external reference will be proxied.");
+                        onlyExternal = true;
+                    }
+                }
+
                 IList<Tuple<IAnnotationProvider, NameValueCollection>> targets = parameter.Target as IList<Tuple<IAnnotationProvider, NameValueCollection>>;
                 for (int i = 0; i < targets.Count; i++)
                 {
@@ -123,6 +133,7 @@ namespace Confuser.Core.Confusions
                     foreach (Instruction inst in bdy.Instructions)
                     {
                         if (inst.OpCode.Code == Code.Newobj &&
+                            (!onlyExternal || !(inst.Operand is MethodDefinition)) &&
                             !((inst.Operand as MethodReference).DeclaringType is GenericInstanceType) &&
                             !(inst.Operand is GenericInstanceMethod))
                         {

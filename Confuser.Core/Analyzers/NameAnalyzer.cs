@@ -10,6 +10,11 @@ namespace Confuser.Core.Analyzers
 {
     partial class NameAnalyzer : Analyzer
     {
+        public static readonly object RenMode = new object();
+        public static readonly object RenOk = new object();
+        public static readonly object RenId = new object();
+        public static readonly object RenRef = new object();
+
         Dictionary<TypeDefinition, VTable> vTbls = new Dictionary<TypeDefinition, VTable>();
 
         int modCount;
@@ -60,7 +65,7 @@ namespace Confuser.Core.Analyzers
         }
         void Init(ModuleDefinition mod)
         {
-            (mod as IAnnotationProvider).Annotations["RenMode"] = NameMode.Unreadable;
+            (mod as IAnnotationProvider).Annotations[RenMode] = NameMode.Unreadable;
             int p = 1;
             foreach (TypeDefinition type in mod.Types)
             {
@@ -70,40 +75,40 @@ namespace Confuser.Core.Analyzers
             }
             foreach (Resource res in mod.Resources)
             {
-                (res as IAnnotationProvider).Annotations["RenId"] = new Identifier() { scope = res.Name, hash = res.GetHashCode() };
-                (res as IAnnotationProvider).Annotations["RenRef"] = new List<IReference>();
+                (res as IAnnotationProvider).Annotations[RenId] = new Identifier() { scope = res.Name, hash = res.GetHashCode() };
+                (res as IAnnotationProvider).Annotations[RenRef] = new List<IReference>();
             }
         }
         void Init(TypeDefinition type)
         {
             foreach (TypeDefinition nType in type.NestedTypes)
                 Init(nType);
-            (type as IAnnotationProvider).Annotations["RenId"] = new Identifier() { scope = CecilHelper.GetNamespace(type), name = CecilHelper.GetName(type) };
-            (type as IAnnotationProvider).Annotations["RenRef"] = new List<IReference>();
-            (type as IAnnotationProvider).Annotations["RenOk"] = true;
+            (type as IAnnotationProvider).Annotations[RenId] = new Identifier() { scope = CecilHelper.GetNamespace(type), name = CecilHelper.GetName(type) };
+            (type as IAnnotationProvider).Annotations[RenRef] = new List<IReference>();
+            (type as IAnnotationProvider).Annotations[RenOk] = true;
             foreach (MethodDefinition mtd in type.Methods)
             {
-                (mtd as IAnnotationProvider).Annotations["RenId"] = new Identifier() { scope = type.FullName, name = mtd.Name, hash = mtd.GetHashCode() };
-                (mtd as IAnnotationProvider).Annotations["RenRef"] = new List<IReference>();
-                (mtd as IAnnotationProvider).Annotations["RenOk"] = true;
+                (mtd as IAnnotationProvider).Annotations[RenId] = new Identifier() { scope = type.FullName, name = mtd.Name, hash = mtd.GetHashCode() };
+                (mtd as IAnnotationProvider).Annotations[RenRef] = new List<IReference>();
+                (mtd as IAnnotationProvider).Annotations[RenOk] = true;
             }
             foreach (FieldDefinition fld in type.Fields)
             {
-                (fld as IAnnotationProvider).Annotations["RenId"] = new Identifier() { scope = type.FullName, name = fld.Name, hash = fld.GetHashCode() };
-                (fld as IAnnotationProvider).Annotations["RenRef"] = new List<IReference>();
-                (fld as IAnnotationProvider).Annotations["RenOk"] = true;
+                (fld as IAnnotationProvider).Annotations[RenId] = new Identifier() { scope = type.FullName, name = fld.Name, hash = fld.GetHashCode() };
+                (fld as IAnnotationProvider).Annotations[RenRef] = new List<IReference>();
+                (fld as IAnnotationProvider).Annotations[RenOk] = true;
             }
             foreach (PropertyDefinition prop in type.Properties)
             {
-                (prop as IAnnotationProvider).Annotations["RenId"] = new Identifier() { scope = type.FullName, name = prop.Name, hash = prop.GetHashCode() };
-                (prop as IAnnotationProvider).Annotations["RenRef"] = new List<IReference>();
-                (prop as IAnnotationProvider).Annotations["RenOk"] = true;
+                (prop as IAnnotationProvider).Annotations[RenId] = new Identifier() { scope = type.FullName, name = prop.Name, hash = prop.GetHashCode() };
+                (prop as IAnnotationProvider).Annotations[RenRef] = new List<IReference>();
+                (prop as IAnnotationProvider).Annotations[RenOk] = true;
             }
             foreach (EventDefinition evt in type.Events)
             {
-                (evt as IAnnotationProvider).Annotations["RenId"] = new Identifier() { scope = type.FullName, name = evt.Name, hash = evt.GetHashCode() };
-                (evt as IAnnotationProvider).Annotations["RenRef"] = new List<IReference>();
-                (evt as IAnnotationProvider).Annotations["RenOk"] = true;
+                (evt as IAnnotationProvider).Annotations[RenId] = new Identifier() { scope = type.FullName, name = evt.Name, hash = evt.GetHashCode() };
+                (evt as IAnnotationProvider).Annotations[RenRef] = new List<IReference>();
+                (evt as IAnnotationProvider).Annotations[RenOk] = true;
             }
         }
 
@@ -137,10 +142,10 @@ namespace Confuser.Core.Analyzers
         void Analyze(TypeDefinition type)
         {
             if (type.Name == "<Module>" || IsTypePublic(type))
-                (type as IAnnotationProvider).Annotations["RenOk"] = false;
+                (type as IAnnotationProvider).Annotations[RenOk] = false;
             foreach (Resource res in (type.Scope as ModuleDefinition).Resources)
                 if (res.Name == type.FullName + ".resources")
-                    ((type as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new ResourceReference(res));
+                    ((type as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new ResourceReference(res));
 
             AnalyzeCustomAttributes(type);
             if (type.HasGenericParameters)
@@ -161,14 +166,14 @@ namespace Confuser.Core.Analyzers
         {
             if (mtd.IsConstructor || (IsTypePublic(mtd.DeclaringType) &&
                 (mtd.IsFamily || mtd.IsAssembly || mtd.IsFamilyAndAssembly || mtd.IsFamilyOrAssembly || mtd.IsPublic)))
-                (mtd as IAnnotationProvider).Annotations["RenOk"] = false;
+                (mtd as IAnnotationProvider).Annotations[RenOk] = false;
             else if (mtd.DeclaringType.BaseType != null && mtd.DeclaringType.BaseType.Resolve() != null)
             {
                 TypeReference bType = mtd.DeclaringType.BaseType;
                 if (bType.FullName == "System.Delegate" ||
                     bType.FullName == "System.MulticastDelegate")
                 {
-                    (mtd as IAnnotationProvider).Annotations["RenOk"] = false;
+                    (mtd as IAnnotationProvider).Annotations[RenOk] = false;
                 }
             }
 
@@ -182,9 +187,7 @@ namespace Confuser.Core.Analyzers
                     AnalyzeCustomAttributes(i);
             if (mtd.HasBody)
             {
-                mtd.Body.SimplifyMacros();
                 AnalyzeCodes(mtd);
-                mtd.Body.OptimizeMacros();
             }
         }
         void Analyze(FieldDefinition fld)
@@ -192,19 +195,19 @@ namespace Confuser.Core.Analyzers
             AnalyzeCustomAttributes(fld);
             if (fld.IsRuntimeSpecialName || fld.DeclaringType.IsEnum || (IsTypePublic(fld.DeclaringType) &&
                 (fld.IsFamily || fld.IsFamilyAndAssembly || fld.IsFamilyOrAssembly || fld.IsPublic)))
-                (fld as IAnnotationProvider).Annotations["RenOk"] = false;
+                (fld as IAnnotationProvider).Annotations[RenOk] = false;
         }
         void Analyze(PropertyDefinition prop)
         {
             AnalyzeCustomAttributes(prop);
             if (prop.IsRuntimeSpecialName || IsTypePublic(prop.DeclaringType))
-                (prop as IAnnotationProvider).Annotations["RenOk"] = false;
+                (prop as IAnnotationProvider).Annotations[RenOk] = false;
         }
         void Analyze(EventDefinition evt)
         {
             AnalyzeCustomAttributes(evt);
             if (evt.IsRuntimeSpecialName || IsTypePublic(evt.DeclaringType))
-                (evt as IAnnotationProvider).Annotations["RenOk"] = false;
+                (evt as IAnnotationProvider).Annotations[RenOk] = false;
         }
 
         void AnalyzeCustomAttributes(ICustomAttributeProvider ca)
@@ -214,13 +217,35 @@ namespace Confuser.Core.Analyzers
             {
                 foreach (var arg in i.ConstructorArguments)
                     AnalyzeCustomAttributeArgs(arg);
+
+                int idx = 0;
                 foreach (var arg in i.Fields)
+                {
+                    FieldDefinition field;
+                    if (i.AttributeType is TypeDefinition &&
+                       (field = (i.AttributeType as TypeDefinition).Fields.Single(_ => _.Name == arg.Name)) != null)
+                        ((field as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(
+                            new CustomAttributeMemberReference(i, idx, true));
+                        
                     AnalyzeCustomAttributeArgs(arg.Argument);
+                    idx++;
+                }
+
+                idx = 0;
                 foreach (var arg in i.Properties)
+                {
+                    PropertyDefinition prop;
+                    if (i.AttributeType is TypeDefinition &&
+                       (prop = (i.AttributeType as TypeDefinition).Properties.Single(_ => _.Name == arg.Name)) != null)
+                        ((prop as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(
+                            new CustomAttributeMemberReference(i, idx, false));
+
                     AnalyzeCustomAttributeArgs(arg.Argument);
+                    idx++;
+                }
 
                 if (Database.ExcludeAttributes.Contains(i.AttributeType.FullName) && ca is IAnnotationProvider)
-                    (ca as IAnnotationProvider).Annotations["RenOk"] = false;
+                    (ca as IAnnotationProvider).Annotations[RenOk] = false;
             }
         }
         void AnalyzeCustomAttributeArgs(CustomAttributeArgument arg)
@@ -236,7 +261,7 @@ namespace Confuser.Core.Analyzers
                         break;
                     }
                 if (has)
-                    (((arg.Value as TypeReference).Resolve() as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new CustomAttributeReference(arg.Value as TypeReference));
+                    (((arg.Value as TypeReference).Resolve() as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new CustomAttributeTypeReference(arg.Value as TypeReference));
             }
             else if (arg.Value is CustomAttributeArgument[])
                 foreach (var i in arg.Value as CustomAttributeArgument[])

@@ -65,15 +65,15 @@ namespace Confuser.Core.Analyzers
                 {
                     TypeDefinition typeDef = typeRef.Resolve();
                     if (typeDef != null && ivts.Contains(typeDef.Module.Assembly.FullName))
-                        (typeDef as IAnnotationProvider).Annotations["RenOk"] = false;
+                        (typeDef as IAnnotationProvider).Annotations[RenOk] = false;
                 }
                 foreach (MemberReference memRef in mod.GetMemberReferences())
                 {
                     IMemberDefinition memDef;
                     if (memRef is MethodReference && (memDef = ((MethodReference)memRef).Resolve()) != null && ivts.Contains(((MethodDefinition)memDef).Module.Assembly.FullName))
-                        (memDef as IAnnotationProvider).Annotations["RenOk"] = false;
+                        (memDef as IAnnotationProvider).Annotations[RenOk] = false;
                     if (memRef is FieldReference && (memDef = ((FieldReference)memRef).Resolve()) != null && ivts.Contains(((FieldDefinition)memDef).Module.Assembly.FullName))
-                        (memDef as IAnnotationProvider).Annotations["RenOk"] = false;
+                        (memDef as IAnnotationProvider).Annotations[RenOk] = false;
                 }
             }
         }

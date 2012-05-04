@@ -330,6 +330,7 @@ namespace Mono.Cecil.Cil {
 			for (int i = 0; i < count; i++) {
 				var instruction = items [i];
 				instruction.offset = offset;
+                instruction.index = i;
 				offset += instruction.GetSize ();
 
 				ComputeStackSize (instruction, ref stack_sizes, ref stack_size, ref max_stack);

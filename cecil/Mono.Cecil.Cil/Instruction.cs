@@ -33,7 +33,8 @@ namespace Mono.Cecil.Cil {
 
 	public sealed class Instruction {
 
-		internal int offset;
+        internal int offset;
+        internal int index;
 		internal OpCode opcode;
 		internal object operand;
 
@@ -41,6 +42,11 @@ namespace Mono.Cecil.Cil {
 		internal Instruction next;
 
 		SequencePoint sequence_point;
+
+		public int Index {
+            get { return index; }
+            set { index = value; }
+		}
 
 		public int Offset {
 			get { return offset; }

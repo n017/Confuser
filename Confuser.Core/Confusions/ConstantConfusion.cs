@@ -221,8 +221,6 @@ namespace Confuser.Core.Confusions
                     else if (inst.Operand is int && (int)inst.Operand == 55)
                         inst.Operand = (int)txt.types[4];
                 }
-                txt.strer.Body.OptimizeMacros();
-                txt.strer.Body.ComputeOffsets();
 
                 txt.resId = Encoding.UTF8.GetString(n);
             }
@@ -296,7 +294,6 @@ namespace Confuser.Core.Confusions
                     MethodDefinition mtd = tuple.Item1 as MethodDefinition;
                     if (mtd == cc.txts[mod].strer || !mtd.HasBody) continue;
                     var bdy = mtd.Body;
-                    bdy.SimplifyMacros();
                     var insts = bdy.Instructions;
                     ILProcessor psr = bdy.GetILProcessor();
                     bool hasDat = false;
@@ -312,7 +309,6 @@ namespace Confuser.Core.Confusions
                             txts.Add(new Context() { mtd = mtd, psr = psr, str = insts[i] });
                         }
                     }
-                    if (!hasDat) bdy.OptimizeMacros();
                 }
             }
             byte[] GetOperand(object operand, out byte type)
@@ -386,8 +382,7 @@ namespace Confuser.Core.Confusions
                 {
                     if (hashs.IndexOf(txts[i].mtd.GetHashCode()) == -1)
                     {
-                        txts[i].mtd.Body.OptimizeMacros();
-                        txts[i].mtd.Body.ComputeHeader();
+                        txts[i].mtd.Body.MaxStackSize++;
                         hashs.Add(txts[i].mtd.GetHashCode());
                     }
                 }
@@ -469,8 +464,6 @@ namespace Confuser.Core.Confusions
                         ldloc
                     }).GetInstructions());
                 }
-                txt.strer.Body.OptimizeMacros();
-                txt.strer.Body.ComputeOffsets();
 
                 FinalizeBodies(txts, ids);
             }

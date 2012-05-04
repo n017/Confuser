@@ -95,7 +95,7 @@ namespace Confuser.Core
                 {
                     settings = new ObfSettings();
                     foreach (var i in this.cr.confusions)
-                        if (i.Preset >= this.cr.param.Project.DefaultPreset)
+                        if (i.Preset <= this.cr.param.Project.DefaultPreset)
                             settings.Add(new SettingItem<IConfusion>() { Id = i.ID });
                 }
                 settings.Name = "packerSettings";

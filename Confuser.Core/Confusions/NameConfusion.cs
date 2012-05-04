@@ -44,7 +44,7 @@ namespace Confuser.Core.Confusions
                     scope = string.IsNullOrEmpty(cult) ? res.Name.Substring(0, res.Name.LastIndexOf('.')) : res.Name.Substring(0, res.Name.LastIndexOf('.', res.Name.LastIndexOf('.') - 1)),
                     name = string.IsNullOrEmpty(cult) ? res.Name.Substring(res.Name.LastIndexOf('.') + 1) : res.Name.Substring(res.Name.LastIndexOf('.', res.Name.LastIndexOf('.') - 1) + 1)
                 };
-                foreach (IReference refer in (res as IAnnotationProvider).Annotations["RenRef"] as List<IReference>)
+                foreach (IReference refer in (res as IAnnotationProvider).Annotations[NameAnalyzer.RenRef] as List<IReference>)
                 {
                     refer.UpdateReference(id, id);
                 }
@@ -53,21 +53,33 @@ namespace Confuser.Core.Confusions
 
         bool GetRenOk(IAnnotationProvider provider)
         {
-            if (provider.Annotations["RenOk"] != null)
-                return (bool)provider.Annotations["RenOk"];
+            if (provider.Annotations[NameAnalyzer.RenOk] != null)
+                return (bool)provider.Annotations[NameAnalyzer.RenOk];
             else
                 return false;
+        }
+        bool GetCancel(IAnnotationProvider provider)
+        {
+            if (provider.Annotations[NameAnalyzer.RenRef] == null)
+                return false;
+            foreach (IReference refer in provider.Annotations[NameAnalyzer.RenRef] as List<IReference>)
+                if (refer.QueryCancellation())
+                    return true;
+            return false;
         }
 
         public override void Process(ConfusionParameter parameter)
         {
             IMemberDefinition mem = parameter.Target as IMemberDefinition;
+            if (GetCancel(mem)) 
+                return;
+
             if (mem is TypeDefinition)
             {
                 TypeDefinition type = mem as TypeDefinition;
                 if (GetRenOk(type))
                 {
-                    var mode = (NameMode)(mem.Module as IAnnotationProvider).Annotations["RenMode"];
+                    var mode = (NameMode)(mem.Module as IAnnotationProvider).Annotations[NameAnalyzer.RenMode];
                     type.Name = ObfuscationHelper.GetNewName(type.FullName, mode);
                     switch (mode)
                     {
@@ -78,11 +90,11 @@ namespace Confuser.Core.Confusions
                         case NameMode.Letters:
                             type.Namespace = "BANANA"; break;
                     }
-                    Identifier id = (Identifier)(type as IAnnotationProvider).Annotations["RenId"];
+                    Identifier id = (Identifier)(type as IAnnotationProvider).Annotations[NameAnalyzer.RenId];
                     Identifier n = id;
                     n.name = CecilHelper.GetName(type);
                     n.scope = CecilHelper.GetNamespace(type);
-                    foreach (IReference refer in (type as IAnnotationProvider).Annotations["RenRef"] as List<IReference>)
+                    foreach (IReference refer in (type as IAnnotationProvider).Annotations[NameAnalyzer.RenRef] as List<IReference>)
                     {
                         refer.UpdateReference(id, n);
                     }
@@ -95,12 +107,12 @@ namespace Confuser.Core.Confusions
             }
             else if (GetRenOk(mem as IAnnotationProvider))
             {
-                mem.Name = ObfuscationHelper.GetNewName(mem.Name, (NameMode)(mem.Module as IAnnotationProvider).Annotations["RenMode"]);
-                Identifier id = (Identifier)(mem as IAnnotationProvider).Annotations["RenId"];
+                mem.Name = ObfuscationHelper.GetNewName(mem.Name, (NameMode)(mem.Module as IAnnotationProvider).Annotations[NameAnalyzer.RenMode]);
+                Identifier id = (Identifier)(mem as IAnnotationProvider).Annotations[NameAnalyzer.RenId];
                 Identifier n = id;
                 n.scope = mem.DeclaringType.FullName;
                 n.name = mem.Name;
-                foreach (IReference refer in (mem as IAnnotationProvider).Annotations["RenRef"] as List<IReference>)
+                foreach (IReference refer in (mem as IAnnotationProvider).Annotations[NameAnalyzer.RenRef] as List<IReference>)
                 {
                     refer.UpdateReference(id, n);
                 }
@@ -109,15 +121,15 @@ namespace Confuser.Core.Confusions
 
         void PerformMethod(MethodDefinition mtd)
         {
-            var mode = (NameMode)(mtd.Module as IAnnotationProvider).Annotations["RenMode"];
+            var mode = (NameMode)(mtd.Module as IAnnotationProvider).Annotations[NameAnalyzer.RenMode];
             if (GetRenOk(mtd))
             {
                 mtd.Name = ObfuscationHelper.GetNewName(mtd.Name, mode);
-                Identifier id = (Identifier)(mtd as IAnnotationProvider).Annotations["RenId"];
+                Identifier id = (Identifier)(mtd as IAnnotationProvider).Annotations[NameAnalyzer.RenId];
                 Identifier n = id;
                 n.scope = mtd.DeclaringType.FullName;
                 n.name = mtd.Name;
-                foreach (IReference refer in (mtd as IAnnotationProvider).Annotations["RenRef"] as List<IReference>)
+                foreach (IReference refer in (mtd as IAnnotationProvider).Annotations[NameAnalyzer.RenRef] as List<IReference>)
                 {
                     refer.UpdateReference(id, n);
                 }

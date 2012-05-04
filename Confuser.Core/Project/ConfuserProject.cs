@@ -8,9 +8,15 @@ using System.Xml.Schema;
 
 namespace Confuser.Core.Project
 {
+    public enum SettingItemAction
+    {
+        Add,
+        Remove
+    }
     public class SettingItem<T> : NameValueCollection
     {
         public string Id { get; set; }
+        public SettingItemAction Action { get; set; }
 
         public XmlElement Save(XmlDocument xmlDoc)
         {
@@ -19,6 +25,13 @@ namespace Confuser.Core.Project
             XmlAttribute idAttr = xmlDoc.CreateAttribute("id");
             idAttr.Value = Id;
             elem.Attributes.Append(idAttr);
+
+            if (Action != SettingItemAction.Add)
+            {
+                XmlAttribute pAttr = xmlDoc.CreateAttribute("action");
+                pAttr.Value = Action.ToString().ToLower();
+                elem.Attributes.Append(pAttr);
+            }
 
             foreach (var i in this.AllKeys)
             {
@@ -40,6 +53,8 @@ namespace Confuser.Core.Project
         public void Load(XmlElement elem)
         {
             this.Id = elem.Attributes["id"].Value;
+            if (elem.Attributes["action"] != null)
+                this.Action = (SettingItemAction)Enum.Parse(typeof(SettingItemAction), elem.Attributes["action"].Value, true);
             foreach (XmlElement i in elem.ChildNodes.OfType<XmlElement>())
                 this.Add(i.Attributes["name"].Value, i.Attributes["value"].Value);
         }
@@ -47,14 +62,22 @@ namespace Confuser.Core.Project
     public class ObfSettings : List<SettingItem<IConfusion>>
     {
         public string Name { get; set; }
+        public Preset Preset { get; set; }
 
         public XmlElement Save(XmlDocument xmlDoc)
         {
             XmlElement elem = xmlDoc.CreateElement("settings", ConfuserProject.Namespace);
 
-            XmlAttribute attr = xmlDoc.CreateAttribute("name");
-            attr.Value = Name;
-            elem.Attributes.Append(attr);
+            XmlAttribute nAttr = xmlDoc.CreateAttribute("name");
+            nAttr.Value = Name;
+            elem.Attributes.Append(nAttr);
+
+            if (Preset != Preset.None)
+            {
+                XmlAttribute pAttr = xmlDoc.CreateAttribute("preset");
+                pAttr.Value = Preset.ToString().ToLower();
+                elem.Attributes.Append(pAttr);
+            }
 
             foreach (var i in this)
                 elem.AppendChild(i.Save(xmlDoc));
@@ -65,6 +88,8 @@ namespace Confuser.Core.Project
         public void Load(XmlElement elem)
         {
             this.Name = elem.Attributes["name"].Value;
+            if (elem.Attributes["preset"] != null)
+                this.Preset = (Preset)Enum.Parse(typeof(Preset), elem.Attributes["preset"].Value, true);
             foreach (XmlElement i in elem.ChildNodes.OfType<XmlElement>())
             {
                 var x = new SettingItem<IConfusion>();
@@ -92,6 +117,7 @@ namespace Confuser.Core.Project
     {
         public string Id { get; set; }
         public bool ApplyToMembers { get; set; }
+        public bool Inherit { get; set; }
 
         public XmlElement Save(XmlDocument xmlDoc)
         {
@@ -108,6 +134,13 @@ namespace Confuser.Core.Project
                 elem.Attributes.Append(attr);
             }
 
+            if (Inherit != false)
+            {
+                XmlAttribute attr = xmlDoc.CreateAttribute("inherit");
+                attr.Value = Inherit.ToString().ToLower();
+                elem.Attributes.Append(attr);
+            }
+
             return elem;
         }
 
@@ -116,6 +149,8 @@ namespace Confuser.Core.Project
             this.Id = elem.Attributes["id"].Value;
             if (elem.Attributes["applytomembers"] != null)
                 this.ApplyToMembers = bool.Parse(elem.Attributes["applytomembers"].Value);
+            if (elem.Attributes["inherit"] != null)
+                this.Inherit = bool.Parse(elem.Attributes["inherit"].Value);
         }
     }
 
@@ -189,7 +224,7 @@ namespace Confuser.Core.Project
 
             this.OutputPath = docElem.Attributes["outputDir"].Value;
             this.SNKeyPath = docElem.Attributes["snKey"].Value;
-            if (docElem["preset"] != null)
+            if (docElem.Attributes["preset"] != null)
                 this.DefaultPreset = (Preset)Enum.Parse(typeof(Preset), docElem.Attributes["preset"].Value, true);
             foreach (XmlElement i in docElem.ChildNodes)
             {

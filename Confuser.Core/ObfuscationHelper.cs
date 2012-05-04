@@ -81,10 +81,14 @@ namespace Confuser.Core
             for (int i = 0; i < buff.Length; i++)
             {
                 m = (m << 8) + buff[i];
-                while (m > 26)
+                while (m > 52)
                 {
-                    ret.Append((char)('A' + (m % 26)));
-                    m /= 26;
+                    int n = m % 26;
+                    if (n < 26)
+                        ret.Append((char)('A' + n));
+                    else
+                        ret.Append((char)('a' + (n - 26)));
+                    m /= 52;
                 }
             }
             return ret.ToString();

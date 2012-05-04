@@ -18,16 +18,23 @@ namespace Confuser.Core.Confusions
     {
         enum LevelType
         {
+            //00: None      None
+            //01: Try       Whole
+            //10: Handler   Start
+            //11: Filter    End
+            //    00        00
+
+            Invalid = 0,
             None = 1,
-            Try = 2,
-            TryStart = 3,
-            TryEnd = 4,
-            Handler = 5,
-            HandlerStart = 6,
-            HandlerEnd = 7,
-            Filter = 8,
-            FilterStart = 9,
-            FilterEnd = 10
+            Try = 5,
+            TryStart = 6,
+            TryEnd = 7,
+            Handler = 9,
+            HandlerStart = 10,
+            HandlerEnd = 11,
+            Filter = 13,
+            FilterStart = 14,
+            FilterEnd = 15
         }
         struct Level
         {
@@ -53,7 +60,7 @@ namespace Confuser.Core.Confusions
             }
             public LevelType GetOnlyLevelType()
             {
-                if (Type.Count != 1) return 0;
+                if (Type.Count != 1) return LevelType.Invalid;
                 return Type[0];
             }
 
@@ -132,6 +139,18 @@ namespace Confuser.Core.Confusions
         }
         class ScopeDetector
         {
+            static bool IsEnd(LevelType type)
+            {
+                return ((int)type & 3) == 3;
+            }
+            static bool IsStart(LevelType type)
+            {
+                return ((int)type & 3) == 2;
+            }
+            static bool IsWhole(LevelType type)
+            {
+                return ((int)type & 3) == 1;
+            }
             private static Dictionary<Instruction, Level> GetIds(MethodBody body)
             {
                 SortedDictionary<int, Level> lvs = new SortedDictionary<int, Level>();
@@ -180,6 +199,9 @@ namespace Confuser.Core.Confusions
                 List<int> ks = lvs.Keys.ToList();
                 for (int i = 0; i < ks.Count; i++)
                 {
+                    //xxxStart & xxxEnd
+                    //->
+                    //xxx
                     if (lvs[ks[i]].Handler.Count >= 2 &&
                         lvs[ks[i]].Handler[0] == lvs[ks[i]].Handler[1])
                     {
@@ -205,9 +227,13 @@ namespace Confuser.Core.Confusions
                             lvs[ks[i]].Type.Add(LevelType.Filter);
                         }
                     }
+                    //xxxStart
+                    //xxxEnd
+                    //->
+                    //xxx
                     if (i != 0 &&
-                        lvs[ks[i - 1]].GetOnlyLevelType().ToString().EndsWith("Start") &&
-                        lvs[ks[i]].GetOnlyLevelType().ToString().EndsWith("End"))
+                        IsStart(lvs[ks[i - 1]].GetOnlyLevelType()) &&
+                        IsEnd(lvs[ks[i]].GetOnlyLevelType()))
                     {
                         int o = ks[i - 1];
                         Level lv = lvs[o];
@@ -225,9 +251,15 @@ namespace Confuser.Core.Confusions
                         }
                         lvs.Remove(ks[i]);
                         lvs[o] = lv;
-                        ks.Remove(ks[i]);
+                        ks.RemoveAt(i);
                         i--;
                     }
+                    //xxxEnd
+                    //xxxxxx
+                    //->
+                    //xxxEnd
+                    //None
+                    //xxxxxx
                     if (lvs[ks[i]].Handler[0] != null)
                     {
                         int oo = lvs[ks[i]].GetEndOffset();
@@ -240,6 +272,20 @@ namespace Confuser.Core.Confusions
                             lvs.Add(oo, new Level() { Handler = lvs[ks[i]].Handler, Type = new List<LevelType> { LevelType.None } });
                             ks.Add(oo);
                             ks.Sort();
+                        }
+                    }
+                    //None
+                    //xxxEnd
+                    //->
+                    //xxxEnd
+                    if (lvs[ks[i]].GetOnlyLevelType() == LevelType.None)
+                    {
+                        if (i < ks.Count - 1 && IsEnd(lvs[ks[i + 1]].GetOnlyLevelType()))
+                        {
+                            Level lv = lvs[ks[i + 1]];
+                            lvs.Remove(ks[i + 1]);
+                            ks.RemoveAt(i + 1);
+                            lvs[ks[i]] = lv;
                         }
                     }
                 }
@@ -270,14 +316,15 @@ namespace Confuser.Core.Confusions
                 Dictionary<Instruction, Level> Ids = GetIds(body);
                 var lvs = Ids.Values.Distinct();
 
-                List<Scope> scopes = new List<Scope>();
-                foreach (Level lv in lvs)
-                    scopes.Add(new Scope()
-                    {
-                        Level = lv,
-                        Instructions = GetInstructionsByLv(lv, Ids)
-                    });
-                return scopes.ToArray();
+                Dictionary<Level, List<Instruction>> scopes = new Dictionary<Level, List<Instruction>>();
+                foreach (var i in Ids)
+                {
+                    List<Instruction> scope;
+                    if (!scopes.TryGetValue(i.Value, out scope))
+                        scope = scopes[i.Value] = new List<Instruction>();
+                    scope.Add(i.Key);
+                }
+                return scopes.Select(_ => new Scope() { Level = _.Key, Instructions = _.Value.ToArray() }).ToArray();
             }
         }
 
@@ -405,7 +452,7 @@ namespace Confuser.Core.Confusions
             MethodBody body = method.Body;
             body.SimplifyMacros();
             body.ComputeHeader();
-            body.MaxStackSize += 5;
+            body.MaxStackSize += 0x10;
             VariableDefinition stateVar = new VariableDefinition(method.Module.TypeSystem.Int32);
             body.Variables.Add(stateVar);
             body.InitLocals = true;
@@ -428,6 +475,25 @@ namespace Confuser.Core.Confusions
                         Type = StatementType.Normal,
                         Key = 0
                     });
+
+                //Constructor fix
+                if (body.Method.IsConstructor && body.Method.HasThis)
+                {
+                    Statement init = new Statement();
+                    init.Type = StatementType.Normal;
+                    List<Instruction> z = new List<Instruction>();
+                    while (sts.Count != 0)
+                    {
+                        z.AddRange(sts[0].Instructions);
+                        Instruction lastInst = sts[0].Instructions[sts[0].Instructions.Length - 1];
+                        sts.RemoveAt(0);
+                        if (lastInst.OpCode == OpCodes.Call &&
+                            (lastInst.Operand as MethodReference).Name == ".ctor")
+                            break;
+                    }
+                    init.Instructions = z.ToArray();
+                    sts.Insert(0, init);
+                }
 
                 if (sts.Count == 1) continue;
 
@@ -465,14 +531,24 @@ namespace Confuser.Core.Confusions
                     sts[j] = sts[i];
                     sts[i] = tmp;
                 }
+                Instruction[] stHdrs = new Instruction[sts.Count];
                 for (int i = 0; i < sts.Count; i++)
+                {
                     sts[i].Key = i - 1;
+                    if (sts[i].Instructions.Length > 0)
+                        stHdrs[i] = sts[i].Instructions[0];
+                }
+                Func<object, Statement> resolveHdr = inst =>
+                {
+                    int _ = Array.IndexOf(stHdrs, inst as Instruction);
+                    return _ == -1 ? null : sts[_];
+                };
 
                 Instruction begin = Instruction.Create(OpCodes.Ldloc, stateVar);
                 Instruction swit = Instruction.Create(OpCodes.Switch, Empty<Instruction>.Array);
                 Instruction end = Instruction.Create(OpCodes.Nop);
                 List<Instruction> targets = new List<Instruction>();
-                Statement beginSt = sts.Single(_ => _.Instructions[0] == scope.Instructions[0]);
+                Statement beginSt = resolveHdr(scope.Instructions[0]);
 
                 //Convert branches -> switch
                 bool firstSt = true;
@@ -487,14 +563,14 @@ namespace Confuser.Core.Confusions
                             stInsts.RemoveAt(stInsts.Count - 1);
                             if (fakeBranch)
                             {
-                                Statement targetSt = sts.Single(_ => _.Instructions[0] == last.Operand);
-                                Statement fallSt = sts.Single(_ => _.Instructions[0] == last.Next);
+                                Statement targetSt = resolveHdr(last.Operand);
+                                Statement fallSt = resolveHdr(last.Next);
 
                                 ReplTbl[last] = GenFakeBranch(st, targetSt, fallSt, stInsts, stateVar, begin);
                             }
                             else
                             {
-                                Statement targetSt = sts.Single(_ => _.Instructions[0] == last.Operand);
+                                Statement targetSt = resolveHdr(last.Operand);
                                 ReplTbl[last] = EncryptNum(st.Key, stateVar, targetSt.Key, stInsts);
                                 stInsts.Add(Instruction.Create(OpCodes.Br, begin));
                                 stInsts.AddRange(GetJunk(stateVar));
@@ -503,20 +579,29 @@ namespace Confuser.Core.Confusions
                         else if (last.OpCode.Code != Code.Leave)  //cond
                         {
                             stInsts.RemoveAt(stInsts.Count - 1);
+                            Statement targetSt = resolveHdr(last.Operand);
+                            Statement fallSt = resolveHdr(last.Next);
 
-                            Statement targetSt = sts.Single(_ => _.Instructions[0] == last.Operand);
-                            Statement fallSt = sts.Single(_ => _.Instructions[0] == last.Next);
-
-                            ReplTbl[last] = EncryptNum(st.Key, stateVar, targetSt.Key, stInsts);
-                            stInsts.Add(Instruction.Create(last.OpCode, begin));
-                            EncryptNum(st.Key, stateVar, fallSt.Key, stInsts);
-                            stInsts.Add(Instruction.Create(OpCodes.Br, begin));
-                            stInsts.AddRange(GetJunk(stateVar));
+                            if (fallSt == null) //fall into exception block
+                            {
+                                ReplTbl[last] = EncryptNum(st.Key, stateVar, targetSt.Key, stInsts);
+                                stInsts.Add(Instruction.Create(last.OpCode, begin));
+                                stInsts.Add(Instruction.Create(OpCodes.Br, last.Next));
+                                stInsts.AddRange(GetJunk(stateVar));
+                            }
+                            else
+                            {
+                                ReplTbl[last] = EncryptNum(st.Key, stateVar, targetSt.Key, stInsts);
+                                stInsts.Add(Instruction.Create(last.OpCode, begin));
+                                EncryptNum(st.Key, stateVar, fallSt.Key, stInsts);
+                                stInsts.Add(Instruction.Create(OpCodes.Br, begin));
+                                stInsts.AddRange(GetJunk(stateVar));
+                            }
                         }
                     }
                     else
                     {
-                        Statement fallSt = sts.SingleOrDefault(_ => _.Instructions[0] == last.Next);
+                        Statement fallSt = resolveHdr(last.Next);
                         if (fallSt != null)
                         {
                             if (fakeBranch)
@@ -607,7 +692,7 @@ namespace Confuser.Core.Confusions
             }
 
             //fix peverify
-            if (method.ReturnType.GetElementType().MetadataType != MetadataType.Void)
+            if (!method.ReturnType.IsTypeOf("System", "Void"))
             {
                 body.Instructions.Add(Instruction.Create(OpCodes.Ldnull));
                 body.Instructions.Add(Instruction.Create(OpCodes.Unbox_Any, method.ReturnType));
@@ -621,7 +706,6 @@ namespace Confuser.Core.Confusions
                 eh.HandlerEnd = eh.HandlerEnd.Next;
             }
 
-            //bdy.OptimizeMacros();
             body.ComputeOffsets();
             body.PreserveMaxStackSize = true;
         }
@@ -808,7 +892,7 @@ namespace Confuser.Core.Confusions
                     {
                         case FlowControl.Branch:
                             {
-                                int targetIdx = body.Instructions.IndexOf(inst.Operand as Instruction);
+                                int targetIdx = (inst.Operand as Instruction).Index;
                                 if (stacks[targetIdx] != stack)
                                 {
                                     ps.Enqueue(targetIdx);
@@ -823,7 +907,7 @@ namespace Confuser.Core.Confusions
                                 {
                                     foreach (var i in inst.Operand as Instruction[])
                                     {
-                                        targetIdx = body.Instructions.IndexOf(i);
+                                        targetIdx = i.Index;
                                         if (stacks[targetIdx] != stack)
                                         {
                                             ps.Enqueue(targetIdx);
@@ -833,7 +917,7 @@ namespace Confuser.Core.Confusions
                                 }
                                 else
                                 {
-                                    targetIdx = body.Instructions.IndexOf(inst.Operand as Instruction);
+                                    targetIdx = (inst.Operand as Instruction).Index;
                                     if (stacks[targetIdx] != stack)
                                     {
                                         ps.Enqueue(targetIdx);

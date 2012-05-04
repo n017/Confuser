@@ -226,9 +226,17 @@ namespace Confuser.Core
             if (asm.Config != null)
             {
                 ret.ApplyToMember = applyToMember = asm.Config.ApplyToMembers;
-                mark.CurrentConfusions.Clear();
-                foreach (var i in proj.Settings.Single(_ => _.Name == asm.Config.Id))
-                    mark.CurrentConfusions[Confusions[i.Id]] = Clone(i);
+                if (!asm.Config.Inherit)
+                    mark.CurrentConfusions.Clear();
+                var settings = proj.Settings.Single(_ => _.Name == asm.Config.Id);
+                FillPreset(settings.Preset, mark.CurrentConfusions);
+                foreach (var i in settings)
+                {
+                    if (i.Action == SettingItemAction.Add)
+                        mark.CurrentConfusions[Confusions[i.Id]] = Clone(i);
+                    else
+                        mark.CurrentConfusions.Remove(Confusions[i.Id]);
+                }
             }
             return ret;
         }
@@ -261,9 +269,17 @@ namespace Confuser.Core
             if (mod.Config != null)
             {
                 ret.ApplyToMember = applyToMember = mod.Config.ApplyToMembers;
-                mark.CurrentConfusions.Clear();
-                foreach (var i in proj.Settings.Single(_ => _.Name == mod.Config.Id))
-                    mark.CurrentConfusions[Confusions[i.Id]] = Clone(i);
+                if (!mod.Config.Inherit)
+                    mark.CurrentConfusions.Clear();
+                var settings = proj.Settings.Single(_ => _.Name == mod.Config.Id);
+                FillPreset(settings.Preset, mark.CurrentConfusions);
+                foreach (var i in settings)
+                {
+                    if (i.Action == SettingItemAction.Add)
+                        mark.CurrentConfusions[Confusions[i.Id]] = Clone(i);
+                    else
+                        mark.CurrentConfusions.Remove(Confusions[i.Id]);
+                }
             }
             return ret;
         }
@@ -306,9 +322,17 @@ namespace Confuser.Core
             if (type.Config != null)
             {
                 ret.ApplyToMember = applyToMember = type.Config.ApplyToMembers;
-                mark.CurrentConfusions.Clear();
-                foreach (var i in proj.Settings.Single(_ => _.Name == type.Config.Id))
-                    mark.CurrentConfusions[Confusions[i.Id]] = Clone(i);
+                if (!type.Config.Inherit)
+                    mark.CurrentConfusions.Clear();
+                var settings = proj.Settings.Single(_ => _.Name == type.Config.Id);
+                FillPreset(settings.Preset, mark.CurrentConfusions);
+                foreach (var i in settings)
+                {
+                    if (i.Action == SettingItemAction.Add)
+                        mark.CurrentConfusions[Confusions[i.Id]] = Clone(i);
+                    else
+                        mark.CurrentConfusions.Remove(Confusions[i.Id]);
+                }
             }
             return ret;
         }
@@ -328,9 +352,17 @@ namespace Confuser.Core
             if (mem.Config != null)
             {
                 ret.ApplyToMember = applyToMember = mem.Config.ApplyToMembers;
-                mark.CurrentConfusions.Clear();
-                foreach (var i in proj.Settings.Single(_ => _.Name == mem.Config.Id))
-                    mark.CurrentConfusions[Confusions[i.Id]] = Clone(i);
+                if (!mem.Config.Inherit)
+                    mark.CurrentConfusions.Clear();
+                var settings = proj.Settings.Single(_ => _.Name == mem.Config.Id);
+                FillPreset(settings.Preset, mark.CurrentConfusions);
+                foreach (var i in settings)
+                {
+                    if (i.Action == SettingItemAction.Add)
+                        mark.CurrentConfusions[Confusions[i.Id]] = Clone(i);
+                    else
+                        mark.CurrentConfusions.Remove(Confusions[i.Id]);
+                }
             }
             return ret;
         }

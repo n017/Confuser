@@ -16,7 +16,7 @@ namespace Confuser.Core.Analyzers
             {
                 Instruction inst = mtd.Body.Instructions[i];
                 if (inst.OpCode.Code == Code.Ldtoken && inst.Operand is IMemberDefinition)
-                    (inst.Operand as IAnnotationProvider).Annotations["RenOk"] = false;
+                    (inst.Operand as IAnnotationProvider).Annotations[RenOk] = false;
 
                 if (inst.Operand is MethodReference ||
                     inst.Operand is FieldReference)
@@ -25,9 +25,9 @@ namespace Confuser.Core.Analyzers
                     {
                         IMemberDefinition memDef;
                         if (inst.Operand is MethodReference && (memDef = (inst.Operand as MethodReference).GetElementMethod().Resolve()) != null)
-                            ((memDef as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new SpecificationReference(inst.Operand as MemberReference));
+                            ((memDef as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new SpecificationReference(inst.Operand as MemberReference));
                         else if (inst.Operand is FieldReference && (memDef = (inst.Operand as FieldReference).Resolve()) != null)
-                            ((memDef as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new SpecificationReference(inst.Operand as MemberReference));
+                            ((memDef as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new SpecificationReference(inst.Operand as MemberReference));
                     }
                     else if (inst.Operand is MethodReference)
                     {
@@ -39,18 +39,18 @@ namespace Confuser.Core.Analyzers
                             Instruction memInst;
                             MemberReference mem = StackTrace(i, mtd.Body.Instructions, Rmtd, mtd.Module, out memInst);
                             if (mem != null)
-                                ((mem as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new ReflectionReference(memInst));
+                                ((mem as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new ReflectionReference(memInst));
                         }
                     }
                     if (ivtRefs.ContainsKey((inst.Operand as MemberReference).MetadataToken))
                     {
                         IMemberDefinition memDef;
                         if (inst.Operand is TypeReference && (memDef = (inst.Operand as TypeReference).Resolve()) != null)
-                            ((memDef as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new IvtMemberReference(inst.Operand as MemberReference));
+                            ((memDef as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new IvtMemberReference(inst.Operand as MemberReference));
                         else if (inst.Operand is MethodReference && (memDef = (inst.Operand as MethodReference).Resolve()) != null)
-                            ((memDef as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new IvtMemberReference(inst.Operand as MemberReference));
+                            ((memDef as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new IvtMemberReference(inst.Operand as MemberReference));
                         else if (inst.Operand is FieldReference && (memDef = (inst.Operand as FieldReference).Resolve()) != null)
-                            ((memDef as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new IvtMemberReference(inst.Operand as MemberReference));
+                            ((memDef as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new IvtMemberReference(inst.Operand as MemberReference));
                     }
                 }
             }
@@ -213,7 +213,7 @@ namespace Confuser.Core.Analyzers
 
             if (res != null)
             {
-                ((res as IAnnotationProvider).Annotations["RenRef"] as List<IReference>).Add(new ResourceNameReference(memInst));
+                ((res as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new ResourceNameReference(memInst));
                 return null;
             }
 

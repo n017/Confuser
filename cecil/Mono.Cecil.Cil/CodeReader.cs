@@ -153,6 +153,7 @@ namespace Mono.Cecil.Cil {
 				var offset = base.position - start;
 				var opcode = ReadOpCode ();
 				var current = new Instruction (offset, opcode);
+                current.index = instructions.Count;
 
 				if (opcode.OperandType != OperandType.InlineNone)
 					current.operand = ReadOperand (current);

@@ -205,6 +205,16 @@ namespace Confuser.Core
                     }
                 }
 
+                Log("Optimizing methods...");
+                foreach (var type in settings.SelectMany(_ => _.Modules).SelectMany(_ => _.Module.GetAllTypes()))
+                    foreach (var method in type.Methods)
+                    {
+                        if (!method.HasBody) continue;
+                        method.Body.SimplifyMacros();
+                        method.Body.OptimizeMacros();
+                        method.Body.ComputeOffsets();
+                    }
+
                 param.Logger._BeginPhase("Obfuscating Phase 2...");
                 foreach (var i in settings)
                     using (param.Logger._Assembly(i.Assembly))
@@ -445,6 +455,15 @@ namespace Confuser.Core
                         analyzer.SetProgresser(param.Logger);
                     }
                 }
+
+            Log("Simplifying methods...");
+            foreach (var type in settings.SelectMany(_ => _.Modules).SelectMany(_ => _.Module.GetAllTypes()))
+                foreach (var method in type.Methods)
+                {
+                    if (!method.HasBody) continue;
+                    method.Body.SimplifyMacros();
+                }
+
             foreach (var i in analyzers)
             {
                 Log(string.Format("Analyzing {0}...", aPhases[i]));
@@ -456,7 +475,6 @@ namespace Confuser.Core
             if (mkrSettings.Packer != null)
                 mkrSettings.Packer.ProcessModulePhase1(mod.Module,
                     mod.Module.IsMain && mkrSettings.Assemblies[0].Assembly == mod.Module.Assembly);
-
             ConfusionParameter cParam = new ConfusionParameter();
             bool end1 = false;
             foreach (StructurePhase i in from i in phases where (i is StructurePhase) orderby (int)i.Priority + i.PhaseID * 10 ascending select i)

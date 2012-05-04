@@ -5,6 +5,32 @@
            attributeFormDefault="unqualified"
            elementFormDefault="qualified" >
 
+  <xs:simpleType name="action">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="add"/>
+      <xs:enumeration value="remove"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="preset">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="none"/>
+      <xs:enumeration value="minimum"/>
+      <xs:enumeration value="normal"/>
+      <xs:enumeration value="aggressive"/>
+      <xs:enumeration value="maximum"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="memberType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="method"/>
+      <xs:enumeration value="field"/>
+      <xs:enumeration value="property"/>
+      <xs:enumeration value="event"/>
+    </xs:restriction>
+  </xs:simpleType>
+
   <xs:complexType name="argument">
     <xs:attribute name="name" type="xs:string" use="required" />
     <xs:attribute name="value" type="xs:string" use="required" />
@@ -15,6 +41,7 @@
       <xs:element name="argument" type="argument" minOccurs="0" maxOccurs="unbounded"/>
     </xs:sequence>
     <xs:attribute name="id" type="xs:string" use="required" />
+    <xs:attribute name="action" type="action" default="add" />
   </xs:complexType>
 
   <xs:complexType name="settings">
@@ -22,21 +49,14 @@
       <xs:element name="confusion" type="objSettings" minOccurs="0" maxOccurs="unbounded" />
     </xs:sequence>
     <xs:attribute name="name" type="xs:string" use="required" />
+    <xs:attribute name="preset" type="preset" default="none" />
   </xs:complexType>
 
   <xs:complexType name="config">
+    <xs:attribute name="inherit" type="xs:boolean" default="false" />
     <xs:attribute name="applytomembers" type="xs:boolean" default="false" />
     <xs:attribute name="id" type="xs:string" use="required" />
   </xs:complexType>
-
-  <xs:simpleType name="memberType">
-    <xs:restriction base="xs:string">
-      <xs:enumeration value="method"/>
-      <xs:enumeration value="field"/>
-      <xs:enumeration value="property"/>
-      <xs:enumeration value="event"/>
-    </xs:restriction>
-  </xs:simpleType>
 
   <xs:complexType name="member">
     <xs:sequence>
@@ -74,16 +94,6 @@
   <xs:complexType name="plugin">
     <xs:attribute name="path" type="xs:string" use="required" />
   </xs:complexType>
-
-  <xs:simpleType name="preset">
-    <xs:restriction base="xs:string">
-      <xs:enumeration value="none"/>
-      <xs:enumeration value="minimum"/>
-      <xs:enumeration value="normal"/>
-      <xs:enumeration value="aggressive"/>
-      <xs:enumeration value="maximum"/>
-    </xs:restriction>
-  </xs:simpleType>
 
   <xs:element name="project">
     <xs:complexType>

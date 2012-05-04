@@ -19,6 +19,7 @@ namespace Confuser.Core.Analyzers
     interface IReference
     {
         void UpdateReference(Identifier old, Identifier @new);
+        bool QueryCancellation();
     }
 
     class ResourceReference : IReference
@@ -31,6 +32,10 @@ namespace Confuser.Core.Analyzers
             string newN = string.IsNullOrEmpty(@new.scope) ? @new.name : @new.scope + "." + @new.name;
             res.Name = res.Name.Replace(oldN, newN);
         }
+        public bool QueryCancellation()
+        {
+            return false;
+        }
     }
     class ResourceNameReference : IReference
     {
@@ -39,6 +44,10 @@ namespace Confuser.Core.Analyzers
         public void UpdateReference(Identifier old, Identifier @new)
         {
             inst.Operand = @new.scope;
+        }
+        public bool QueryCancellation()
+        {
+            return false;
         }
     }
     class SpecificationReference : IReference
@@ -58,15 +67,46 @@ namespace Confuser.Core.Analyzers
                 }
             }
         }
+        public bool QueryCancellation()
+        {
+            return false;
+        }
     }
-    class CustomAttributeReference : IReference
+    class CustomAttributeTypeReference : IReference
     {
-        public CustomAttributeReference(TypeReference refer) { this.refer = refer; }
+        public CustomAttributeTypeReference(TypeReference refer) { this.refer = refer; }
         TypeReference refer;
         public void UpdateReference(Identifier old, Identifier @new)
         {
             refer.Namespace = @new.scope;
             refer.Name = @new.name;
+        }
+        public bool QueryCancellation()
+        {
+            return false;
+        }
+    }
+    class CustomAttributeMemberReference : IReference
+    {
+        public CustomAttributeMemberReference(CustomAttribute attr, int idx, bool isField)
+        {
+            this.attr = attr;
+            this.idx = idx;
+            this.isField = isField;
+        }
+        CustomAttribute attr;
+        int idx;
+        bool isField;
+        public void UpdateReference(Identifier old, Identifier @new)
+        {
+            if (isField)
+                attr.Fields[idx] = new CustomAttributeNamedArgument(@new.name, attr.Fields[idx].Argument);
+            else
+                attr.Properties[idx] = new CustomAttributeNamedArgument(@new.name, attr.Properties[idx].Argument);
+        }
+        public bool QueryCancellation()
+        {
+            return false;
         }
     }
     class ReflectionReference : IReference
@@ -83,6 +123,10 @@ namespace Confuser.Core.Analyzers
             else if (op == old.scope + "." + old.name)
                 ldstr.Operand = string.IsNullOrEmpty(@new.scope) ? @new.name : @new.scope + "." + @new.name;
         }
+        public bool QueryCancellation()
+        {
+            return false;
+        }
     }
     class VirtualMethodReference : IReference
     {
@@ -90,14 +134,27 @@ namespace Confuser.Core.Analyzers
         MethodDefinition mtdRefer;
         public void UpdateReference(Identifier old, Identifier @new)
         {
+            if ((mtdRefer as IAnnotationProvider).Annotations[NameAnalyzer.RenOk] == null)
+                return;
             mtdRefer.Name = @new.name;
-            Identifier id = (Identifier)(mtdRefer as IAnnotationProvider).Annotations["RenId"];
+            Identifier id = (Identifier)(mtdRefer as IAnnotationProvider).Annotations[NameAnalyzer.RenId];
             Identifier n = @new;
             n.scope = mtdRefer.DeclaringType.FullName;
-            foreach (IReference refer in (mtdRefer as IAnnotationProvider).Annotations["RenRef"] as List<IReference>)
+            foreach (IReference refer in (mtdRefer as IAnnotationProvider).Annotations[NameAnalyzer.RenRef] as List<IReference>)
             {
                 refer.UpdateReference(id, n);
             }
+        }
+        public bool QueryCancellation()
+        {
+            if ((mtdRefer as IAnnotationProvider).Annotations[NameAnalyzer.RenOk] == null)
+                return false;
+            if (!(bool)(mtdRefer as IAnnotationProvider).Annotations[NameAnalyzer.RenOk])
+                return true;
+            foreach (var i in (mtdRefer as IAnnotationProvider).Annotations[NameAnalyzer.RenRef] as List<IReference>)
+                if (i.QueryCancellation())
+                    return true;
+            return false;
         }
     }
     class BamlTypeReference : IReference
@@ -109,6 +166,10 @@ namespace Confuser.Core.Analyzers
         public void UpdateReference(Identifier old, Identifier @new)
         {
             typeRec.TypeFullName = string.IsNullOrEmpty(@new.scope) ? @new.name : @new.scope + "." + @new.name;
+        }
+        public bool QueryCancellation()
+        {
+            return false;
         }
     }
     class BamlTypeExtReference : IReference
@@ -161,6 +222,10 @@ namespace Confuser.Core.Analyzers
             else
                 rec.Value = @new.name;
         }
+        public bool QueryCancellation()
+        {
+            return false;
+        }
     }
     class BamlAttributeReference : IReference
     {
@@ -172,6 +237,10 @@ namespace Confuser.Core.Analyzers
         {
             attrRec.Name = @new.name;
         }
+        public bool QueryCancellation()
+        {
+            return false;
+        }
     }
     class BamlPropertyReference : IReference
     {
@@ -182,6 +251,10 @@ namespace Confuser.Core.Analyzers
         public void UpdateReference(Identifier old, Identifier @new)
         {
             propRec.Value = @new.name;
+        }
+        public bool QueryCancellation()
+        {
+            return false;
         }
     }
     class BamlPathReference : IReference
@@ -222,6 +295,10 @@ namespace Confuser.Core.Analyzers
                         i.endIdx = i.endIdx + (endIdx - oEndIdx);
                 }
         }
+        public bool QueryCancellation()
+        {
+            return false;
+        }
     }
     class SaveBamlsReference : IReference
     {
@@ -246,6 +323,10 @@ namespace Confuser.Core.Analyzers
             wtr.Generate();
             mod.Resources[resId] = new EmbeddedResource(res.Name, res.Attributes, newRes.ToArray());
         }
+        public bool QueryCancellation()
+        {
+            return false;
+        }
     }
     class IvtMemberReference : IReference
     {
@@ -264,6 +345,10 @@ namespace Confuser.Core.Analyzers
                 memRef.Name = @new.name;
                 ((TypeReference)memRef).Namespace = @new.scope;
             }
+        }
+        public bool QueryCancellation()
+        {
+            return false;
         }
 
     }

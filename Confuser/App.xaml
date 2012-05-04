@@ -11,12 +11,12 @@
                 <ResourceDictionary Source="Scroller.xaml"/>-->
             </ResourceDictionary.MergedDictionaries>
             <ImageSource x:Key="icon">Application.ico</ImageSource>
-            <ImageSource x:Key="ok">Themes\ok.png</ImageSource>
-            <ImageSource x:Key="error">Themes\error.png</ImageSource>
-            <ImageSource x:Key="loading">Themes\loading.png</ImageSource>
-            <ImageSource x:Key="new">Themes\new.png</ImageSource>
-            <ImageSource x:Key="open">Themes\open.png</ImageSource>
-            <ImageSource x:Key="save">Themes\save.png</ImageSource>
+            <BitmapSource x:Key="ok">Themes\ok.png</BitmapSource>
+            <BitmapSource x:Key="error">Themes\error.png</BitmapSource>
+            <BitmapSource x:Key="loading">Themes\loading.png</BitmapSource>
+            <BitmapSource x:Key="new">Themes\new.png</BitmapSource>
+            <BitmapSource x:Key="open">Themes\open.png</BitmapSource>
+            <BitmapSource x:Key="save">Themes\save.png</BitmapSource>
             <Canvas x:Key="info" x:Shared="False" Width="48" Height="48" ClipToBounds="False">
                 <Canvas.Resources>
                     <LinearGradientBrush x:Key="linearGradient4873" MappingMode="RelativeToBoundingBox" StartPoint="0,0" EndPoint="1,1">

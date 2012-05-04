@@ -15,10 +15,10 @@ namespace Confuser.Core.Analyzers
         {
             if (Root == newRoot || OpenRoot == newRoot) return;
 
-            var renRef = (newRoot.Resolve() as IAnnotationProvider).Annotations["RenRef"] as List<IReference>;
+            var renRef = (newRoot.Resolve() as IAnnotationProvider).Annotations[NameAnalyzer.RenRef] as List<IReference>;
             var root = (OpenRoot ?? Root).Resolve();
-            var renId = (root as IAnnotationProvider).Annotations["RenId"] as Identifier?;
-            (root as IAnnotationProvider).Annotations["RenOk"] = false;
+            var renId = (root as IAnnotationProvider).Annotations[NameAnalyzer.RenId] as Identifier?;
+            (root as IAnnotationProvider).Annotations[NameAnalyzer.RenOk] = false;
             if (renRef != null && renId != null)
             {
                 renRef.Add(new VirtualMethodReference(root));
@@ -32,13 +32,16 @@ namespace Confuser.Core.Analyzers
         {
             if (Current == newCurrent || OpenCurrent == newCurrent) return;
 
-            MethodReference m = ((OpenCurrent ?? Current) ?? OpenRoot) ?? Root;    //Interface method -> Empty slot
-            var renRef = (m.Resolve() as IAnnotationProvider).Annotations["RenRef"] as List<IReference>;
-            var renId = (newCurrent.Resolve() as IAnnotationProvider).Annotations["RenId"] as Identifier?;
-            (newCurrent.Resolve() as IAnnotationProvider).Annotations["RenOk"] = false;
-            if (renRef != null)
+            MethodReference m = (((OpenCurrent ?? Current) ?? OpenRoot) ?? Root).Resolve();    //Interface method -> Empty slot
+            if (m != null)
             {
-                renRef.Add(new VirtualMethodReference(newCurrent.Resolve()));
+                var renRef = (m as IAnnotationProvider).Annotations[NameAnalyzer.RenRef] as List<IReference>;
+                var renId = (newCurrent.Resolve() as IAnnotationProvider).Annotations[NameAnalyzer.RenId] as Identifier?;
+                (newCurrent.Resolve() as IAnnotationProvider).Annotations[NameAnalyzer.RenOk] = false;
+                if (renRef != null)
+                {
+                    renRef.Add(new VirtualMethodReference(newCurrent.Resolve()));
+                }
             }
             Current = newCurrent;
             OpenCurrent = null;
