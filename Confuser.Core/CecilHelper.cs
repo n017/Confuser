@@ -334,6 +334,9 @@ namespace Confuser.Core
         public static MethodDefinition Inject(ModuleDefinition mod, MethodDefinition mtd)
         {
             MethodDefinition ret = new MethodDefinition(mtd.Name, mtd.Attributes, mod.Import(mtd.ReturnType));
+            ret.Attributes = mtd.Attributes;
+            ret.ImplAttributes = mtd.ImplAttributes;
+
             if (mtd.IsPInvokeImpl)
             {
                 ret.PInvokeInfo = mtd.PInvokeInfo;
@@ -430,7 +433,7 @@ namespace Confuser.Core
                             }
                             break;
                         default:
-                            psr.Append(inst);
+                            psr.Append(inst.Clone());
                             break;
                     }
                 }

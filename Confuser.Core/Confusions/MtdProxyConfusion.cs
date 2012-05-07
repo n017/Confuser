@@ -198,7 +198,10 @@ namespace Confuser.Core.Confusions
                     ctor.Parameters.Add(new ParameterDefinition(_txt.ptr));
                     txt.dele.Methods.Add(ctor);
 
-                    MethodDefinition invoke = new MethodDefinition("Invoke", 0, MtdRef.ReturnType);
+                    MethodDefinition invoke = new MethodDefinition("Invoke", 0, mod.Import(MtdRef.ReturnType));
+                    TypeReference retType = invoke.ReturnType.GetElementType();
+                    retType.IsValueType = retType.Resolve().IsValueType;
+
                     invoke.IsRuntime = true;
                     invoke.HasThis = true;
                     invoke.IsHideBySig = true;
@@ -242,7 +245,8 @@ namespace Confuser.Core.Confusions
                 MethodDefinition bdge;
                 if (!_txt.bridges.TryGetValue(bridgeId, out bdge))
                 {
-                    bdge = new MethodDefinition(bridgeId, MethodAttributes.Static | MethodAttributes.Assembly, txt.mtdRef.ReturnType);
+                    bdge = new MethodDefinition(bridgeId, MethodAttributes.Static | MethodAttributes.Assembly, 
+                        mod.Import(txt.dele.Methods.Single(_ => _.Name == "Invoke").ReturnType));
                     if (txt.mtdRef.HasThis)
                     {
                         bdge.Parameters.Add(new ParameterDefinition(Mod.Import(_txt.obj)));

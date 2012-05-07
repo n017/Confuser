@@ -194,6 +194,7 @@ namespace Confuser
             foreach (PrjConfig<IConfusion> i in this)
             {
                 PrjConfig<IConfusion> n = new PrjConfig<IConfusion>(i.Object, ret);
+                n.Action = i.Action;
                 foreach (var j in i)
                     n.Add(new PrjArgument(n) { Name = j.Name, Value = j.Value });
                 ret.Add(n);
@@ -217,6 +218,7 @@ namespace Confuser
             foreach (var i in settings)
             {
                 PrjConfig<IConfusion> cfg = new PrjConfig<IConfusion>(prj.Confusions.Single(_ => _.ID == i.Id), this);
+                cfg.Action = i.Action;
                 foreach (var j in i.AllKeys)
                     cfg.Add(new PrjArgument(this) { Name = j, Value = i[j] });
                 this.Add(cfg);
@@ -611,9 +613,13 @@ namespace Confuser
         public Prj()
         {
             Confusions = new ObservableCollection<IConfusion>(DefaultConfusions);
+            Confusions.CollectionChanged += (sender, e) => OnChildChanged();
             Packers = new ObservableCollection<Packer>(DefaultPackers);
+            Packers.CollectionChanged += (sender, e) => OnChildChanged();
             Plugins = new ObservableCollection<string>();
+            Plugins.CollectionChanged += (sender, e) => OnChildChanged();
             Assemblies = new ObservableCollection<PrjAssembly>();
+            Assemblies.CollectionChanged += (sender, e) => OnChildChanged();
         }
 
         public ObservableCollection<IConfusion> Confusions { get; private set; }

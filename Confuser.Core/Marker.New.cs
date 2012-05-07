@@ -164,7 +164,7 @@ namespace Confuser.Core
         Confuser cr;
         protected Confuser Confuser { get { return cr; } set { cr = value; } }
         ConfuserProject proj;
-        public virtual MarkerSetting MarkAssemblies(Confuser cr, EventHandler<LogEventArgs> err)
+        public virtual MarkerSetting MarkAssemblies(Confuser cr, Logger logger)
         {
             this.cr = cr;
             this.proj = cr.param.Project;
@@ -177,8 +177,11 @@ namespace Confuser.Core
             using (setting.Level())
             {
                 for (int i = 0; i < proj.Count; i++)
+                {
                     using (setting.Level())
                         ret.Assemblies[i] = MarkAssembly(proj[i], setting);
+                    logger._Progress(i + 1, proj.Count);
+                }
                 if (proj.Packer != null)
                 {
                     ret.Packer = Packers[proj.Packer.Id];

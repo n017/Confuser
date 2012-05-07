@@ -10,36 +10,57 @@ using System.IO;
 
 namespace Confuser.Core.Analyzers
 {
-	partial class NameAnalyzer
+    partial class NameAnalyzer
     {
-        Dictionary<AssemblyDefinition, Dictionary<string, List<PropertyDefinition>>> props = new Dictionary<AssemblyDefinition, Dictionary<string, List<PropertyDefinition>>>();
-        void PopulateProperties(TypeDefinition typeDef, Dictionary<string, List<PropertyDefinition>> props)
+        Dictionary<AssemblyDefinition, Dictionary<string, List<IMemberDefinition>>> mems = new Dictionary<AssemblyDefinition, Dictionary<string, List<IMemberDefinition>>>();
+        void PopulateMembers(TypeDefinition typeDef, Dictionary<string, List<IMemberDefinition>> mems)
         {
             foreach (var i in typeDef.NestedTypes)
-                PopulateProperties(i, props);
+                PopulateMembers(i, mems);
+            foreach (var i in typeDef.Methods)
+            {
+                List<IMemberDefinition> p;
+                if (!mems.TryGetValue(i.Name, out p))
+                    p = mems[i.Name] = new List<IMemberDefinition>();
+                p.Add(i);
+            }
             foreach (var i in typeDef.Properties)
             {
-                List<PropertyDefinition> p;
-                if (!props.TryGetValue(i.Name, out p))
-                    p = props[i.Name] = new List<PropertyDefinition>();
+                List<IMemberDefinition> p;
+                if (!mems.TryGetValue(i.Name, out p))
+                    p = mems[i.Name] = new List<IMemberDefinition>();
+                p.Add(i);
+            }
+            foreach (var i in typeDef.Events)
+            {
+                List<IMemberDefinition> p;
+                if (!mems.TryGetValue(i.Name, out p))
+                    p = mems[i.Name] = new List<IMemberDefinition>();
+                p.Add(i);
+            }
+            foreach (var i in typeDef.Fields)
+            {
+                List<IMemberDefinition> p;
+                if (!mems.TryGetValue(i.Name, out p))
+                    p = mems[i.Name] = new List<IMemberDefinition>();
                 p.Add(i);
             }
         }
-        void PopulateProperties(AssemblyDefinition asm)
+        void PopulateMembers(AssemblyDefinition asm)
         {
-            Dictionary<string, List<PropertyDefinition>> p = new Dictionary<string, List<PropertyDefinition>>();
+            var p = new Dictionary<string, List<IMemberDefinition>>();
             foreach (var i in asm.Modules)
                 foreach (var j in i.Types)
-                    PopulateProperties(j, p);
-            props[asm] = p;
+                    PopulateMembers(j, p);
+            mems[asm] = p;
         }
-        List<PropertyDefinition> GetProperty(string name, out bool hasImport)
+        List<IMemberDefinition> GetMember(string name, out bool hasImport)
         {
-            List<PropertyDefinition> ret = new List<PropertyDefinition>();
+            List<IMemberDefinition> ret = new List<IMemberDefinition>();
             hasImport = false;
-            foreach (var i in props)
+            foreach (var i in mems)
             {
-                List<PropertyDefinition> p;
+                List<IMemberDefinition> p;
                 if (i.Value.TryGetValue(name, out p))
                 {
                     if (!ivtMap.ContainsKey(i.Key))
@@ -139,7 +160,7 @@ namespace Confuser.Core.Analyzers
             }
             return null;
         }
-        
+
         void ProcessProperty(BamlRecord rec, string path)
         {
             int idx = -1;
@@ -148,7 +169,7 @@ namespace Confuser.Core.Analyzers
             char prevSym = '.';
             for (int i = 0; i < path.Length; i++)
             {
-                if (char.IsLetterOrDigit(path[i]))
+                if (char.IsLetterOrDigit(path[i]) || path[i] == '_')
                 {
                     if (idx == -1)
                         idx = i;
@@ -157,10 +178,10 @@ namespace Confuser.Core.Analyzers
                 {
                     string name = path.Substring(idx, i - idx);
                     bool hasImport;
-                    var p = GetProperty(name, out hasImport);
-                    if (p != null)
-                        foreach (var prop in p)
-                            (prop as IAnnotationProvider).Annotations[RenOk] = false;
+                    var ms = GetMember(name, out hasImport);
+                    if (ms != null)
+                        foreach (var m in ms)
+                            (m as IAnnotationProvider).Annotations[RenOk] = false;
                     //if (p != null && prevSym == '.')
                     //{
                     //    var specProp = p.SingleOrDefault(_ => _.DeclaringType.Name == prev);
@@ -193,7 +214,7 @@ namespace Confuser.Core.Analyzers
             {
                 string name = path.Substring(idx);
                 bool hasImport;
-                var p = GetProperty(name, out hasImport);
+                var ms = GetMember(name, out hasImport);
                 //if (p != null)
                 //    foreach (var prop in p)
                 //    {
@@ -201,15 +222,15 @@ namespace Confuser.Core.Analyzers
                 //        refers.Add(refer);
                 //        ((prop as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(refer);
                 //    }
-                if (p != null)
-                    foreach (var prop in p)
-                        (prop as IAnnotationProvider).Annotations[RenOk] = false;
+                if (ms != null)
+                    foreach (var m in ms)
+                        (m as IAnnotationProvider).Annotations[RenOk] = false;
             }
             else
             {
                 string name = path;
                 bool hasImport;
-                var p = GetProperty(name, out hasImport);
+                var ms = GetMember(name, out hasImport);
                 //if (p != null)
                 //    foreach (var prop in p)
                 //    {
@@ -217,9 +238,9 @@ namespace Confuser.Core.Analyzers
                 //        refers.Add(refer);
                 //        ((prop as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(refer);
                 //    }
-                if (p != null)
-                    foreach (var prop in p)
-                        (prop as IAnnotationProvider).Annotations[RenOk] = false;
+                if (ms != null)
+                    foreach (var m in ms)
+                        (m as IAnnotationProvider).Annotations[RenOk] = false;
             }
 
             foreach (var i in refers)
@@ -235,7 +256,9 @@ namespace Confuser.Core.Analyzers
             (res as IAnnotationProvider).Annotations["Gresources"] = ress = new Dictionary<string, object>();
             (res as IAnnotationProvider).Annotations["Gbamls"] = bamls = new Dictionary<string, BamlDocument>();
             int cc = 0;
-            foreach (DictionaryEntry entry in resRdr)
+            int n = 0;
+            var reses = resRdr.OfType<DictionaryEntry>().ToArray();
+            foreach (DictionaryEntry entry in reses)
             {
                 Stream stream = null;
                 if (entry.Value is Stream)
@@ -264,7 +287,7 @@ namespace Confuser.Core.Analyzers
                     int asmId = -1;
                     Dictionary<ushort, string> asms = new Dictionary<ushort, string>();
                     List<AssemblyDefinition> assemblies = new List<AssemblyDefinition>();
-                    props.Clear();
+                    mems.Clear();
                     foreach (var rec in doc.OfType<AssemblyInfoRecord>())
                     {
                         AssemblyNameReference nameRef = AssemblyNameReference.Parse(rec.AssemblyFullName);
@@ -273,7 +296,7 @@ namespace Confuser.Core.Analyzers
                             asmId = rec.AssemblyId;
                             rec.AssemblyFullName = GetBamlAssemblyFullName(mod.Assembly.Name);
                             assemblies.Add(mod.Assembly);
-                            PopulateProperties(mod.Assembly);
+                            PopulateMembers(mod.Assembly);
                             nameRef = null;
                         }
                         else
@@ -283,14 +306,14 @@ namespace Confuser.Core.Analyzers
                                 {
                                     rec.AssemblyFullName = GetBamlAssemblyFullName(i.Key.Name);
                                     assemblies.Add(i.Key);
-                                    PopulateProperties(i.Key);
+                                    PopulateMembers(i.Key);
                                     nameRef = null;
                                     break;
                                 }
                         }
                         asms.Add(rec.AssemblyId, rec.AssemblyFullName);
                         if (nameRef != null)
-                            PopulateProperties(GlobalAssemblyResolver.Instance.Resolve(nameRef));
+                            PopulateMembers(GlobalAssemblyResolver.Instance.Resolve(nameRef));
                     }
 
                     Dictionary<ushort, TypeDefinition> types = new Dictionary<ushort, TypeDefinition>();
@@ -314,12 +337,17 @@ namespace Confuser.Core.Analyzers
                     {
                         if (types.ContainsKey(rec.OwnerTypeId))
                         {
-                            PropertyDefinition prop = types[rec.OwnerTypeId].Properties.FirstOrDefault(p => p.Name == rec.Name);
+                            PropertyDefinition prop = types[rec.OwnerTypeId].Properties.SingleOrDefault(p => p.Name == rec.Name);
                             if (prop != null)
                             {
                                 ((prop as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new BamlAttributeReference(rec));
                             }
-                            FieldDefinition field = types[rec.OwnerTypeId].Fields.FirstOrDefault(p => p.Name == rec.Name);
+                            EventDefinition evt = types[rec.OwnerTypeId].Events.SingleOrDefault(p => p.Name == rec.Name);
+                            if (evt != null)
+                            {
+                                ((evt as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new BamlAttributeReference(rec));
+                            }
+                            FieldDefinition field = types[rec.OwnerTypeId].Fields.SingleOrDefault(p => p.Name == rec.Name);
                             if (field != null)
                             {
                                 ((field as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new BamlAttributeReference(rec));
@@ -371,31 +399,33 @@ namespace Confuser.Core.Analyzers
                     if (rootRec != null && types.ContainsKey(rootRec.TypeId))
                     {
                         TypeDefinition root = types[rootRec.TypeId];
-                        Dictionary<string, IMemberDefinition> mems = new Dictionary<string, IMemberDefinition>();
+                        Dictionary<string, IMemberDefinition> m = new Dictionary<string, IMemberDefinition>();
                         foreach (PropertyDefinition prop in root.Properties)
-                            mems.Add(prop.Name, prop);
+                            m.Add(prop.Name, prop);
                         foreach (EventDefinition evt in root.Events)
-                            mems.Add(evt.Name, evt);
+                            m.Add(evt.Name, evt);
                         //foreach (MethodDefinition mtd in root.Methods)
                         //    mems.Add(mtd.Name, mtd);
 
                         foreach (var rec in doc.OfType<PropertyRecord>())
                         {
                             if (!(rec.Value is string)) continue;
-                            if (mems.ContainsKey((string)rec.Value))
+                            if (m.ContainsKey((string)rec.Value))
                             {
-                                ((mems[(string)rec.Value] as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new BamlPropertyReference(rec));
+                                ((m[(string)rec.Value] as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new BamlPropertyReference(rec));
                             }
                         }
                     }
 
                     bamls.Add(entry.Key as string, doc);
                 }
+                n++;
+                Logger._Progress(n, reses.Length);
             }
             if (cc != 0)
                 ((res as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new SaveBamlsReference(mod, resId));
             else
                 System.Diagnostics.Debugger.Break();
         }
-	}
+    }
 }

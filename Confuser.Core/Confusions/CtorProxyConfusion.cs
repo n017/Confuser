@@ -190,7 +190,10 @@ namespace Confuser.Core.Confusions
                     ctor.Parameters.Add(new ParameterDefinition(_txt.ptr));
                     txt.dele.Methods.Add(ctor);
 
-                    MethodDefinition invoke = new MethodDefinition("Invoke", 0, mod.Import(MtdRef.DeclaringType.Resolve()));
+                    MethodDefinition invoke = new MethodDefinition("Invoke", 0, mod.Import(MtdRef.DeclaringType));
+                    TypeReference retType = invoke.ReturnType.GetElementType();
+                    retType.IsValueType = retType.Resolve().IsValueType;
+
                     invoke.IsRuntime = true;
                     invoke.HasThis = true;
                     invoke.IsHideBySig = true;
@@ -223,8 +226,8 @@ namespace Confuser.Core.Confusions
                 MethodDefinition bdge;
                 if (!_txt.bridges.TryGetValue(bridgeId, out bdge))
                 {
-                    bdge = new MethodDefinition(bridgeId, MethodAttributes.Static | MethodAttributes.Assembly, 
-                        mod.Import(txt.mtdRef.DeclaringType.Resolve()));
+                    bdge = new MethodDefinition(bridgeId, MethodAttributes.Static | MethodAttributes.Assembly,
+                        mod.Import(txt.dele.Methods.Single(_ => _.Name == "Invoke").ReturnType));
                     for (int i = 0; i < txt.mtdRef.Parameters.Count; i++)
                     {
                         bdge.Parameters.Add(new ParameterDefinition(GetNameO(txt.mtdRef.Parameters[i]), txt.mtdRef.Parameters[i].Attributes, txt.mtdRef.Parameters[i].ParameterType));
@@ -379,17 +382,17 @@ namespace Confuser.Core.Confusions
                 MemoryStream ms = new MemoryStream();
                 using (BinaryWriter wtr = new BinaryWriter(ms))
                 {
-                    wtr.Write(new byte[] { 0x89, 0xe0             });   //   mov eax, esp
-                    wtr.Write(new byte[] { 0x53                   });   //   push ebx
-                    wtr.Write(new byte[] { 0x57                   });   //   push edi
-                    wtr.Write(new byte[] { 0x56                   });   //   push esi
-                    wtr.Write(new byte[] { 0x29, 0xe0             });   //   sub eax, esp
-                    wtr.Write(new byte[] { 0x83, 0xf8, 0x18       });   //   cmp eax, 24
-                    wtr.Write(new byte[] { 0x74, 0x07             });   //   je n
+                    wtr.Write(new byte[] { 0x89, 0xe0 });   //   mov eax, esp
+                    wtr.Write(new byte[] { 0x53 });   //   push ebx
+                    wtr.Write(new byte[] { 0x57 });   //   push edi
+                    wtr.Write(new byte[] { 0x56 });   //   push esi
+                    wtr.Write(new byte[] { 0x29, 0xe0 });   //   sub eax, esp
+                    wtr.Write(new byte[] { 0x83, 0xf8, 0x18 });   //   cmp eax, 24
+                    wtr.Write(new byte[] { 0x74, 0x07 });   //   je n
                     wtr.Write(new byte[] { 0x8b, 0x44, 0x24, 0x10 });   //   mov eax, [esp + 4]
-                    wtr.Write(new byte[] { 0x50                   });   //   push eax
-                    wtr.Write(new byte[] { 0xeb, 0x01             });   //   jmp z
-                    wtr.Write(new byte[] { 0x51                   });   //n: push ecx
+                    wtr.Write(new byte[] { 0x50 });   //   push eax
+                    wtr.Write(new byte[] { 0xeb, 0x01 });   //   jmp z
+                    wtr.Write(new byte[] { 0x51 });   //n: push ecx
                     x86Register ret;                                    //z: 
                     var insts = _txt.visitor.GetInstructions(out ret);
                     foreach (var i in insts)

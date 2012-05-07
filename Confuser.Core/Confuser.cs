@@ -355,12 +355,13 @@ namespace Confuser.Core
 
             Log(string.Format("Loading assemblies..."));
             mkr.Initalize(confusions, packers);
-            mkrSettings = mkr.MarkAssemblies(this, (sender, e) => Log(e.Message));
+            mkrSettings = mkr.MarkAssemblies(this, param.Logger);
             settings = mkrSettings.Assemblies.ToList();
 
-            if (mkrSettings.Packer != null && (
-                settings[0].Assembly.MainModule.Kind == ModuleKind.Dll ||
-                settings[0].Assembly.MainModule.Kind == ModuleKind.NetModule))
+            var mainAsm = settings.SingleOrDefault(_ => _.IsMain);
+            if (mkrSettings.Packer != null && mainAsm.Assembly != null && (
+                mainAsm.Assembly.MainModule.Kind == ModuleKind.Dll ||
+                mainAsm.Assembly.MainModule.Kind == ModuleKind.NetModule))
             {
                 Log("Warning: Cannot pack a library or net module!");
                 mkrSettings.Packer = null;
@@ -474,7 +475,7 @@ namespace Confuser.Core
         {
             if (mkrSettings.Packer != null)
                 mkrSettings.Packer.ProcessModulePhase1(mod.Module,
-                    mod.Module.IsMain && mkrSettings.Assemblies[0].Assembly == mod.Module.Assembly);
+                        mod.Module.IsMain && mkrSettings.Assemblies.SingleOrDefault(_ => _.IsMain).Assembly == mod.Module.Assembly);
             ConfusionParameter cParam = new ConfusionParameter();
             bool end1 = false;
             foreach (StructurePhase i in from i in phases where (i is StructurePhase) orderby (int)i.Priority + i.PhaseID * 10 ascending select i)
@@ -538,7 +539,7 @@ namespace Confuser.Core
 
             if (mkrSettings.Packer != null)
                 mkrSettings.Packer.ProcessModulePhase3(mod.Module,
-                    mod.Module.IsMain && mkrSettings.Assemblies[0].Assembly == mod.Module.Assembly);
+                    mod.Module.IsMain && mkrSettings.Assemblies.SingleOrDefault(_ => _.IsMain).Assembly == mod.Module.Assembly);
         }
         void ProcessMdPePhases(ModuleSetting mod, ObfuscationSettings globalParams, IEnumerable<Phase> phases, Stream stream, WriterParameters parameters)
         {
@@ -563,7 +564,7 @@ namespace Confuser.Core
 
                 if (mkrSettings.Packer != null)
                     mkrSettings.Packer.ProcessMetadataPhase1(accessor,
-                        mod.Module.IsMain && mkrSettings.Assemblies[0].Assembly == mod.Module.Assembly);
+                        mod.Module.IsMain && mkrSettings.Assemblies.SingleOrDefault(_ => _.IsMain).Assembly == mod.Module.Assembly);
             });
             psr.BeforeWriteTables += new MetadataProcessor.MetadataProcess(delegate(MetadataProcessor.MetadataAccessor accessor)
             {
@@ -583,7 +584,7 @@ namespace Confuser.Core
 
                 if (mkrSettings.Packer != null)
                     mkrSettings.Packer.ProcessMetadataPhase2(accessor,
-                        mod.Module.IsMain && mkrSettings.Assemblies[0].Assembly == mod.Module.Assembly);
+                        mod.Module.IsMain && mkrSettings.Assemblies.SingleOrDefault(_ => _.IsMain).Assembly == mod.Module.Assembly);
                 if (param.ProcessMetadata != null)
                     param.ProcessMetadata(accessor);
             });
@@ -609,7 +610,7 @@ namespace Confuser.Core
 
                 if (mkrSettings.Packer != null)
                     mkrSettings.Packer.ProcessImage(accessor,
-                        mod.Module.IsMain && mkrSettings.Assemblies[0].Assembly == mod.Module.Assembly);
+                        mod.Module.IsMain && mkrSettings.Assemblies.SingleOrDefault(_ => _.IsMain).Assembly == mod.Module.Assembly);
                 if (param.ProcessImage != null)
                     param.ProcessImage(accessor);
 
@@ -725,7 +726,7 @@ namespace Confuser.Core
             }
             foreach (MemberSetting _mem in mod.Members)
                 GetTargets(_mem, mems, cion);
-            foreach (MemberSetting _mem in newAdded)
+            foreach (MemberSetting _mem in newAdded.Where(_ => _.Object.Module == mod.Module))
                 GetTargets(_mem, mems, cion);
             return mems;
         }

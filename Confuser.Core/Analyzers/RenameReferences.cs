@@ -57,15 +57,17 @@ namespace Confuser.Core.Analyzers
         public void UpdateReference(Identifier old, Identifier @new)
         {
             MethodSpecification mSpec = refer as MethodSpecification;
-            if (mSpec == null || !(mSpec.DeclaringType.GetElementType() is TypeDefinition))
-            {
-                TypeSpecification tSpec = refer.DeclaringType as TypeSpecification;
-                TypeDefinition par = tSpec.GetElementType() as TypeDefinition;
-                if (tSpec != null && par != null)
-                {
-                    refer.Name = @new.name;
-                }
-            }
+            if (mSpec == null)//|| !(mSpec.DeclaringType.GetElementType() is TypeDefinition))
+                //{
+                //    TypeSpecification tSpec = refer.DeclaringType as TypeSpecification;
+                //    TypeDefinition par = tSpec.GetElementType() as TypeDefinition;
+                //    if (tSpec != null && par != null)
+                //    {
+                refer.Name = @new.name;
+            //    }
+            //}
+            else
+                (mSpec.ElementMethod).Name = @new.name;
         }
         public bool QueryCancellation()
         {

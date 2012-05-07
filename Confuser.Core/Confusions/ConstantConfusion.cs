@@ -69,15 +69,6 @@ namespace Confuser.Core.Confusions
                 Random rand = new Random();
                 TypeDefinition modType = mod.GetType("<Module>");
 
-                AssemblyDefinition id = AssemblyDefinition.ReadAssembly(typeof(Iid).Assembly.Location);
-                txt.strer = id.MainModule.GetType("Encryptions").Methods.FirstOrDefault(mtd => mtd.Name == "Constants");
-                txt.strer = CecilHelper.Inject(mod, txt.strer);
-                modType.Methods.Add(txt.strer);
-                byte[] n = new byte[0x10]; rand.NextBytes(n);
-                txt.strer.Name = Encoding.UTF8.GetString(n);
-                txt.strer.IsAssembly = true;
-                AddHelper(txt.strer, HelperAttribute.NoInjection);
-
                 FieldDefinition constTbl = new FieldDefinition(
                     ObfuscationHelper.GetNewName("constTbl" + Guid.NewGuid().ToString()),
                     FieldAttributes.Static | FieldAttributes.CompilerControlled,
@@ -88,9 +79,12 @@ namespace Confuser.Core.Confusions
                 FieldDefinition constStream = new FieldDefinition(
                     ObfuscationHelper.GetNewName("constStream" + Guid.NewGuid().ToString()),
                     FieldAttributes.Static | FieldAttributes.CompilerControlled,
-                    mod.Import(typeof(MemoryStream)));
+                    mod.Import(typeof(Stream)));
                 modType.Fields.Add(constStream);
                 AddHelper(constStream, HelperAttribute.NoInjection);
+
+                txt.consters = CreateConsters(txt, rand, "Constants", constTbl, constStream);
+
 
                 if (txt.isNative)
                 {
@@ -102,52 +96,24 @@ namespace Confuser.Core.Confusions
                     txt.nativeDecr.ImplAttributes = MethodImplAttributes.Native;
                     txt.nativeDecr.Parameters.Add(new ParameterDefinition(mod.TypeSystem.Int32));
                     modType.Methods.Add(txt.nativeDecr);
-                }
 
-                txt.key0 = rand.Next();
-                txt.key1 = rand.Next();
-                txt.key2 = rand.Next();
-                txt.key3 = rand.Next();
 
-                rand.NextBytes(n);
-                byte[] dat = new byte[0x10];
-                rand.NextBytes(dat);
-                rand.NextBytes(txt.types);
-                while (txt.types.Distinct().Count() != 5) rand.NextBytes(txt.types);
-
-                txt.strer.Body.SimplifyMacros();
-                foreach (Instruction inst in txt.strer.Body.Instructions)
-                {
-                    if ((inst.Operand as string) == "PADDINGPADDINGPADDING")
-                        inst.Operand = Encoding.UTF8.GetString(n);
-                    else if (inst.Operand is FieldReference)
+                    var expGen = new ExpressionGenerator();
+                    int seed = expGen.Seed;
+                    if (txt.isNative)
                     {
-                        if ((inst.Operand as FieldReference).Name == "constTbl")
-                            inst.Operand = constTbl;
-                        else if ((inst.Operand as FieldReference).Name == "constStream")
-                            inst.Operand = constStream;
+                        do
+                        {
+                            txt.exp = new ExpressionGenerator().Generate(6);
+                            txt.invExp = ExpressionInverser.InverseExpression(txt.exp);
+                        } while ((txt.visitor = new x86Visitor(txt.invExp, null)).RegisterOverflowed);
                     }
-                    else if (inst.Operand is int && (int)inst.Operand == 12345678)
-                        inst.Operand = txt.key0;
-                    else if (inst.Operand is int && (int)inst.Operand == 0x67452301)
-                        inst.Operand = txt.key1;
-                    else if (inst.Operand is int && (int)inst.Operand == 0x3bd523a0)
-                        inst.Operand = txt.key2;
-                    else if (inst.Operand is int && (int)inst.Operand == 0x5f6f36c0)
-                        inst.Operand = txt.key3;
-                    else if (inst.Operand is int && (int)inst.Operand == 11)
-                        inst.Operand = (int)txt.types[0];
-                    else if (inst.Operand is int && (int)inst.Operand == 22)
-                        inst.Operand = (int)txt.types[1];
-                    else if (inst.Operand is int && (int)inst.Operand == 33)
-                        inst.Operand = (int)txt.types[2];
-                    else if (inst.Operand is int && (int)inst.Operand == 44)
-                        inst.Operand = (int)txt.types[3];
-                    else if (inst.Operand is int && (int)inst.Operand == 55)
-                        inst.Operand = (int)txt.types[4];
+                    else
+                    {
+                        txt.exp = expGen.Generate(10);
+                        txt.invExp = ExpressionInverser.InverseExpression(txt.exp);
+                    }
                 }
-
-                txt.resId = Encoding.UTF8.GetString(n);
             }
             private void ProcessSafe(ConfusionParameter parameter)
             {
@@ -155,15 +121,6 @@ namespace Confuser.Core.Confusions
 
                 Random rand = new Random();
                 TypeDefinition modType = mod.GetType("<Module>");
-
-                AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(Iid).Assembly.Location);
-                txt.strer = i.MainModule.GetType("Encryptions").Methods.FirstOrDefault(mtd => mtd.Name == "SafeConstants");
-                txt.strer = CecilHelper.Inject(mod, txt.strer);
-                modType.Methods.Add(txt.strer);
-                byte[] n = new byte[0x10]; rand.NextBytes(n);
-                txt.strer.Name = Encoding.UTF8.GetString(n);
-                txt.strer.IsAssembly = true;
-                AddHelper(txt.strer, HelperAttribute.NoInjection);
 
                 FieldDefinition constTbl = new FieldDefinition(
                     ObfuscationHelper.GetNewName("constTbl" + Guid.NewGuid().ToString()),
@@ -175,54 +132,122 @@ namespace Confuser.Core.Confusions
                 FieldDefinition constStream = new FieldDefinition(
                     ObfuscationHelper.GetNewName("constStream" + Guid.NewGuid().ToString()),
                     FieldAttributes.Static | FieldAttributes.CompilerControlled,
-                    mod.Import(typeof(MemoryStream)));
+                    mod.Import(typeof(Stream)));
                 modType.Fields.Add(constStream);
                 AddHelper(constStream, HelperAttribute.NoInjection);
 
-                txt.key0 = rand.Next();
-                txt.key1 = rand.Next();
-                txt.key2 = rand.Next();
-                txt.key3 = rand.Next();
+                txt.consters = CreateConsters(txt, rand, "SafeConstants", constTbl, constStream);
+            }
+            Conster[] CreateConsters(_Context txt, Random rand, string injectName,
+                                     FieldDefinition constTbl, FieldDefinition constStream)
+            {
+                AssemblyDefinition injection = AssemblyDefinition.ReadAssembly(typeof(Iid).Assembly.Location);
+                MethodDefinition method = injection.MainModule.GetType("Encryptions").Methods.FirstOrDefault(mtd => mtd.Name == injectName);
+                List<Conster> ret = new List<Conster>();
 
-                rand.NextBytes(n);
-                byte[] dat = new byte[0x10];
-                rand.NextBytes(dat);
                 rand.NextBytes(txt.types);
                 while (txt.types.Distinct().Count() != 5) rand.NextBytes(txt.types);
+                byte[] n = new byte[0x10];
+                rand.NextBytes(n);
+                txt.resId = Encoding.UTF8.GetString(n);
+                txt.key = rand.Next();
 
-                txt.strer.Body.SimplifyMacros();
-                foreach (Instruction inst in txt.strer.Body.Instructions)
+
+                MethodDefinition init = injection.MainModule.GetType("Encryptions").Methods.FirstOrDefault(mtd => mtd.Name == "Initialize");
                 {
-                    if ((inst.Operand as string) == "PADDINGPADDINGPADDING")
-                        inst.Operand = Encoding.UTF8.GetString(n);
-                    else if (inst.Operand is FieldReference)
+                    MethodDefinition cctor = mod.GetType("<Module>").GetStaticConstructor();
+                    MethodDefinition m = CecilHelper.Inject(mod, init);
+                    m.Body.SimplifyMacros();
+                    foreach (Instruction inst in m.Body.Instructions)
                     {
-                        if ((inst.Operand as FieldReference).Name == "constTbl")
-                            inst.Operand = constTbl;
-                        else if ((inst.Operand as FieldReference).Name == "constStream")
-                            inst.Operand = constStream;
+                        if ((inst.Operand as string) == "PADDINGPADDINGPADDING")
+                            inst.Operand = txt.resId;
+                        else if (inst.Operand is FieldReference)
+                        {
+                            if ((inst.Operand as FieldReference).Name == "constTbl")
+                                inst.Operand = constTbl;
+                            else if ((inst.Operand as FieldReference).Name == "constStream")
+                                inst.Operand = constStream;
+                        }
                     }
-                    else if (inst.Operand is int && (int)inst.Operand == 12345678)
-                        inst.Operand = txt.key0;
-                    else if (inst.Operand is int && (int)inst.Operand == 0x67452301)
-                        inst.Operand = txt.key1;
-                    else if (inst.Operand is int && (int)inst.Operand == 0x3bd523a0)
-                        inst.Operand = txt.key2;
-                    else if (inst.Operand is int && (int)inst.Operand == 0x5f6f36c0)
-                        inst.Operand = txt.key3;
-                    else if (inst.Operand is int && (int)inst.Operand == 11)
-                        inst.Operand = (int)txt.types[0];
-                    else if (inst.Operand is int && (int)inst.Operand == 22)
-                        inst.Operand = (int)txt.types[1];
-                    else if (inst.Operand is int && (int)inst.Operand == 33)
-                        inst.Operand = (int)txt.types[2];
-                    else if (inst.Operand is int && (int)inst.Operand == 44)
-                        inst.Operand = (int)txt.types[3];
-                    else if (inst.Operand is int && (int)inst.Operand == 55)
-                        inst.Operand = (int)txt.types[4];
+                    ILProcessor psr = cctor.Body.GetILProcessor();
+                    Instruction begin = cctor.Body.Instructions[0];
+                    for (int i = m.Body.Instructions.Count - 1; i >= 0; i--)
+                    {
+                        if (m.Body.Instructions[i].OpCode != OpCodes.Ret)
+                            psr.InsertBefore(0, m.Body.Instructions[i]);
+                    }
+                    cctor.Body.InitLocals = true;
+                    foreach (var i in m.Body.Variables)
+                        cctor.Body.Variables.Add(i);
                 }
 
-                txt.resId = Encoding.UTF8.GetString(n);
+
+                int typeDefCount = rand.Next(1, 10);
+                for (int i = 0; i < typeDefCount; i++)
+                {
+                    TypeDefinition typeDef = new TypeDefinition(
+                        "", Encoding.UTF8.GetString(Guid.NewGuid().ToByteArray()),
+                        TypeAttributes.Class | TypeAttributes.Abstract | TypeAttributes.NotPublic | TypeAttributes.Sealed,
+                        mod.TypeSystem.Object);
+                    mod.Types.Add(typeDef);
+                    int methodCount = rand.Next(1, 5);
+
+                    for (int j = 0; j < methodCount; j++)
+                    {
+                        MethodDefinition mtd = CecilHelper.Inject(mod, method);
+                        rand.NextBytes(n);
+                        mtd.Name = Encoding.UTF8.GetString(n);
+                        mtd.IsCompilerControlled = true;
+
+                        AddHelper(mtd, HelperAttribute.NoInjection);
+                        typeDef.Methods.Add(mtd);
+
+                        Conster conster = new Conster();
+                        conster.key0 = rand.Next();
+                        conster.key1 = rand.Next();
+                        conster.key2 = rand.Next();
+                        conster.key3 = rand.Next();
+                        conster.conster = mtd;
+
+                        mtd.Body.SimplifyMacros();
+                        foreach (Instruction inst in mtd.Body.Instructions)
+                        {
+                            if ((inst.Operand as string) == "PADDINGPADDINGPADDING")
+                                inst.Operand = txt.resId;
+                            else if (inst.Operand is FieldReference)
+                            {
+                                if ((inst.Operand as FieldReference).Name == "constTbl")
+                                    inst.Operand = constTbl;
+                                else if ((inst.Operand as FieldReference).Name == "constStream")
+                                    inst.Operand = constStream;
+                            }
+                            else if (inst.Operand is int && (int)inst.Operand == 0x57425674)
+                                inst.Operand = txt.key;
+                            else if (inst.Operand is int && (int)inst.Operand == 12345678)
+                                inst.Operand = conster.key0;
+                            else if (inst.Operand is int && (int)inst.Operand == 0x67452301)
+                                inst.Operand = conster.key1;
+                            else if (inst.Operand is int && (int)inst.Operand == 0x3bd523a0)
+                                inst.Operand = conster.key2;
+                            else if (inst.Operand is int && (int)inst.Operand == 0x5f6f36c0)
+                                inst.Operand = conster.key3;
+                            else if (inst.Operand is int && (int)inst.Operand == 11)
+                                inst.Operand = (int)txt.types[0];
+                            else if (inst.Operand is int && (int)inst.Operand == 22)
+                                inst.Operand = (int)txt.types[1];
+                            else if (inst.Operand is int && (int)inst.Operand == 33)
+                                inst.Operand = (int)txt.types[2];
+                            else if (inst.Operand is int && (int)inst.Operand == 44)
+                                inst.Operand = (int)txt.types[3];
+                            else if (inst.Operand is int && (int)inst.Operand == 55)
+                                inst.Operand = (int)txt.types[4];
+                        }
+
+                        ret.Add(conster);
+                    }
+                }
+                return ret.ToArray();
             }
         }
         class Phase3 : StructurePhase, IProgressProvider
@@ -270,7 +295,15 @@ namespace Confuser.Core.Confusions
                 mod.Resources.Add(new EmbeddedResource(txt.resId, ManifestResourceAttributes.Private, str.ToArray()));
             }
 
-            struct Context { public MethodDefinition mtd; public ILProcessor psr; public Instruction str;}
+            class Context
+            {
+                public MethodDefinition mtd;
+                public ILProcessor psr;
+                public Instruction str;
+                public uint a;
+                public uint b;
+                public Conster conster;
+            }
             ModuleDefinition mod;
             bool IsNull(object obj)
             {
@@ -287,16 +320,17 @@ namespace Confuser.Core.Confusions
                 else
                     return true;
             }
-            void ExtractData(IList<Tuple<IAnnotationProvider, NameValueCollection>> mtds, List<Context> txts, bool num)
+            void ExtractData(IList<Tuple<IAnnotationProvider, NameValueCollection>> mtds,
+                List<Context> txts, bool num, _Context txt)
             {
+                Random rand = new Random();
                 foreach (var tuple in mtds)
                 {
                     MethodDefinition mtd = tuple.Item1 as MethodDefinition;
-                    if (mtd == cc.txts[mod].strer || !mtd.HasBody) continue;
+                    if (cc.txts[mod].consters.Any(_ => _.conster == mtd) || !mtd.HasBody) continue;
                     var bdy = mtd.Body;
                     var insts = bdy.Instructions;
                     ILProcessor psr = bdy.GetILProcessor();
-                    bool hasDat = false;
                     for (int i = 0; i < insts.Count; i++)
                     {
                         if (insts[i].OpCode.Code == Code.Ldstr ||
@@ -305,8 +339,14 @@ namespace Confuser.Core.Confusions
                             insts[i].OpCode.Code == Code.Ldc_R4 ||
                             insts[i].OpCode.Code == Code.Ldc_R8)))
                         {
-                            hasDat = true;
-                            txts.Add(new Context() { mtd = mtd, psr = psr, str = insts[i] });
+                            txts.Add(new Context()
+                            {
+                                mtd = mtd,
+                                psr = psr,
+                                str = insts[i],
+                                a = (uint)rand.Next(),
+                                conster = txt.consters[rand.Next(0, txt.consters.Length)]
+                            });
                         }
                     }
                 }
@@ -348,7 +388,7 @@ namespace Confuser.Core.Confusions
                     if (a[i] != b[i]) return false;
                 return true;
             }
-            void FinalizeBodies(List<Context> txts, int[] ids)
+            void FinalizeBodies(List<Context> txts)
             {
                 double total = txts.Count;
                 int interval = 1;
@@ -360,7 +400,7 @@ namespace Confuser.Core.Confusions
                     int idx = txts[i].mtd.Body.Instructions.IndexOf(txts[i].str);
                     Instruction now = txts[i].str;
                     if (IsNull(now.Operand)) continue;
-                    Instruction call = Instruction.Create(OpCodes.Call, cc.txts[mod].strer);
+                    Instruction call = Instruction.Create(OpCodes.Call, txts[i].conster.conster);
                     txts[i].psr.InsertAfter(idx, call);
                     if (now.Operand is int)
                         txts[i].psr.InsertAfter(call, Instruction.Create(OpCodes.Unbox_Any, txts[i].mtd.Module.TypeSystem.Int32));
@@ -372,7 +412,8 @@ namespace Confuser.Core.Confusions
                         txts[i].psr.InsertAfter(call, Instruction.Create(OpCodes.Unbox_Any, txts[i].mtd.Module.TypeSystem.Double));
                     else
                         txts[i].psr.InsertAfter(call, Instruction.Create(OpCodes.Castclass, txts[i].mtd.Module.TypeSystem.String));
-                    txts[i].psr.Replace(idx, Instruction.Create(OpCodes.Ldc_I4, ids[i]));
+                    txts[i].psr.Replace(idx, Instruction.Create(OpCodes.Ldc_I4, (int)txts[i].a));
+                    txts[i].psr.InsertAfter(idx, Instruction.Create(OpCodes.Ldc_I4, (int)txts[i].b));
                     if (i % interval == 0 || i == txts.Count - 1)
                         progresser.SetProgress(i + 1, txts.Count);
                 }
@@ -382,7 +423,7 @@ namespace Confuser.Core.Confusions
                 {
                     if (hashs.IndexOf(txts[i].mtd.GetHashCode()) == -1)
                     {
-                        txts[i].mtd.Body.MaxStackSize++;
+                        txts[i].mtd.Body.MaxStackSize += 2;
                         hashs.Add(txts[i].mtd.GetHashCode());
                     }
                 }
@@ -398,36 +439,34 @@ namespace Confuser.Core.Confusions
                 _Context txt = cc.txts[mod];
 
                 List<Context> txts = new List<Context>();
-                ExtractData(parameter.Target as IList<Tuple<IAnnotationProvider, NameValueCollection>>, txts, Array.IndexOf(parameter.GlobalParameters.AllKeys, "numeric") != -1);
+                ExtractData(
+                    parameter.Target as IList<Tuple<IAnnotationProvider, NameValueCollection>>, txts,
+                    Array.IndexOf(parameter.GlobalParameters.AllKeys, "numeric") != -1, txt);
 
-                int[] ids = new int[txts.Count];
                 txt.dict.Clear();
-                var expGen = new ExpressionGenerator();
-                int seed = expGen.Seed;
-                if (txt.isNative)
-                {
-                    do
-                    {
-                        txt.exp = new ExpressionGenerator().Generate(6);
-                        txt.invExp = ExpressionInverser.InverseExpression(txt.exp);
-                    } while ((txt.visitor = new x86Visitor(txt.invExp, null)).RegisterOverflowed);
-                }
-                else
-                {
-                    txt.exp = expGen.Generate(10);
-                    txt.invExp = ExpressionInverser.InverseExpression(txt.exp);
-                }
 
                 for (int i = 0; i < txts.Count; i++)
                 {
                     object val = txts[i].str.Operand as object;
                     if (IsNull(val)) continue;
 
+                    uint x = txts[i].conster.conster.MetadataToken.ToUInt32() ^
+                                    (txts[i].conster.conster.DeclaringType.MetadataToken.ToUInt32() * txts[i].a);
                     if (txt.dict.ContainsKey(val))
-                        ids[i] = (int)(txt.dict[val] ^ ComputeHash(txts[i].mtd.MetadataToken.ToUInt32(), (uint)txt.key0, (uint)txt.key1, (uint)txt.key2, (uint)txt.key3));
+                        txts[i].b = (uint)txt.dict[val] ^
+                                ComputeHash(x,
+                                (uint)txts[i].conster.key0,
+                                (uint)txts[i].conster.key1,
+                                (uint)txts[i].conster.key2,
+                                (uint)txts[i].conster.key3);
                     else
                     {
-                        ids[i] = (int)(txt.idx ^ ComputeHash(txts[i].mtd.MetadataToken.ToUInt32(), (uint)txt.key0, (uint)txt.key1, (uint)txt.key2, (uint)txt.key3));
+                        txts[i].b = (uint)txt.idx ^
+                                ComputeHash(x,
+                                (uint)txts[i].conster.key0,
+                                (uint)txts[i].conster.key1,
+                                (uint)txts[i].conster.key2,
+                                (uint)txts[i].conster.key3);
                         byte t;
                         byte[] ori = GetOperand(val, out t);
 
@@ -435,7 +474,7 @@ namespace Confuser.Core.Confusions
                         byte[] dat = Encrypt(ori, txt.exp, out len);
                         byte[] final = new byte[dat.Length + 4];
                         Buffer.BlockCopy(dat, 0, final, 4, dat.Length);
-                        Buffer.BlockCopy(BitConverter.GetBytes(len), 0, final, 0, 4);
+                        Buffer.BlockCopy(BitConverter.GetBytes(len ^ txt.key), 0, final, 0, 4);
                         txt.dats.Add(new Data() { Dat = final, Type = t });
                         txt.dict[val] = txt.idx;
                         txt.idx += final.Length + 5;
@@ -443,52 +482,68 @@ namespace Confuser.Core.Confusions
                 }
 
 
-                Instruction placeholder = null;
-                foreach (Instruction inst in txt.strer.Body.Instructions)
-                    if (inst.Operand is MethodReference && (inst.Operand as MethodReference).Name == "PlaceHolder")
-                    {
-                        placeholder = inst;
-                        break;
-                    }
-                if (txt.isNative)
-                    CecilHelper.Replace(txt.strer.Body, placeholder, new Instruction[]
+                foreach (var i in txt.consters)
+                {
+                    Instruction placeholder = null;
+                    foreach (Instruction inst in i.conster.Body.Instructions)
+                        if (inst.Operand is MethodReference && (inst.Operand as MethodReference).Name == "PlaceHolder")
+                        {
+                            placeholder = inst;
+                            break;
+                        }
+                    if (txt.isNative)
+                        CecilHelper.Replace(i.conster.Body, placeholder, new Instruction[]
                         {
                             Instruction.Create(OpCodes.Call, txt.nativeDecr)
                         });
-                else
-                {
-                    Instruction ldloc = placeholder.Previous;
-                    txt.strer.Body.Instructions.Remove(placeholder.Previous);   //ldloc
-                    CecilHelper.Replace(txt.strer.Body, placeholder, new CecilVisitor(txt.invExp, new Instruction[]
+                    else
                     {
-                        ldloc
-                    }).GetInstructions());
+                        Instruction ldloc = placeholder.Previous;
+                        i.conster.Body.Instructions.Remove(placeholder.Previous);   //ldloc
+                        CecilHelper.Replace(i.conster.Body, placeholder, new CecilVisitor(txt.invExp, new Instruction[]
+                        {
+                            ldloc
+                        }).GetInstructions());
+                    }
                 }
 
-                FinalizeBodies(txts, ids);
+                FinalizeBodies(txts);
             }
             void ProcessSafe(ConfusionParameter parameter)
             {
                 _Context txt = cc.txts[mod];
 
                 List<Context> txts = new List<Context>();
-                ExtractData(parameter.Target as IList<Tuple<IAnnotationProvider, NameValueCollection>>, txts, Array.IndexOf(parameter.GlobalParameters.AllKeys, "numeric") != -1);
+                ExtractData(
+                    parameter.Target as IList<Tuple<IAnnotationProvider, NameValueCollection>>, txts,
+                    Array.IndexOf(parameter.GlobalParameters.AllKeys, "numeric") != -1, txt);
 
-                int[] ids = new int[txts.Count];
                 for (int i = 0; i < txts.Count; i++)
                 {
                     int idx = txts[i].mtd.Body.Instructions.IndexOf(txts[i].str);
                     object val = txts[i].str.Operand;
                     if (IsNull(val)) continue;
 
+                    uint x = txts[i].conster.conster.MetadataToken.ToUInt32() ^
+                                    (txts[i].conster.conster.DeclaringType.MetadataToken.ToUInt32() * txts[i].a);
                     if (txt.dict.ContainsKey(val))
-                        ids[i] = (int)(txt.dict[val] ^ ComputeHash(txts[i].mtd.MetadataToken.ToUInt32(), (uint)txt.key0, (uint)txt.key1, (uint)txt.key2, (uint)txt.key3));
+                        txts[i].b = (uint)txt.dict[val] ^
+                                ComputeHash(x,
+                                (uint)txts[i].conster.key0,
+                                (uint)txts[i].conster.key1,
+                                (uint)txts[i].conster.key2,
+                                (uint)txts[i].conster.key3);
                     else
                     {
                         byte t;
                         byte[] ori = GetOperand(val, out t);
-                        byte[] dat = EncryptSafe(ori, txt.key0 ^ txt.idx);
-                        ids[i] = (int)(txt.idx ^ ComputeHash(txts[i].mtd.MetadataToken.ToUInt32(), (uint)txt.key0, (uint)txt.key1, (uint)txt.key2, (uint)txt.key3));
+                        byte[] dat = EncryptSafe(ori, (txt.idx + t) * txt.key);
+                        txts[i].b = (uint)txt.idx ^
+                                ComputeHash(x,
+                                (uint)txts[i].conster.key0,
+                                (uint)txts[i].conster.key1,
+                                (uint)txts[i].conster.key2,
+                                (uint)txts[i].conster.key3);
 
                         txt.dats.Add(new Data() { Dat = dat, Type = t });
                         txt.dict[val] = txt.idx;
@@ -496,7 +551,7 @@ namespace Confuser.Core.Confusions
                     }
                 }
 
-                FinalizeBodies(txts, ids);
+                FinalizeBodies(txts);
             }
 
             IProgresser progresser;
@@ -533,17 +588,17 @@ namespace Confuser.Core.Confusions
                 MemoryStream ms = new MemoryStream();
                 using (BinaryWriter wtr = new BinaryWriter(ms))
                 {
-                    wtr.Write(new byte[] { 0x89, 0xe0             });   //   mov eax, esp
-                    wtr.Write(new byte[] { 0x53                   });   //   push ebx
-                    wtr.Write(new byte[] { 0x57                   });   //   push edi
-                    wtr.Write(new byte[] { 0x56                   });   //   push esi
-                    wtr.Write(new byte[] { 0x29, 0xe0             });   //   sub eax, esp
-                    wtr.Write(new byte[] { 0x83, 0xf8, 0x18       });   //   cmp eax, 24
-                    wtr.Write(new byte[] { 0x74, 0x07             });   //   je n
+                    wtr.Write(new byte[] { 0x89, 0xe0 });   //   mov eax, esp
+                    wtr.Write(new byte[] { 0x53 });   //   push ebx
+                    wtr.Write(new byte[] { 0x57 });   //   push edi
+                    wtr.Write(new byte[] { 0x56 });   //   push esi
+                    wtr.Write(new byte[] { 0x29, 0xe0 });   //   sub eax, esp
+                    wtr.Write(new byte[] { 0x83, 0xf8, 0x18 });   //   cmp eax, 24
+                    wtr.Write(new byte[] { 0x74, 0x07 });   //   je n
                     wtr.Write(new byte[] { 0x8b, 0x44, 0x24, 0x10 });   //   mov eax, [esp + 4]
-                    wtr.Write(new byte[] { 0x50                   });   //   push eax
-                    wtr.Write(new byte[] { 0xeb, 0x01             });   //   jmp z
-                    wtr.Write(new byte[] { 0x51                   });   //n: push ecx
+                    wtr.Write(new byte[] { 0x50 });   //   push eax
+                    wtr.Write(new byte[] { 0xeb, 0x01 });   //   jmp z
+                    wtr.Write(new byte[] { 0x51 });   //n: push ecx
                     x86Register ret;                                    //z: 
                     var insts = txt.visitor.GetInstructions(out ret);
                     foreach (var i in insts)
@@ -616,26 +671,31 @@ namespace Confuser.Core.Confusions
             public byte[] Dat;
             public byte Type;
         }
+        struct Conster
+        {
+            public MethodDefinition conster;
+            public int key0;
+            public int key1;
+            public int key2;
+            public int key3;
+        }
         class _Context
         {
             public List<Data> dats;
             public Dictionary<object, int> dict;
             public int idx = 0;
+            public int key;
 
             public string resId;
-            public int key0;
-            public int key1;
-            public int key2;
-            public int key3;
             public byte[] types = new byte[5];
-            public MethodDefinition strer;
+            public Conster[] consters;
+            public MethodDefinition nativeDecr;
 
             public bool isNative;
-            public Range nativeRange;
-            public MethodDefinition nativeDecr;
             public Expression exp;
             public Expression invExp;
             public x86Visitor visitor;
+            public Range nativeRange;
         }
         Dictionary<ModuleDefinition, _Context> txts = new Dictionary<ModuleDefinition, _Context>();
 

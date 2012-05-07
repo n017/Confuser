@@ -132,7 +132,11 @@ static class Proxies
         for (int i = 0; i < args.Length; i++)
             arg[i] = args[i].ParameterType;
 
-        var dm = new System.Reflection.Emit.DynamicMethod("", mtd.DeclaringType, arg, mtd.DeclaringType, true);
+        DynamicMethod dm;
+        if (mtd.DeclaringType.IsInterface || mtd.DeclaringType.IsArray)
+            dm = new DynamicMethod("", mtd.DeclaringType, arg, fld.DeclaringType, true);
+        else
+            dm = new DynamicMethod("", mtd.DeclaringType, arg, mtd.DeclaringType, true);
         var gen = dm.GetILGenerator();
         for (int i = 0; i < arg.Length; i++)
             gen.Emit(System.Reflection.Emit.OpCodes.Ldarg_S, i);
@@ -161,8 +165,8 @@ static class Proxies
                 arg[i + 1] = tmp[i].ParameterType;
 
             DynamicMethod dm;
-            if (mtd.DeclaringType.IsInterface)
-                dm = new DynamicMethod("", mtd.ReturnType, arg, (Type)null, true);
+            if (mtd.DeclaringType.IsInterface || mtd.DeclaringType.IsArray)
+                dm = new DynamicMethod("", mtd.ReturnType, arg, fld.DeclaringType, true);
             else
                 dm = new DynamicMethod("", mtd.ReturnType, arg, mtd.DeclaringType, true);
             var gen = dm.GetILGenerator();
@@ -325,28 +329,31 @@ static class Encryptions
     public static int PlaceHolder(int val) { return 0; }
 
     static Dictionary<uint, object> constTbl;
-    static MemoryStream constStream;
-    static object Constants(uint id)
+    static Stream constStream;
+    static void Initialize()
     {
-        if (constTbl == null)
+        constTbl = new Dictionary<uint, object>();
+        constStream = new MemoryStream();
+        Assembly asm = Assembly.GetExecutingAssembly();
+        DeflateStream str = new DeflateStream(asm.GetManifestResourceStream("PADDINGPADDINGPADDING"), CompressionMode.Decompress);
         {
-            constTbl = new Dictionary<uint, object>();
-            constStream = new MemoryStream();
-            Assembly asm = Assembly.GetCallingAssembly();
-            using (DeflateStream str = new DeflateStream(asm.GetManifestResourceStream("PADDINGPADDINGPADDING"), CompressionMode.Decompress))
+            byte[] dat = new byte[0x1000];
+            int read = str.Read(dat, 0, 0x1000);
+            do
             {
-                byte[] dat = new byte[0x1000];
-                int read = str.Read(dat, 0, 0x1000);
-                do
-                {
-                    constStream.Write(dat, 0, read);
-                    read = str.Read(dat, 0, 0x1000);
-                }
-                while (read != 0);
+                constStream.Write(dat, 0, read);
+                read = str.Read(dat, 0, 0x1000);
             }
+            while (read != 0);
         }
+        str.Dispose();
+        constStream = constStream;
+    }
+    static object Constants(uint a, uint b)
+    {
         object ret;
-        uint x = (uint)new StackFrame(1).GetMethod().MetadataToken;
+        var method = MethodBase.GetCurrentMethod();
+        uint x = (uint)(method.MetadataToken ^ (method.DeclaringType.MetadataToken * a));
         uint h = 0x67452301 ^ x;
         uint h1 = 0x3bd523a0;
         uint h2 = 0x5f6f36c0;
@@ -379,36 +386,38 @@ static class Encryptions
                 h -= ~(h1 ^ h2) + 12345678;
             }
         }
-        uint pos = h ^ id;
+        uint pos = h ^ b;
         if (!constTbl.TryGetValue(pos, out ret))
         {
-            BinaryReader rdr = new BinaryReader(constStream);
-            rdr.BaseStream.Seek(pos, SeekOrigin.Begin);
-            byte type = rdr.ReadByte();
-            byte[] bs = rdr.ReadBytes(rdr.ReadInt32());
+            byte type;
+            byte[] bs;
+            lock (constStream)
+            {
+                BinaryReader rdr = new BinaryReader(constStream);
+                rdr.BaseStream.Seek(pos, SeekOrigin.Begin);
+                type = rdr.ReadByte();
+                bs = rdr.ReadBytes(rdr.ReadInt32());
+            }
 
             byte[] f;
             int len;
             using (BinaryReader r = new BinaryReader(new MemoryStream(bs)))
             {
-                len = r.ReadInt32();
+                len = r.ReadInt32() ^ 0x57425674;
                 f = new byte[(len + 7) & ~7];
                 for (int i = 0; i < f.Length; i++)
                 {
                     int count = 0;
                     int shift = 0;
-                    byte b;
+                    byte c;
                     do
                     {
-                        b = r.ReadByte();
-                        count |= (b & 0x7F) << shift;
+                        c = r.ReadByte();
+                        count |= (c & 0x7F) << shift;
                         shift += 7;
-                    } while ((b & 0x80) != 0);
+                    } while ((c & 0x80) != 0);
 
-                    Console.WriteLine(constTbl.GetHashCode());
-                    Console.WriteLine(count);
                     count = PlaceHolder(count);
-                    Console.WriteLine(count);
                     f[i] = (byte)count;
                 }
             }
@@ -426,27 +435,11 @@ static class Encryptions
         }
         return ret;
     }
-    static object SafeConstants(uint id)
+    static object SafeConstants(uint a, uint b)
     {
-        if (constTbl == null)
-        {
-            constTbl = new Dictionary<uint, object>();
-            constStream = new MemoryStream();
-            Assembly asm = Assembly.GetCallingAssembly();
-            using (DeflateStream str = new DeflateStream(asm.GetManifestResourceStream("PADDINGPADDINGPADDING"), CompressionMode.Decompress))
-            {
-                byte[] dat = new byte[0x1000];
-                int read = str.Read(dat, 0, 0x1000);
-                do
-                {
-                    constStream.Write(dat, 0, read);
-                    read = str.Read(dat, 0, 0x1000);
-                }
-                while (read != 0);
-            }
-        }
         object ret;
-        uint x = (uint)new StackFrame(1).GetMethod().MetadataToken;
+        var method = MethodBase.GetCurrentMethod();
+        uint x = (uint)(method.MetadataToken ^ (method.DeclaringType.MetadataToken * a));
         uint h = 0x67452301 ^ x;
         uint h1 = 0x3bd523a0;
         uint h2 = 0x5f6f36c0;
@@ -479,15 +472,20 @@ static class Encryptions
                 h -= ~(h1 ^ h2) + 12345678;
             }
         }
-        uint pos = h ^ id;
+        uint pos = h ^ b;
         if (!constTbl.TryGetValue(pos, out ret))
         {
-            BinaryReader rdr = new BinaryReader(constStream);
-            rdr.BaseStream.Seek(pos, SeekOrigin.Begin);
-            byte type = rdr.ReadByte();
-            byte[] f = rdr.ReadBytes(rdr.ReadInt32());
+            byte type;
+            byte[] f;
+            lock (constStream)
+            {
+                BinaryReader rdr = new BinaryReader(constStream);
+                rdr.BaseStream.Seek(pos, SeekOrigin.Begin);
+                type = rdr.ReadByte();
+                f = rdr.ReadBytes(rdr.ReadInt32());
+            }
 
-            uint seed = 12345678 ^ pos;
+            uint seed = (pos + type) * 0x57425674;
             ushort _m = (ushort)(seed >> 16);
             ushort _c = (ushort)(seed & 0xffff);
             ushort m = _c; ushort c = _m;
@@ -544,12 +542,12 @@ static class AntiDumping
         *((ushort*)newFunc + 4) = 0x6575;
         *(newFunc + 10) = 0;
 
-        if (typeof(AntiDumping).Module.FullyQualifiedName != "<Unknown>")
+        if (typeof(AntiDumping).Module.FullyQualifiedName != "<Unknown>")   //Mapped
         {
-            VirtualProtect(ptr - 16, 8, 0x40, out old);
-            *(uint*)(ptr - 12) = 0;
+            //VirtualProtect(ptr - 16, 8, 0x40, out old);
+            //*(uint*)(ptr - 12) = 0;
             byte* mdDir = bas + *(uint*)(ptr - 16);
-            *(uint*)(ptr - 16) = 0;
+            //*(uint*)(ptr - 16) = 0;
 
             if (*(uint*)(ptr - 0x78) != 0)
             {
@@ -618,12 +616,12 @@ static class AntiDumping
                 }
             }
         }
-        else
+        else   //Flat
         {
-            VirtualProtect(ptr - 16, 8, 0x40, out old);
-            *(uint*)(ptr - 12) = 0;
+            //VirtualProtect(ptr - 16, 8, 0x40, out old);
+            //*(uint*)(ptr - 12) = 0;
             uint mdDir = *(uint*)(ptr - 16);
-            *(uint*)(ptr - 16) = 0;
+            //*(uint*)(ptr - 16) = 0;
             uint importDir = *(uint*)(ptr - 0x78);
 
             uint[] vAdrs = new uint[sectNum];

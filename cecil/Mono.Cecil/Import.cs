@@ -350,7 +350,10 @@ namespace Mono.Cecil {
 				type.Name,
 				module,
 				ImportScope (type.Scope),
-				type.IsValueType);
+                type.IsValueType);
+
+            TypeDefinition typeDef = type.Resolve();
+            if (typeDef != null) reference.IsValueType = typeDef.IsValueType;
 
 			MetadataSystem.TryProcessPrimitiveType (reference);
 

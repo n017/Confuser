@@ -90,6 +90,11 @@ namespace Mono.Cecil.Cil {
 			this.operand = operand;
 		}
 
+        public Instruction Clone()
+        {
+            return (Instruction)base.MemberwiseClone();
+        }
+
 		public int GetSize ()
 		{
 			int size = opcode.Size;

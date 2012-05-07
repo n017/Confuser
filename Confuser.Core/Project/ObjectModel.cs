@@ -131,7 +131,11 @@ namespace Confuser.Core.Project
         }
         public TypeDefinition Resolve(ModuleDefinition module)
         {
-            return module.GetType(FullName);
+            TypeDefinition ret = module.GetType(FullName);
+            if (ret == null)
+                throw new Exception("Failed to resolve " + FullName + "!!!");
+            else
+                return ret;
         }
 
         public XmlElement Save(XmlDocument xmlDoc)
@@ -424,31 +428,27 @@ namespace Confuser.Core.Project
                         foreach (var i in type.Methods)
                             if (GetSig(i, out x) == Signature && x == Type)
                                 return i;
-                        return null;
-                    }
+                    } break;
                 case ProjectMemberType.Field:
                     {
                         foreach (var i in type.Fields)
                             if (GetSig(i, out x) == Signature && x == Type)
                                 return i;
-                        return null;
-                    }
+                    } break;
                 case ProjectMemberType.Property:
                     {
                         foreach (var i in type.Properties)
                             if (GetSig(i, out x) == Signature && x == Type)
                                 return i;
-                        return null;
-                    }
+                    } break;
                 case ProjectMemberType.Event:
                     {
                         foreach (var i in type.Events)
                             if (GetSig(i, out x) == Signature && x == Type)
                                 return i;
-                        return null;
-                    }
+                    } break;
             }
-            return null;
+            throw new Exception("Failed to resolve " + Signature + "!!!");
         }
 
         public XmlElement Save(XmlDocument xmlDoc)

@@ -101,14 +101,13 @@ namespace Confuser.Core.Confusions
 
                 MethodDefinition cctor = mod.GetType("<Module>").GetStaticConstructor();
                 MethodBody bdy = cctor.Body as MethodBody;
-                bdy.Instructions.RemoveAt(bdy.Instructions.Count - 1);
                 ILProcessor psr = bdy.GetILProcessor();
-                psr.Emit(OpCodes.Call, mod.Import(typeof(AppDomain).GetProperty("CurrentDomain").GetGetMethod()));
-                psr.Emit(OpCodes.Ldnull);
-                psr.Emit(OpCodes.Ldftn, txt.reso);
-                psr.Emit(OpCodes.Newobj, mod.Import(typeof(ResolveEventHandler).GetConstructor(new Type[] { typeof(object), typeof(IntPtr) })));
-                psr.Emit(OpCodes.Callvirt, mod.Import(typeof(AppDomain).GetEvent("ResourceResolve").GetAddMethod()));
-                psr.Emit(OpCodes.Ret);
+                //Reverse order
+                psr.InsertBefore(0, Instruction.Create(OpCodes.Callvirt, mod.Import(typeof(AppDomain).GetEvent("ResourceResolve").GetAddMethod())));
+                psr.InsertBefore(0, Instruction.Create(OpCodes.Newobj, mod.Import(typeof(ResolveEventHandler).GetConstructor(new Type[] { typeof(object), typeof(IntPtr) }))));
+                psr.InsertBefore(0, Instruction.Create(OpCodes.Ldftn, txt.reso));
+                psr.InsertBefore(0, Instruction.Create(OpCodes.Ldnull));
+                psr.InsertBefore(0, Instruction.Create(OpCodes.Call, mod.Import(typeof(AppDomain).GetProperty("CurrentDomain").GetGetMethod())));
             }
         }
         class MdPhase : MetadataPhase

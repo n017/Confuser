@@ -954,7 +954,7 @@ namespace Confuser.Core.Confusions
             for (int i = 0; i < scope.Length; i++)
             {
                 if (stacks[baseIndex + i] == 0 && insts.Count != 0 &&
-                    scope[i].OpCode.OpCodeType != OpCodeType.Prefix)
+                    (i == 0 || scope[i - 1].OpCode.OpCodeType != OpCodeType.Prefix))
                 {
                     ret.Add(insts.ToArray());
                     insts.Clear();
@@ -979,20 +979,46 @@ namespace Confuser.Core.Confusions
             yield return Instruction.Create(OpCodes.Break);
             if (genJunk)
             {
-                switch (rand.Next(0, 4))
+                switch (rand.Next(0, 5))
                 {
                     case 0:
                         yield return Instruction.Create(OpCodes.Break);
                         break;
                     case 1:
-                        yield return Instruction.Create(OpCodes.Ldc_I4, rand.Next(-1, 9));
+                        yield return Instruction.Create(OpCodes.Ldc_I4, rand.Next(0, 9));
                         yield return Instruction.Create(OpCodes.Dup);
                         yield return Instruction.Create(OpCodes.Stloc, stateVar);
                         yield return Instruction.Create(OpCodes.Pop);
                         break;
                     case 2:
-                        yield return Instruction.Create(OpCodes.Ldc_I4, rand.Next());
-                        yield return Instruction.Create(OpCodes.Ldc_I4, rand.Next());
+                        yield return Instruction.Create(OpCodes.Ldtoken, method.DeclaringType.Methods[rand.Next(0, method.DeclaringType.Methods.Count)]);
+                        Instruction inst = Instruction.Create(OpCodes.Pop);
+                        yield return Instruction.Create(OpCodes.Ldc_I4, rand.Next(0, 9));
+                        yield return Instruction.Create(OpCodes.Ldc_I4, rand.Next(0, 9));
+                        switch (rand.Next(0, 4))
+                        {
+                            case 0:
+                                yield return Instruction.Create(OpCodes.Bne_Un, inst);
+                                break;
+                            case 1:
+                                yield return Instruction.Create(OpCodes.Beq, inst);
+                                break;
+                            case 2:
+                                yield return Instruction.Create(OpCodes.Bgt, inst);
+                                break;
+                            case 3:
+                                yield return Instruction.Create(OpCodes.Ble, inst);
+                                break;
+                        }
+                        Instruction e = Instruction.Create(OpCodes.Break);
+                        yield return Instruction.Create(OpCodes.Pop);
+                        yield return Instruction.Create(OpCodes.Br, e);
+                        yield return inst;
+                        yield return e;
+                        break;
+                    case 3:
+                        yield return Instruction.Create(OpCodes.Ldc_I4, rand.Next(0, 9));
+                        yield return Instruction.Create(OpCodes.Ldc_I4, rand.Next(0, 9));
                         switch (rand.Next(0, 4))
                         {
                             case 0:
@@ -1010,14 +1036,14 @@ namespace Confuser.Core.Confusions
                         }
                         yield return Instruction.Create(OpCodes.Stloc, stateVar);
                         break;
-                    case 3:
+                    case 4:
                         yield return Instruction.CreateJunkCode(junkCode[rand.Next(0, junkCode.Length)]);
                         break;
                 }
             }
             else
             {
-                switch (rand.Next(0, 3))
+                switch (rand.Next(0, 4))
                 {
                     case 0:
                         yield return Instruction.Create(OpCodes.Break);
@@ -1029,6 +1055,32 @@ namespace Confuser.Core.Confusions
                         yield return Instruction.Create(OpCodes.Pop);
                         break;
                     case 2:
+                        yield return Instruction.Create(OpCodes.Ldtoken, method.DeclaringType.Methods[rand.Next(0, method.DeclaringType.Methods.Count)]);
+                        Instruction inst = Instruction.Create(OpCodes.Pop);
+                        yield return Instruction.Create(OpCodes.Ldc_I4, rand.Next(0, 9));
+                        yield return Instruction.Create(OpCodes.Ldc_I4, rand.Next(0, 9));
+                        switch (rand.Next(0, 4))
+                        {
+                            case 0:
+                                yield return Instruction.Create(OpCodes.Bne_Un, inst);
+                                break;
+                            case 1:
+                                yield return Instruction.Create(OpCodes.Beq, inst);
+                                break;
+                            case 2:
+                                yield return Instruction.Create(OpCodes.Bgt, inst);
+                                break;
+                            case 3:
+                                yield return Instruction.Create(OpCodes.Ble, inst);
+                                break;
+                        }
+                        Instruction e = Instruction.Create(OpCodes.Break);
+                        yield return Instruction.Create(OpCodes.Pop);
+                        yield return Instruction.Create(OpCodes.Br, e);
+                        yield return inst;
+                        yield return e;
+                        break;
+                    case 3:
                         yield return Instruction.Create(OpCodes.Ldc_I4, rand.Next());
                         yield return Instruction.Create(OpCodes.Ldc_I4, rand.Next());
                         switch (rand.Next(0, 4))

@@ -1,4 +1,4 @@
-﻿    using System;
+﻿using System;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -73,7 +73,12 @@ namespace Confuser
             set { SetValue(EnabledNavigationProperty, value); }
         }
         public static readonly DependencyProperty EnabledNavigationProperty =
-            DependencyProperty.Register("EnabledNavigation", typeof(bool), typeof(MainWindow), new UIPropertyMetadata(true));
+            DependencyProperty.Register("EnabledNavigation", typeof(bool), typeof(MainWindow), new UIPropertyMetadata(true, EnabledNavigationChanged));
+
+        static void EnabledNavigationChanged(DependencyObject sender, DependencyPropertyChangedEventArgs e)
+        {
+            (sender as MainWindow).AllowDrop = (bool)e.NewValue;
+        }
 
         public Prj Project { get; private set; }
 
@@ -132,23 +137,33 @@ namespace Confuser
                 }
             }
 
-            XmlDocument xmlDoc = new XmlDocument();
-            xmlDoc.Load(path);
+            try
+            {
+                XmlDocument xmlDoc = new XmlDocument();
+                xmlDoc.Load(path);
 
-            ConfuserProject proj = new ConfuserProject();
-            proj.Load(xmlDoc);
+                ConfuserProject proj = new ConfuserProject();
+                proj.Load(xmlDoc);
 
-            Prj prj = new Prj();
-            prj.FromConfuserProject(proj);
-            prj.FileName = path;
-            prj.IsModified = false;
+                Prj prj = new Prj();
+                prj.FromConfuserProject(proj);
+                prj.FileName = path;
 
-            Project = prj;
-            foreach (ConfuserTab i in Tab.Items)
-                i.InitProj();
-            prj.PropertyChanged += new PropertyChangedEventHandler(ProjectChanged);
-            ProjectChanged(Project, new PropertyChangedEventArgs(""));
-            Tab.SelectedIndex = 0;
+                Project = prj;
+                foreach (ConfuserTab i in Tab.Items)
+                    i.InitProj();
+                prj.PropertyChanged += new PropertyChangedEventHandler(ProjectChanged);
+                prj.IsModified = false;
+                ProjectChanged(Project, new PropertyChangedEventArgs(""));
+                Tab.SelectedIndex = 0;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(string.Format(
+@"Invalid project file!
+Message : {0}
+Stack Trace : {1}", ex.Message, ex.StackTrace), "Confuser", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
 
         }
         private void New_Click(object sender, RoutedEventArgs e)
@@ -202,23 +217,33 @@ namespace Confuser
             sfd.Filter = "Confuser Project (*.crproj)|*.crproj|All Files (*.*)|*.*";
             if (sfd.ShowDialog() ?? false)
             {
-                XmlDocument xmlDoc = new XmlDocument();
-                xmlDoc.Load(sfd.FileName);
+                try
+                {
+                    XmlDocument xmlDoc = new XmlDocument();
+                    xmlDoc.Load(sfd.FileName);
 
-                ConfuserProject proj = new ConfuserProject();
-                proj.Load(xmlDoc);
+                    ConfuserProject proj = new ConfuserProject();
+                    proj.Load(xmlDoc);
 
-                Prj prj = new Prj();
-                prj.FromConfuserProject(proj);
-                prj.FileName = sfd.FileName;
-                prj.IsModified = false;
+                    Prj prj = new Prj();
+                    prj.FromConfuserProject(proj);
+                    prj.FileName = sfd.FileName;
 
-                Project = prj;
-                foreach (ConfuserTab i in Tab.Items)
-                    i.InitProj();
-                prj.PropertyChanged += new PropertyChangedEventHandler(ProjectChanged);
-                ProjectChanged(Project, new PropertyChangedEventArgs(""));
-                Tab.SelectedIndex = 0;
+                    Project = prj;
+                    foreach (ConfuserTab i in Tab.Items)
+                        i.InitProj();
+                    prj.PropertyChanged += new PropertyChangedEventHandler(ProjectChanged);
+                    prj.IsModified = false;
+                    ProjectChanged(Project, new PropertyChangedEventArgs(""));
+                    Tab.SelectedIndex = 0;
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(string.Format(
+    @"Invalid project file!
+Message : {1}
+Stack Trace : {2}", ex.Message, ex.StackTrace), "Confuser", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
             }
         }
         private void Save_Click(object sender, RoutedEventArgs e)

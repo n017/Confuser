@@ -38,7 +38,7 @@ namespace Confuser
                 if (i.IsMain) return true;
             } return false;
         }
-        protected override void OnDrop(DragEventArgs e)
+        void DropFile(object sender, DragEventArgs e)
         {
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
             {
@@ -68,13 +68,16 @@ namespace Confuser
                                 if (!HasMain())
                                     asm.IsMain = true;
                             }
-                            if(string.IsNullOrEmpty(host.Project.OutputPath))
+                            if (string.IsNullOrEmpty(host.Project.OutputPath))
                                 host.Project.OutputPath = Path.Combine(Path.GetDirectoryName(asm.Path), "Confused");
                             host.Project.Assemblies.Add(asm);
                         }
-                        catch
+                        catch (Exception ex)
                         {
-                            MessageBox.Show(string.Format(@"""{0}"" is not a valid assembly!", i), "Confuser", MessageBoxButton.OK, MessageBoxImage.Error);
+                            MessageBox.Show(string.Format(
+@"""{0}"" is not a valid assembly!
+Message : {1}
+Stack Trace : {2}", i, ex.Message, ex.StackTrace), "Confuser", MessageBoxButton.OK, MessageBoxImage.Error);
                         }
                     }
                 }
@@ -89,11 +92,11 @@ namespace Confuser
                 int selIdx = view.SelectedIndex;
 
                 StringBuilder msg = new StringBuilder();
-                msg.Append("Are you sure you remove the following assemblies?");
+                msg.AppendLine("Are you sure you remove the following assemblies?");
                 foreach (var i in items)
                     msg.AppendLine(i.Path);
                 msg.AppendLine("All settings on it will be discarded!");
-               
+
                 if (MessageBox.Show(msg.ToString(), "Confuser", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
                 {
                     foreach (var i in items)
@@ -115,6 +118,7 @@ namespace Confuser
         public override void Init(IHost host)
         {
             this.host = host;
+            (host as Window).Drop += DropFile;
         }
         public override void InitProj()
         {

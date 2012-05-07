@@ -99,7 +99,7 @@
     <Compile Include="Confusions\AntiTamperConfusion.JIT.cs" />
     <None Include="Confusions\DisConstConfusion.cs" />
     <Compile Include="Confusions\ResEncryptConfusion.cs" />
-    <Compile Include="Confusions\StackUnfConfusion.cs" />
+    <None Include="Confusions\StackUnfConfusion.cs" />
     <Compile Include="Confusions\NameConfusion.cs" />
     <Compile Include="Confusions\MtdProxyConfusion.cs" />
     <Compile Include="Confusions\AntiILDasmConfusion.cs" />
