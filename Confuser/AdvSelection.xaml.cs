@@ -118,7 +118,9 @@ namespace Confuser
             host.Project.PropertyChanged += (sender, e) =>
             {
                 if (e.PropertyName == "DefaultPreset" && host.Project.DefaultPreset != PrjPreset.Undefined)
-                    RefrSelection();
+                {
+                    asmSel.ClearSelection();
+                }
             };
         }
 
@@ -227,6 +229,10 @@ namespace Confuser
             if (obj == null)
             {
                 panel.IsEnabled = false;
+
+                settings = null;
+                foreach (ConfusionListItem i in cnList.Items)
+                    i.IsSelected = false;
             }
             else
             {
@@ -249,6 +255,7 @@ namespace Confuser
                 Preset p = Preset.None;
                 foreach (ConfusionListItem i in cnList.SelectedItems)
                     if (i.Confusion.Preset > p) p = i.Confusion.Preset;
+                inChanging = false;
 
                 PrjPreset active = (PrjPreset)p;
                 foreach (ConfusionListItem i in cnList.Items)
@@ -258,7 +265,6 @@ namespace Confuser
                         break;
                     }
                 ActivePreset = active;
-                inChanging = false;
 
                 panel.IsEnabled = true;
             }
@@ -266,6 +272,24 @@ namespace Confuser
         void asmSel_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
         {
             RefrSelection();
+
+            if (e.NewValue != null)
+            {
+                host.Project.DefaultPreset = PrjPreset.Undefined;
+
+                Preset p = Preset.None;
+                foreach (ConfusionListItem i in cnList.SelectedItems)
+                    if (i.Confusion.Preset > p) p = i.Confusion.Preset;
+
+                PrjPreset active = (PrjPreset)p;
+                foreach (ConfusionListItem i in cnList.Items)
+                    if (i.Confusion.Preset <= p && !i.IsSelected)
+                    {
+                        active = PrjPreset.Undefined;
+                        break;
+                    }
+                ActivePreset = active;
+            }
         }
 
         private void ApplyToMembers_Click(object sender, RoutedEventArgs e)
@@ -301,22 +325,7 @@ namespace Confuser
         private void ConfusionsSelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (inChanging) return;
-
-            host.Project.DefaultPreset = PrjPreset.Undefined;
-
-            Preset p = Preset.None;
-            foreach (ConfusionListItem i in cnList.SelectedItems)
-                if (i.Confusion.Preset > p) p = i.Confusion.Preset;
-
-            PrjPreset active = (PrjPreset)p;
-            foreach (ConfusionListItem i in cnList.Items)
-                if (i.Confusion.Preset <= p && !i.IsSelected)
-                {
-                    active = PrjPreset.Undefined;
-                    break;
-                }
-            ActivePreset = active;
-
+            if (settings == null) return;
             foreach (ConfusionListItem i in e.RemovedItems)
                 settings.Remove(settings.Single(_ => _.Object == i.Confusion));
             foreach (ConfusionListItem i in e.AddedItems)

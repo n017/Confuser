@@ -146,6 +146,7 @@ namespace Confuser.Core.Confusions
                 List<Conster> ret = new List<Conster>();
 
                 rand.NextBytes(txt.types);
+                rand.NextBytes(txt.keyBuff);
                 while (txt.types.Distinct().Count() != 5) rand.NextBytes(txt.types);
                 byte[] n = new byte[0x10];
                 rand.NextBytes(n);
@@ -232,6 +233,8 @@ namespace Confuser.Core.Confusions
                                 inst.Operand = conster.key2;
                             else if (inst.Operand is int && (int)inst.Operand == 0x5f6f36c0)
                                 inst.Operand = conster.key3;
+                            else if (inst.Operand is int && (int)inst.Operand == 0x263013d3)
+                                conster.keyInst = inst;
                             else if (inst.Operand is int && (int)inst.Operand == 11)
                                 inst.Operand = (int)txt.types[0];
                             else if (inst.Operand is int && (int)inst.Operand == 22)
@@ -471,7 +474,7 @@ namespace Confuser.Core.Confusions
                         byte[] ori = GetOperand(val, out t);
 
                         int len;
-                        byte[] dat = Encrypt(ori, txt.exp, out len);
+                        byte[] dat = Encrypt(ori, txt.exp, txt.keyBuff, out len);
                         byte[] final = new byte[dat.Length + 4];
                         Buffer.BlockCopy(dat, 0, final, 4, dat.Length);
                         Buffer.BlockCopy(BitConverter.GetBytes(len ^ txt.key), 0, final, 0, 4);
@@ -537,7 +540,7 @@ namespace Confuser.Core.Confusions
                     {
                         byte t;
                         byte[] ori = GetOperand(val, out t);
-                        byte[] dat = EncryptSafe(ori, (txt.idx + t) * txt.key);
+                        byte[] dat = EncryptSafe(ori, (txt.idx + t) * txt.key, txt.keyBuff);
                         txts[i].b = (uint)txt.idx ^
                                 ComputeHash(x,
                                 (uint)txts[i].conster.key0,
@@ -582,6 +585,16 @@ namespace Confuser.Core.Confusions
             public override void Process(NameValueCollection parameters, MetadataProcessor.MetadataAccessor accessor)
             {
                 _Context txt = cc.txts[accessor.Module];
+
+                int rid = accessor.TableHeap.GetTable<StandAloneSigTable>(Table.StandAloneSig).AddRow(
+                    accessor.BlobHeap.GetBlobIndex(new Mono.Cecil.PE.ByteBuffer(txt.keyBuff)));
+
+                int token = 0x11000000 | rid;
+                foreach (var i in txt.consters)
+                {
+                    i.keyInst.Operand = (int)(token ^ i.conster.MetadataToken.ToInt32());
+                }
+
                 if (!txt.isNative) return;
 
                 txt.nativeRange = new Range(accessor.Codebase + (uint)accessor.Codes.Position, 0);
@@ -648,6 +661,7 @@ namespace Confuser.Core.Confusions
             public override void Process(NameValueCollection parameters, MetadataProcessor.MetadataAccessor accessor)
             {
                 _Context txt = cc.txts[accessor.Module];
+
                 if (!txt.isNative) return;
 
                 var tbl = accessor.TableHeap.GetTable<MethodTable>(Table.Method);
@@ -678,6 +692,7 @@ namespace Confuser.Core.Confusions
             public int key1;
             public int key2;
             public int key3;
+            public Instruction keyInst;
         }
         class _Context
         {
@@ -685,6 +700,7 @@ namespace Confuser.Core.Confusions
             public Dictionary<object, int> dict;
             public int idx = 0;
             public int key;
+            public byte[] keyBuff = new byte[8];
 
             public string resId;
             public byte[] types = new byte[5];
@@ -774,7 +790,7 @@ namespace Confuser.Core.Confusions
             return count;
         }
 
-        private static byte[] Encrypt(byte[] bytes, Expression exp, out int len)
+        private static byte[] Encrypt(byte[] bytes, Expression exp, byte[] keyBuff, out int len)
         {
             byte[] tmp = new byte[(bytes.Length + 7) & ~7];
             Buffer.BlockCopy(bytes, 0, tmp, 0, bytes.Length);
@@ -785,29 +801,14 @@ namespace Confuser.Core.Confusions
             {
                 for (int i = 0; i < tmp.Length; i++)
                 {
-                    int en = (int)ExpressionEvaluator.Evaluate(exp, tmp[i]);
+                    int en = (int)ExpressionEvaluator.Evaluate(exp, tmp[i] ^ keyBuff[i % 8]);
                     Write7BitEncodedInt(wtr, en);
                 }
             }
 
             return ret.ToArray();
         }
-        private static byte[] Decrypt(byte[] bytes, int len, Expression exp)
-        {
-            byte[] ret = new byte[(len + 7) & ~7];
-
-            using (BinaryReader rdr = new BinaryReader(new MemoryStream(bytes)))
-            {
-                for (int i = 0; i < ret.Length; i++)
-                {
-                    int r = Read7BitEncodedInt(rdr);
-                    ret[i] = (byte)ExpressionEvaluator.Evaluate(exp, r);
-                }
-            }
-
-            return ret;
-        }
-        private static byte[] EncryptSafe(byte[] bytes, int key)
+        private static byte[] EncryptSafe(byte[] bytes, int key, byte[] keyBuff)
         {
             ushort _m = (ushort)(key >> 16);
             ushort _c = (ushort)(key & 0xffff);
@@ -815,7 +816,7 @@ namespace Confuser.Core.Confusions
             byte[] ret = (byte[])bytes.Clone();
             for (int i = 0; i < ret.Length; i++)
             {
-                ret[i] ^= (byte)((key * m + c) % 0x100);
+                ret[i] ^= (byte)(((key * m + c) % 0x100) ^ keyBuff[i % 8]);
                 m = (ushort)((key * m + _m) % 0x10000);
                 c = (ushort)((key * c + _c) % 0x10000);
             }
