@@ -401,7 +401,7 @@ static class Encryptions
 
             byte[] f;
             int len;
-            var key = Assembly.GetCallingAssembly().GetModule(method.Module.Name).ResolveSignature((int)(0x263013d3 ^ method.MetadataToken));
+            var key = Assembly.GetCallingAssembly().GetModule(method.Module.ScopeName).ResolveSignature((int)(0x263013d3 ^ method.MetadataToken));
             using (BinaryReader r = new BinaryReader(new MemoryStream(bs)))
             {
                 len = r.ReadInt32() ^ 0x57425674;
@@ -486,7 +486,7 @@ static class Encryptions
                 f = rdr.ReadBytes(rdr.ReadInt32());
             }
 
-            var key = Assembly.GetCallingAssembly().GetModule(method.Module.Name).ResolveSignature(0x263013d3 ^ method.MetadataToken);
+            var key = Assembly.GetCallingAssembly().GetModule(method.Module.ScopeName).ResolveSignature(0x263013d3 ^ method.MetadataToken);
             uint seed = (pos + type) * 0x57425674;
             ushort _m = (ushort)(seed >> 16);
             ushort _c = (ushort)(seed & 0xffff);
