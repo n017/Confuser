@@ -128,6 +128,7 @@ namespace Confuser.Core
             int originIndex = Array.IndexOf(param.Modules, originMain);
             var asm = AssemblyDefinition.CreateAssembly(originMain.Assembly.Name, "Stub.exe", new ModuleParameters() { Architecture = originMain.Architecture, Kind = oKind, Runtime = originMain.Runtime });
             ModuleDefinition mod = asm.MainModule;
+            mod.Attributes |= (originMain.Attributes & ModuleAttributes.Required32Bit); // added -- christallire - to prevent BadImageFormatException, Stub assembly need to set ModuleAttribute.Required32Bit if oringinMain has one.
             hash = new ByteBuffer(SHA1Managed.Create().ComputeHash(param.PEs[originIndex]));
 
             Random rand = new Random();
