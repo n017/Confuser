@@ -335,7 +335,7 @@ static class Encryptions
         constTbl = new Dictionary<uint, object>();
         constStream = new MemoryStream();
         Assembly asm = Assembly.GetExecutingAssembly();
-        DeflateStream str = new DeflateStream(asm.GetManifestResourceStream("PADDINGPADDINGPADDING"), CompressionMode.Decompress);
+        DeflateStream str = new DeflateStream(asm.GetManifestResourceStream(Encoding.UTF8.GetString(BitConverter.GetBytes(0x12345678))), CompressionMode.Decompress);
         {
             byte[] dat = new byte[0x1000];
             int read = str.Read(dat, 0, 0x1000);
@@ -347,7 +347,6 @@ static class Encryptions
             while (read != 0);
         }
         str.Dispose();
-        constStream = constStream;
     }
     static object Constants(uint a, uint b)
     {

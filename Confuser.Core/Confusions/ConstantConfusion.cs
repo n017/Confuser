@@ -148,9 +148,8 @@ namespace Confuser.Core.Confusions
                 rand.NextBytes(txt.types);
                 rand.NextBytes(txt.keyBuff);
                 while (txt.types.Distinct().Count() != 5) rand.NextBytes(txt.types);
-                byte[] n = new byte[0x10];
-                rand.NextBytes(n);
-                txt.resId = Encoding.UTF8.GetString(n);
+                txt.resKey = rand.Next();
+                txt.resId = Encoding.UTF8.GetString(BitConverter.GetBytes(txt.resKey));
                 txt.key = rand.Next();
 
 
@@ -161,8 +160,8 @@ namespace Confuser.Core.Confusions
                     m.Body.SimplifyMacros();
                     foreach (Instruction inst in m.Body.Instructions)
                     {
-                        if ((inst.Operand as string) == "PADDINGPADDINGPADDING")
-                            inst.Operand = txt.resId;
+                        if (inst.Operand is int && (int)inst.Operand == 0x12345678)
+                            inst.Operand = txt.resKey;
                         else if (inst.Operand is FieldReference)
                         {
                             if ((inst.Operand as FieldReference).Name == "constTbl")
@@ -183,7 +182,7 @@ namespace Confuser.Core.Confusions
                         cctor.Body.Variables.Add(i);
                 }
 
-
+                byte[] n = new byte[0x10];
                 int typeDefCount = rand.Next(1, 10);
                 for (int i = 0; i < typeDefCount; i++)
                 {
@@ -214,9 +213,7 @@ namespace Confuser.Core.Confusions
                         mtd.Body.SimplifyMacros();
                         foreach (Instruction inst in mtd.Body.Instructions)
                         {
-                            if ((inst.Operand as string) == "PADDINGPADDINGPADDING")
-                                inst.Operand = txt.resId;
-                            else if (inst.Operand is FieldReference)
+                            if (inst.Operand is FieldReference)
                             {
                                 if ((inst.Operand as FieldReference).Name == "constTbl")
                                     inst.Operand = constTbl;
@@ -702,6 +699,7 @@ namespace Confuser.Core.Confusions
             public int key;
             public byte[] keyBuff = new byte[8];
 
+            public int resKey;
             public string resId;
             public byte[] types = new byte[5];
             public Conster[] consters;
