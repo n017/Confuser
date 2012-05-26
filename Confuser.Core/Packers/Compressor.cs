@@ -209,12 +209,58 @@ namespace Confuser.Core
         {
             RijndaelManaged rijn = new RijndaelManaged();
             rijn.GenerateIV(); rijn.GenerateKey();
-            MemoryStream dat = new MemoryStream();
-            using (var s = new DeflateStream(new CryptoStream(dat, rijn.CreateEncryptor(), CryptoStreamMode.Write), CompressionMode.Compress))
+
+            int dictionary = 1 << 23;
+
+            Int32 posStateBits = 2;
+            Int32 litContextBits = 3; // for normal files
+            // UInt32 litContextBits = 0; // for 32-bit data
+            Int32 litPosBits = 0;
+            // UInt32 litPosBits = 2; // for 32-bit data
+            Int32 algorithm = 2;
+            Int32 numFastBytes = 128;
+            string mf = "bt4";
+
+            SevenZip.CoderPropID[] propIDs = 
+				{
+					SevenZip.CoderPropID.DictionarySize,
+					SevenZip.CoderPropID.PosStateBits,
+					SevenZip.CoderPropID.LitContextBits,
+					SevenZip.CoderPropID.LitPosBits,
+					SevenZip.CoderPropID.Algorithm,
+					SevenZip.CoderPropID.NumFastBytes,
+					SevenZip.CoderPropID.MatchFinder,
+					SevenZip.CoderPropID.EndMarker
+				};
+            object[] properties = 
+				{
+					(int)dictionary,
+					(int)posStateBits,
+					(int)litContextBits,
+					(int)litPosBits,
+					(int)algorithm,
+					(int)numFastBytes,
+					mf,
+					false
+				};
+
+            MemoryStream final = new MemoryStream();
+            var encoder = new SevenZip.Compression.LZMA.Encoder();
+            encoder.SetCoderProperties(propIDs, properties);
+            encoder.WriteCoderProperties(final);
+            Int64 fileSize;
+            fileSize = asm.Length;
+            for (int i = 0; i < 8; i++)
+                final.WriteByte((Byte)(fileSize >> (8 * i)));
+            encoder.Code(new MemoryStream(asm), final, -1, -1, null);
+
+            var dat = new MemoryStream();
+            using (var x = new CryptoStream(dat, rijn.CreateEncryptor(), CryptoStreamMode.Write))
             {
-                s.Write(BitConverter.GetBytes(asm.Length), 0, 4);
-                s.Write(asm, 0, asm.Length);
+                x.Write(BitConverter.GetBytes(asm.Length), 0, 4);
+                x.Write(final.ToArray(), 0, (int)final.Length);
             }
+
             byte[] key = rijn.Key;
             for (int j = 0; j < key.Length; j += 4)
             {

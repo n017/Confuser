@@ -202,7 +202,7 @@ namespace Confuser.Core.Confusions
                     codes[i] = rdr.ReadBytes((int)len);
                     stream.Seek(ptrs[i], SeekOrigin.Begin);
                     byte[] bs = new byte[len];
-                    rand.NextBytes(bs);
+                    //rand.NextBytes(bs);
                     stream.Write(bs, 0, (int)len);
                 }
 
