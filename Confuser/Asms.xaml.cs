@@ -118,6 +118,14 @@ Stack Trace : {2}", i, ex.Message, ex.StackTrace), "Confuser", MessageBoxButton.
         public override void Init(IHost host)
         {
             this.host = host;
+            (host as Window).DragOver += (sender, e) =>
+            {
+                if (e.Data.GetDataPresent(DataFormats.FileDrop))
+                    e.Effects = DragDropEffects.Copy;
+                else
+                    e.Effects = DragDropEffects.None;
+                e.Handled = true;
+            };
             (host as Window).Drop += DropFile;
         }
         public override void InitProj()
