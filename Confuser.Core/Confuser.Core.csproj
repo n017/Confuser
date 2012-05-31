@@ -124,9 +124,6 @@
     <Compile Include="Poly\Visitors\ReflectionVisitor.cs" />
     <Compile Include="Poly\Expressions\VariableExpression.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <None Include="SDK.cs">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Confusions\ControlFlowConfusion.New.cs" />
