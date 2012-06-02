@@ -101,10 +101,12 @@ namespace Confuser
 
             progress.Value = 10000;
 
+            cr = null;
             thread = null;
             btn.IsEnabled = false;
             host.EnabledNavigation = true;
             p = -1;
+            Dispatcher.BeginInvoke(new Action(() => GC.Collect()), System.Windows.Threading.DispatcherPriority.SystemIdle);
         }
         void Logger_Fault(object sender, ExceptionEventArgs e)
         {
@@ -137,10 +139,12 @@ namespace Confuser
                 log.AppendText("Please report it!!!\r\n");
             }
 
+            cr = null;
             thread = null;
             btn.IsEnabled = false;
             host.EnabledNavigation = true;
             p = -1;
+            Dispatcher.BeginInvoke(new Action(() => GC.Collect()), System.Windows.Threading.DispatcherPriority.SystemIdle);
         }
         double p;
         void Logger_Progress(object sender, ProgressEventArgs e)

@@ -33,7 +33,7 @@ namespace Mono.Cecil {
 
 	public static class GlobalAssemblyResolver {
 
-		public static readonly DefaultAssemblyResolver Instance = new DefaultAssemblyResolver ();
+		public static IAssemblyResolver Instance = new DefaultAssemblyResolver ();
 	}
 
 	public class DefaultAssemblyResolver : BaseAssemblyResolver {

@@ -544,5 +544,14 @@ namespace Confuser.Core
                     i.FilterStart = news[0];
             }
         }
+
+        public static string GetVersionName(this AssemblyDefinition asm)
+        {
+            return asm.Name.Name + ", Version=" + asm.Name.Version;
+        }
+        public static string GetVersionName(this AssemblyNameReference asmName)
+        {
+            return asmName.Name + ", Version=" + asmName.Version;
+        }
     }
 }

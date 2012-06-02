@@ -147,6 +147,44 @@ namespace Confuser.Core
         public T3 Item3;
     }
 
+    class ConfuserAssemblyResolver : BaseAssemblyResolver
+    {
+        public readonly IDictionary<string, AssemblyDefinition> AssemblyCache;
+
+        public ConfuserAssemblyResolver()
+        {
+            AssemblyCache = new Dictionary<string, AssemblyDefinition>();
+        }
+
+        public override AssemblyDefinition Resolve(AssemblyNameReference name)
+        {
+            if (name == null)
+                throw new ArgumentNullException("name");
+
+            AssemblyDefinition assembly;
+            if (AssemblyCache.TryGetValue(name.GetVersionName(), out assembly))
+                return assembly;
+
+            assembly = base.Resolve(name);
+            if (assembly != null)
+                AssemblyCache[name.GetVersionName()] = assembly;
+
+            return assembly;
+        }
+
+        public void RegisterAssembly(AssemblyDefinition assembly)
+        {
+            if (assembly == null)
+                throw new ArgumentNullException("assembly");
+
+            var name = assembly.GetVersionName();
+            if (AssemblyCache.ContainsKey(name))
+                return;
+
+            AssemblyCache[name] = assembly;
+        }
+    }
+
     public class Confuser
     {
         internal ConfuserParameter param;
@@ -155,6 +193,7 @@ namespace Confuser.Core
         internal List<Analyzer> analyzers;
         internal List<IConfusion> confusions;
         internal List<Packer> packers;
+        ConfuserAssemblyResolver resolver;
         internal void Log(string message) { param.Logger._Log(message); }
 
         public Thread ConfuseAsync(ConfuserParameter param)
@@ -168,8 +207,14 @@ namespace Confuser.Core
 
         public void Confuse(ConfuserParameter param)
         {
+            var prevInst = GlobalAssemblyResolver.Instance;
             try
             {
+                resolver = new ConfuserAssemblyResolver();
+                GlobalAssemblyResolver.Instance = resolver;
+                foreach (var i in param.Project)
+                    resolver.AddSearchDirectory(Path.GetDirectoryName(i.Path));
+
                 this.param = param;
                 param.Logger._BeginPhase("Initializing...");
                 Log("Started at " + DateTime.Now.ToShortTimeString() + ".");
@@ -237,7 +282,17 @@ namespace Confuser.Core
             }
             finally
             {
-                GlobalAssemblyResolver.Instance.AssemblyCache.Clear();
+                param = null;
+                settings = null;
+                mkrSettings = default(MarkerSetting);
+                analyzers = null;
+                confusions = null;
+                packers = null;
+                resolver = null;
+                newAdded.Clear();
+                helpers.Clear();
+
+                GlobalAssemblyResolver.Instance = prevInst;
                 GC.Collect();
             }
         }
@@ -342,11 +397,6 @@ namespace Confuser.Core
 
             Marker mkr = param.Marker;
 
-            GlobalAssemblyResolver.Instance.AssemblyCache.Clear();
-            GlobalAssemblyResolver.Instance.ClearSearchDirectories();
-            foreach (var i in param.Project)
-                GlobalAssemblyResolver.Instance.AddSearchDirectory(Path.GetDirectoryName(i.Path));
-
             confusions = new List<IConfusion>();
             packers = new List<Packer>();
             LoadAssembly(typeof(Confuser).Assembly);
@@ -438,7 +488,7 @@ namespace Confuser.Core
             }
 
             foreach (var i in settings)
-                GlobalAssemblyResolver.Instance.AssemblyCache.Add(i.Assembly.FullName, i.Assembly);
+                resolver.RegisterAssembly(i.Assembly);
             helpers = new Dictionary<IMemberDefinition, HelperAttribute>();
 
             Log(string.Format("Analyzing assemblies..."));

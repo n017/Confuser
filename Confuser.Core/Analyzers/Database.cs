@@ -92,6 +92,9 @@ GetType[0:TargetType]
 InvokeMember[0:Type,1:Target]
 ReflectionOnlyGetType[0:TargetType]
 
+System.Delegate
+CreateDelegate[1:Type,2:Target]
+
 System.Reflection.Assembly
 GetType[1:TargetType]
 
@@ -123,6 +126,8 @@ RegisterReadOnly[0:Target,2:Type]
         const string exclude =
 @"System.ServiceModel.ServiceContractAttribute
 System.ServiceModel.OperationContractAttribute
+System.Data.Services.Common.DataServiceKeyAttribute
+System.Data.Services.Common.EntitySetAttribute
 =";
     }
 }

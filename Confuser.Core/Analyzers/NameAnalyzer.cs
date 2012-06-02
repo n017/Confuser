@@ -147,20 +147,41 @@ namespace Confuser.Core.Analyzers
                 if (res.Name == type.FullName + ".resources")
                     ((type as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new ResourceReference(res));
 
-            AnalyzeCustomAttributes(type);
+            bool exclude = AnalyzeCustomAttributes(type);
             if (type.HasGenericParameters)
                 foreach (var i in type.GenericParameters)
                     AnalyzeCustomAttributes(i);
+
             foreach (TypeDefinition nType in type.NestedTypes)
+            {
+                if (exclude)
+                    (nType as IAnnotationProvider).Annotations[RenOk] = false;
                 Analyze(nType);
+            }
             foreach (MethodDefinition mtd in type.Methods)
+            {
+                if (exclude)
+                    (mtd as IAnnotationProvider).Annotations[RenOk] = false;
                 Analyze(mtd);
+            }
             foreach (FieldDefinition fld in type.Fields)
+            {
+                if (exclude)
+                    (fld as IAnnotationProvider).Annotations[RenOk] = false;
                 Analyze(fld);
+            }
             foreach (PropertyDefinition prop in type.Properties)
+            {
+                if (exclude)
+                    (prop as IAnnotationProvider).Annotations[RenOk] = false;
                 Analyze(prop);
+            }
             foreach (EventDefinition evt in type.Events)
+            {
+                if (exclude)
+                    (evt as IAnnotationProvider).Annotations[RenOk] = false;
                 Analyze(evt);
+            }
         }
         void Analyze(MethodDefinition mtd)
         {
@@ -210,9 +231,10 @@ namespace Confuser.Core.Analyzers
                 (evt as IAnnotationProvider).Annotations[RenOk] = false;
         }
 
-        void AnalyzeCustomAttributes(ICustomAttributeProvider ca)
+        bool AnalyzeCustomAttributes(ICustomAttributeProvider ca)
         {
-            if (!ca.HasCustomAttributes) return;
+            if (!ca.HasCustomAttributes) return false;
+            bool ret = false;
             foreach (var i in ca.CustomAttributes)
             {
                 foreach (var arg in i.ConstructorArguments)
@@ -226,7 +248,7 @@ namespace Confuser.Core.Analyzers
                        (field = (i.AttributeType as TypeDefinition).Fields.Single(_ => _.Name == arg.Name)) != null)
                         ((field as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(
                             new CustomAttributeMemberReference(i, idx, true));
-                        
+
                     AnalyzeCustomAttributeArgs(arg.Argument);
                     idx++;
                 }
@@ -245,8 +267,12 @@ namespace Confuser.Core.Analyzers
                 }
 
                 if (Database.ExcludeAttributes.Contains(i.AttributeType.FullName) && ca is IAnnotationProvider)
+                {
                     (ca as IAnnotationProvider).Annotations[RenOk] = false;
+                    ret = true;
+                }
             }
+            return ret;
         }
         void AnalyzeCustomAttributeArgs(CustomAttributeArgument arg)
         {
@@ -261,7 +287,11 @@ namespace Confuser.Core.Analyzers
                         break;
                     }
                 if (has)
-                    (((arg.Value as TypeReference).Resolve() as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new CustomAttributeTypeReference(arg.Value as TypeReference));
+                {
+                    IAnnotationProvider type = (arg.Value as TypeReference).Resolve();
+                    if (type.Annotations[RenRef] != null)
+                        (type.Annotations[RenRef] as List<IReference>).Add(new CustomAttributeTypeReference(arg.Value as TypeReference));
+                }
             }
             else if (arg.Value is CustomAttributeArgument[])
                 foreach (var i in arg.Value as CustomAttributeArgument[])

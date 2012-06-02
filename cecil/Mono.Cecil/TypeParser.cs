@@ -33,7 +33,7 @@ using Mono.Cecil.Metadata;
 
 namespace Mono.Cecil {
 
-	class TypeParser {
+	public class TypeParser {
 
 		class Type {
 			public const int Ptr = -1;

@@ -102,7 +102,7 @@ namespace Mono.Cecil {
 
 		public virtual AssemblyDefinition Resolve (string fullName)
 		{
-			return Resolve (fullName, new ReaderParameters ());
+			return Resolve (fullName, new ReaderParameters () { AssemblyResolver = this });
 		}
 
 		public virtual AssemblyDefinition Resolve (string fullName, ReaderParameters parameters)
@@ -137,7 +137,7 @@ namespace Mono.Cecil {
 
 		public virtual AssemblyDefinition Resolve (AssemblyNameReference name)
 		{
-			return Resolve (name, new ReaderParameters ());
+			return Resolve (name, new ReaderParameters () { AssemblyResolver = this });
 		}
 
 		public virtual AssemblyDefinition Resolve (AssemblyNameReference name, ReaderParameters parameters)
@@ -152,7 +152,7 @@ namespace Mono.Cecil {
 				return assembly;
 
 #if !SILVERLIGHT && !CF
-			var framework_dir = Path.GetDirectoryName (typeof (object).Module.FullyQualifiedName);
+            var framework_dir = Path.GetDirectoryName(Path.GetDirectoryName(typeof(object).Module.FullyQualifiedName));
 
 			if (IsZero (name.Version)) {
 				assembly = SearchDirectory (name, new [] { framework_dir }, parameters);

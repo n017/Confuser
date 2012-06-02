@@ -161,13 +161,22 @@ namespace Confuser.Core.Analyzers
     }
     class BamlTypeReference : IReference
     {
-        public BamlTypeReference(TypeInfoRecord typeRec) { this.typeRec = typeRec; }
+        public BamlTypeReference(TypeInfoRecord typeRec, TypeReference self, TypeReference root)
+        {
+            this.typeRec = typeRec;
+            this.self = self;
+            this.root = root;
+        }
 
         TypeInfoRecord typeRec;
+        TypeReference self;
+        TypeReference root;
 
         public void UpdateReference(Identifier old, Identifier @new)
         {
-            typeRec.TypeFullName = string.IsNullOrEmpty(@new.scope) ? @new.name : @new.scope + "." + @new.name;
+            self.Namespace = @new.scope;
+            self.Name = @new.name;
+            typeRec.TypeFullName = TypeParser.ToParseable(root);
         }
         public bool QueryCancellation()
         {

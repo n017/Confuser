@@ -48,11 +48,14 @@ namespace Confuser.Core.Analyzers
         }
         void PopulateMembers(AssemblyDefinition asm)
         {
-            var p = new Dictionary<string, List<IMemberDefinition>>();
-            foreach (var i in asm.Modules)
-                foreach (var j in i.Types)
-                    PopulateMembers(j, p);
-            mems[asm] = p;
+            if (!mems.ContainsKey(asm))
+            {
+                var p = new Dictionary<string, List<IMemberDefinition>>();
+                foreach (var i in asm.Modules)
+                    foreach (var j in i.Types)
+                        PopulateMembers(j, p);
+                mems[asm] = p;
+            }
         }
         List<IMemberDefinition> GetMember(string name, out bool hasImport)
         {
@@ -109,7 +112,7 @@ namespace Confuser.Core.Analyzers
                 }
             }
         }
-        static TypeDefinition ResolveXmlns(string xmlNamespace, string typeName, AssemblyDefinition context, List<AssemblyDefinition> asms)
+        static TypeDefinition ResolveXmlns(string xmlNamespace, string typeName, AssemblyDefinition context, IEnumerable<AssemblyDefinition> asms)
         {
             typeName = typeName.Replace('+', '/');
             if (xmlNamespace.StartsWith("clr-namespace:"))
@@ -246,6 +249,29 @@ namespace Confuser.Core.Analyzers
             foreach (var i in refers)
                 i.refers = refers;
         }
+        void AddTypeRenRefs(TypeReference type, TypeReference root, TypeInfoRecord rec)
+        {
+            if (type is TypeSpecification)
+            {
+                AddTypeRenRefs((type as TypeSpecification).ElementType, root, rec);
+                if (type is RequiredModifierType)
+                    AddTypeRenRefs((type as RequiredModifierType).ModifierType, root, rec);
+                else if (type is OptionalModifierType)
+                    AddTypeRenRefs((type as OptionalModifierType).ModifierType, root, rec);
+                else if (type is GenericInstanceType)
+                    foreach (var i in (type as GenericInstanceType).GenericArguments)
+                        AddTypeRenRefs(i, root, rec);
+            }
+            else
+            {
+                TypeDefinition typeDef = type.Resolve();
+                if (typeDef != null && (typeDef as IAnnotationProvider).Annotations[RenRef] != null)
+                {
+                    type.Scope = typeDef.Scope;
+                    ((typeDef as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new BamlTypeReference(rec, type, root));
+                }
+            }
+        }
 
         void AnalyzeResource(ModuleDefinition mod, int resId)
         {
@@ -285,9 +311,8 @@ namespace Confuser.Core.Analyzers
                     }
 
                     int asmId = -1;
-                    Dictionary<ushort, string> asms = new Dictionary<ushort, string>();
-                    List<AssemblyDefinition> assemblies = new List<AssemblyDefinition>();
-                    mems.Clear();
+                    Dictionary<ushort, AssemblyDefinition> asms = new Dictionary<ushort, AssemblyDefinition>();
+
                     foreach (var rec in doc.OfType<AssemblyInfoRecord>())
                     {
                         AssemblyNameReference nameRef = AssemblyNameReference.Parse(rec.AssemblyFullName);
@@ -295,38 +320,49 @@ namespace Confuser.Core.Analyzers
                         {
                             asmId = rec.AssemblyId;
                             rec.AssemblyFullName = GetBamlAssemblyFullName(mod.Assembly.Name);
-                            assemblies.Add(mod.Assembly);
+                            asms.Add(rec.AssemblyId, mod.Assembly);
                             PopulateMembers(mod.Assembly);
                             nameRef = null;
                         }
                         else
                         {
+                            bool added = false;
                             foreach (var i in ivtMap)
                                 if (i.Key.Name.Name == nameRef.Name)
                                 {
                                     rec.AssemblyFullName = GetBamlAssemblyFullName(i.Key.Name);
-                                    assemblies.Add(i.Key);
+                                    asms.Add(rec.AssemblyId, i.Key);
                                     PopulateMembers(i.Key);
                                     nameRef = null;
+                                    added = true;
                                     break;
                                 }
+                            if (!added)
+                            {
+                                var asmRefDef = GlobalAssemblyResolver.Instance.Resolve(nameRef);
+                                if (asmRefDef != null)
+                                {
+                                    PopulateMembers(asmRefDef);
+                                }
+                            }
                         }
-                        asms.Add(rec.AssemblyId, rec.AssemblyFullName);
-                        if (nameRef != null)
-                            PopulateMembers(GlobalAssemblyResolver.Instance.Resolve(nameRef));
                     }
 
                     Dictionary<ushort, TypeDefinition> types = new Dictionary<ushort, TypeDefinition>();
                     foreach (var rec in doc.OfType<TypeInfoRecord>())
-                        if ((rec.AssemblyId & 0xfff) == asmId)
+                    {
+                        AssemblyDefinition asm;
+                        if (asms.TryGetValue((ushort)(rec.AssemblyId & 0xfff), out asm))
                         {
-                            TypeDefinition type = mod.GetType(rec.TypeFullName);
+                            TypeReference type = TypeParser.ParseType(asm.MainModule, rec.TypeFullName);
                             if (type != null)
                             {
-                                types.Add(rec.TypeId, type);
-                                ((type as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new BamlTypeReference(rec));
+                                types.Add(rec.TypeId, type.Resolve());
+                                AddTypeRenRefs(type, type, rec);
+                                rec.TypeFullName = TypeParser.ToParseable(type);
                             }
                         }
+                    }
 
                     Dictionary<string, string> xmlns = new Dictionary<string, string>();
                     foreach (var rec in doc.OfType<XmlnsPropertyRecord>())
@@ -373,7 +409,7 @@ namespace Confuser.Core.Analyzers
                                 xmlNamespace = xmlns[""];
                             }
                             TypeDefinition typeDef;
-                            if ((typeDef = ResolveXmlns(xmlNamespace, type, mod.Assembly, assemblies)) != null)
+                            if ((typeDef = ResolveXmlns(xmlNamespace, type, mod.Assembly, asms.Values)) != null)
                             {
                                 ((typeDef as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new BamlTypeExtReference(rec, doc, typeDef.Module.Assembly.Name.Name));
                             }
