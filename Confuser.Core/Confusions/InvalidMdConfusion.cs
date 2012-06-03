@@ -64,16 +64,31 @@ namespace Confuser.Core.Confusions
                 get { return 2; }
             }
 
+            void Randomize<T>(MetadataTable<T> tbl)
+            {
+                T[] t = tbl.OfType<T>().ToArray();
+                Random rand = new Random();
+                for (int i = 0; i < t.Length; i++)
+                {
+                    T tmp = t[i];
+                    int j = rand.Next(0, t.Length);
+                    t[i] = t[j];
+                    t[j] = tmp;
+                }
+                tbl.Clear();
+                foreach (var i in t)
+                    tbl.AddRow(i);
+            }
 
             public override void Process(NameValueCollection parameters, MetadataProcessor.MetadataAccessor accessor)
             {
                 accessor.TableHeap.GetTable<TypeDefTable>(Table.TypeDef)[0].Col2 = 0xffff;
+                uint mtdLen = (uint)accessor.TableHeap.GetTable<MethodTable>(Table.Method).Length + 1;
+                uint fldLen = (uint)accessor.TableHeap.GetTable<FieldTable>(Table.Field).Length + 1;
                 if (Array.IndexOf(parameters.AllKeys, "hasreflection") == -1)
                 {
                     if (accessor.Module.Runtime != TargetRuntime.Net_4_0)
                     {
-                        uint mtdLen = (uint)accessor.TableHeap.GetTable<MethodTable>(Table.Method).Length + 1;
-                        uint fldLen = (uint)accessor.TableHeap.GetTable<FieldTable>(Table.Field).Length + 1;
                         List<uint> nss = new List<uint>();
                         foreach (Row<TypeAttributes, uint, uint, uint, uint, uint> i in accessor.TableHeap.GetTable<TypeDefTable>(Table.TypeDef))
                             if (i == null) break; else if (!nss.Contains(i.Col3)) nss.Add(i.Col3);
@@ -105,8 +120,31 @@ namespace Confuser.Core.Confusions
                     0, 0, 0, 0, AssemblyAttributes.SideBySideCompatible, 0,
                     0xffff, 0, 0xffff));
 
-                accessor.TableHeap.GetTable<GenericParamTable>(Table.GenericParam).AddRow(new Row<ushort, GenericParameterAttributes, uint, uint>(0xffff, (GenericParameterAttributes)0xffff, 0xffff, 0xffff));
-            
+                {
+                    int[] types = new int[rand.Next(5, 10)];
+                    for (int i = 0; i < types.Length; i++)
+                        types[i] = accessor.TableHeap.GetTable<TypeDefTable>(Table.TypeDef).AddRow(
+                            new Row<TypeAttributes, uint, uint, uint, uint, uint>(0, accessor.StringHeap.GetStringIndex(Guid.NewGuid().ToString()), 0, 0x3FFFD, fldLen, mtdLen));
+
+                    int genCount = rand.Next(10, 20);
+                    int genParamCount = accessor.TableHeap.GetTable<GenericParamTable>(Table.GenericParam).Length;
+                    for (int i = 0; i < genCount; i++)
+                        accessor.TableHeap.GetTable<GenericParamTable>(Table.GenericParam).AddRow(new Row<ushort, GenericParameterAttributes, uint, uint>(
+                            (ushort)rand.Next(5, 10),
+                            GenericParameterAttributes.Contravariant,
+                            CodedIndex.TypeOrMethodDef.CompressMetadataToken(new MetadataToken(TokenType.TypeDef, types[rand.Next(0, types.Length)])),
+                            42));
+
+                    genCount = rand.Next(10, 20);
+                    for (int i = 0; i < genCount; i++)
+                        accessor.TableHeap.GetTable<GenericParamConstraintTable>(Table.GenericParamConstraint).AddRow(
+                            new Row<uint, uint>((uint)rand.Next(genParamCount, genParamCount + 10), 0xffff));
+                }
+
+
+                Randomize(accessor.TableHeap.GetTable<NestedClassTable>(Table.NestedClass));
+                Randomize(accessor.TableHeap.GetTable<ManifestResourceTable>(Table.ManifestResource));
+                Randomize(accessor.TableHeap.GetTable<GenericParamConstraintTable>(Table.GenericParamConstraint));
             }
         }
         //class Phase3 : ImagePhase

@@ -101,6 +101,7 @@ namespace Confuser.Core.Project
         public ObfSettings Clone()
         {
             ObfSettings ret = new ObfSettings();
+            ret.Preset = this.Preset;
             ret.Name = this.Name;
             foreach (var i in this)
             {
