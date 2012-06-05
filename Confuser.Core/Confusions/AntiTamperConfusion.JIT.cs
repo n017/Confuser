@@ -89,18 +89,18 @@ namespace Confuser.Core.Confusions
                     if (inst.Operand is int && (int)inst.Operand == 0x11111111)
                         inst.Operand = (int)key4;
 
-                root.Name = ObfuscationHelper.GetNewName("AntiTamperModule" + Guid.NewGuid().ToString());
+                //root.Name = ObfuscationHelper.GetNewName("AntiTamperModule" + Guid.NewGuid().ToString());
                 root.Namespace = "";
                 AddHelper(root, HelperAttribute.NoInjection);
                 foreach (MethodDefinition mtdDef in root.Methods)
                 {
                     if (mtdDef.IsConstructor) continue;
-                    mtdDef.Name = ObfuscationHelper.GetNewName(mtdDef.Name + Guid.NewGuid().ToString());
+                    //mtdDef.Name = ObfuscationHelper.GetNewName(mtdDef.Name + Guid.NewGuid().ToString());
                     AddHelper(mtdDef, HelperAttribute.NoInjection);
                 }
                 foreach (FieldDefinition fldDef in root.Fields)
                 {
-                    fldDef.Name = ObfuscationHelper.GetNewName(fldDef.Name + Guid.NewGuid().ToString());
+                    //fldDef.Name = ObfuscationHelper.GetNewName(fldDef.Name + Guid.NewGuid().ToString());
                     AddHelper(fldDef, HelperAttribute.NoInjection);
                 }
                 foreach (TypeDefinition nested in root.NestedTypes)
@@ -118,7 +118,7 @@ namespace Confuser.Core.Confusions
                             nested.Fields.Add(f);
                     }
 
-                    nested.Name = ObfuscationHelper.GetNewName(nested.Name + Guid.NewGuid().ToString());
+                    //nested.Name = ObfuscationHelper.GetNewName(nested.Name + Guid.NewGuid().ToString());
                     AddHelper(nested, HelperAttribute.NoInjection);
                     foreach (MethodDefinition mtdDef in nested.Methods)
                     {
@@ -129,12 +129,13 @@ namespace Confuser.Core.Confusions
                             mtdDef.Body.Instructions.Add(Instruction.Create(OpCodes.Ldarg_0));
                             mtdDef.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
                         }
-                        mtdDef.Name = ObfuscationHelper.GetNewName(mtdDef.Name + Guid.NewGuid().ToString());
+                        //mtdDef.Name = ObfuscationHelper.GetNewName(mtdDef.Name + Guid.NewGuid().ToString());
                         AddHelper(mtdDef, HelperAttribute.NoInjection);
                     }
                     foreach (FieldDefinition fldDef in nested.Fields)
                     {
-                        fldDef.Name = ObfuscationHelper.GetNewName(fldDef.Name + Guid.NewGuid().ToString());
+                        if (fldDef.IsRuntimeSpecialName) continue;
+                        //fldDef.Name = ObfuscationHelper.GetNewName(fldDef.Name + Guid.NewGuid().ToString());
                         AddHelper(fldDef, HelperAttribute.NoInjection);
                     }
                 }

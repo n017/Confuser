@@ -93,6 +93,7 @@ static class CompressShell
         {
             Flush();
             _stream = null;
+            Buffer.BlockCopy(new byte[_buffer.Length], 0, _buffer, 0, _buffer.Length);
         }
 
         public void Flush()
@@ -717,7 +718,6 @@ static class CompressShell
             s.Read(l, 0, 4);
             uint len = BitConverter.ToUInt32(l, 0);
 
-            MemoryStream ms = new MemoryStream();
             LzmaDecoder decoder = new LzmaDecoder();
             byte[] prop = new byte[5];
             s.Read(prop, 0, 5);
@@ -730,10 +730,11 @@ static class CompressShell
                     throw (new Exception("Can't Read 1"));
                 outSize |= ((long)(byte)v) << (8 * i);
             }
+            byte[] ret = new byte[outSize];
             long compressedSize = len - 13;
-            decoder.Code(s, ms, compressedSize, outSize);
+            decoder.Code(s, new MemoryStream(ret, true), compressedSize, outSize);
 
-            return ms.ToArray();
+            return ret;
         }
     }
 

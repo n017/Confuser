@@ -107,6 +107,7 @@ namespace Confuser.Core.Project
             {
                 var item = new SettingItem<IConfusion>();
                 item.Id = i.Id;
+                item.Action = i.Action;
                 foreach (var j in i.AllKeys)
                     item.Add(j, i[j]);
                 ret.Add(item);
