@@ -418,7 +418,7 @@ static class Encryptions
                     } while ((c & 0x80) != 0);
 
                     count = PlaceHolder(count);
-                    f[i] = (byte)(count ^ key[i % 8]);
+                    f[i] = (byte)(count ^ key[i % 16]);
                 }
             }
             if (type == 11)
@@ -492,7 +492,7 @@ static class Encryptions
             ushort m = _c; ushort c = _m;
             for (int i = 0; i < f.Length; i++)
             {
-                f[i] ^= (byte)(((seed * m + c) % 0x100) ^ key[i % 8]);
+                f[i] ^= (byte)(((seed * m + c) % 0x100) ^ key[i % 16]);
                 m = (ushort)((seed * m + _m) % 0x10000);
                 c = (ushort)((seed * c + _c) % 0x10000);
             }
@@ -532,17 +532,7 @@ static class AntiDumping
         ushort optSize = *(ushort*)ptr;
         ptr = ptr2 = ptr + 0x4 + optSize;
 
-        byte* newMod = stackalloc byte[11];
-        *(uint*)newMod = 0x6c64746e;
-        *((uint*)newMod + 1) = 0x6c642e6c;
-        *((ushort*)newMod + 4) = 0x006c;
-        *(newMod + 10) = 0;
-        byte* newFunc = stackalloc byte[11];
-        *(uint*)newFunc = 0x6f43744e;
-        *((uint*)newFunc + 1) = 0x6e69746e;
-        *((ushort*)newFunc + 4) = 0x6575;
-        *(newFunc + 10) = 0;
-
+        byte* @new = stackalloc byte[11];// (byte*)Marshal.AllocHGlobal(11);
         if (typeof(AntiDumping).Module.FullyQualifiedName != "<Unknown>")   //Mapped
         {
             //VirtualProtect(ptr - 16, 8, 0x40, out old);
@@ -557,11 +547,24 @@ static class AntiDumping
                 byte* modName = bas + *(uint*)(importDir + 12);
                 byte* funcName = bas + *(uint*)oftMod + 2;
                 VirtualProtect(modName, 11, 0x40, out old);
+
+                *(uint*)@new = 0x6c64746e;
+                *((uint*)@new + 1) = 0x6c642e6c;
+                *((ushort*)@new + 4) = 0x006c;
+                *(@new + 10) = 0;
+
                 for (int i = 0; i < 11; i++)
-                    *(modName + i) = *(newMod + i);
+                    *(modName + i) = *(@new + i);
+
                 VirtualProtect(funcName, 11, 0x40, out old);
+
+                *(uint*)@new = 0x6f43744e;
+                *((uint*)@new + 1) = 0x6e69746e;
+                *((ushort*)@new + 4) = 0x6575;
+                *(@new + 10) = 0;
+
                 for (int i = 0; i < 11; i++)
-                    *(funcName + i) = *(newFunc + i);
+                    *(funcName + i) = *(@new + i);
             }
 
             for (int i = 0; i < sectNum; i++)
@@ -671,11 +674,24 @@ static class AntiDumping
                         break;
                     }
                 VirtualProtect(bas + modName, 11, 0x40, out old);
+
+                *(uint*)@new = 0x6c64746e;
+                *((uint*)@new + 1) = 0x6c642e6c;
+                *((ushort*)@new + 4) = 0x006c;
+                *(@new + 10) = 0;
+
                 for (int i = 0; i < 11; i++)
-                    *(bas + modName + i) = *(newMod + i);
+                    *(bas + modName + i) = *(@new + i);
+
                 VirtualProtect(bas + funcName, 11, 0x40, out old);
+
+                *(uint*)@new = 0x6f43744e;
+                *((uint*)@new + 1) = 0x6e69746e;
+                *((ushort*)@new + 4) = 0x6575;
+                *(@new + 10) = 0;
+
                 for (int i = 0; i < 11; i++)
-                    *(bas + funcName + i) = *(newFunc + i);
+                    *(bas + funcName + i) = *(@new + i);
             }
 
 
@@ -741,5 +757,6 @@ static class AntiDumping
                 }
             }
         }
+        //Marshal.FreeHGlobal((IntPtr)@new);
     }
 }

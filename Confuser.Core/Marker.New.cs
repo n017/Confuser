@@ -11,6 +11,7 @@ using System.IO;
 using System.Xml;
 using Confuser.Core.Project;
 using System.Collections;
+using Mono.Cecil.Cil;
 
 namespace Confuser.Core
 {
@@ -197,6 +198,18 @@ namespace Confuser.Core
             AssemblySetting ret = new AssemblySetting(asm);
             ret.GlobalParameters = new ObfuscationSettings(settings);
             ret.ApplyToMember = true;
+
+            ret.Modules = asm.Modules.Select(_ => new ModuleSetting(_) { Parameters = new ObfuscationSettings() }).ToArray();
+            foreach (var mod in asm.Modules)
+                if (mod.GetType("<Module>").GetStaticConstructor() == null)
+                {
+                    MethodDefinition cctor = new MethodDefinition(".cctor", MethodAttributes.Private | MethodAttributes.HideBySig |
+                        MethodAttributes.SpecialName | MethodAttributes.RTSpecialName |
+                        MethodAttributes.Static, mod.TypeSystem.Void);
+                    cctor.Body = new MethodBody(cctor);
+                    cctor.Body.GetILProcessor().Emit(OpCodes.Ret);
+                    mod.GetType("<Module>").Methods.Add(cctor);
+                }
 
             cr.settings.Add(ret);
         }

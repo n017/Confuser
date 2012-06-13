@@ -261,12 +261,12 @@ namespace Confuser.Core
                     }
 
                 param.Logger._BeginPhase("Obfuscating Phase 2...");
-                foreach (var i in settings)
-                    using (param.Logger._Assembly(i.Assembly))
-                        foreach (var j in i.Modules)
+                for(int i=0;i<settings.Count;i++)
+                    using (param.Logger._Assembly(settings[i].Assembly))
+                        foreach (var j in settings[i].Modules)
                         {
                             MemoryStream final = new MemoryStream();
-                            ProcessMdPePhases(j, i.GlobalParameters, phases, final, new WriterParameters() { StrongNameKeyPair = (j.Module.Attributes & ModuleAttributes.StrongNameSigned) != 0 ? sn : null });
+                            ProcessMdPePhases(j, settings[i].GlobalParameters, phases, final, new WriterParameters() { StrongNameKeyPair = (j.Module.Attributes & ModuleAttributes.StrongNameSigned) != 0 ? sn : null });
 
                             pes.Add(final.ToArray());
                             mods.Add(j.Module);
@@ -290,7 +290,7 @@ namespace Confuser.Core
                 packers = null;
                 resolver = null;
                 newAdded.Clear();
-                helpers.Clear();
+                helpers = null;
 
                 GlobalAssemblyResolver.Instance = prevInst;
                 GC.Collect();
@@ -731,7 +731,7 @@ namespace Confuser.Core
                     string filename = Path.GetFileName(mods[i].FullyQualifiedName);
                     if (string.IsNullOrEmpty(filename)) filename = mods[i].Name;
 
-                    string dest = Path.Combine(param.Project.OutputPath, Path.GetFileName(mods[i].FullyQualifiedName));
+                    string dest = Path.Combine(param.Project.OutputPath, filename);
                     if (!Directory.Exists(Path.GetDirectoryName(dest)))
                         Directory.CreateDirectory(Path.GetDirectoryName(dest));
                     Stream dstStream = new FileStream(dest, FileMode.Create, FileAccess.Write);

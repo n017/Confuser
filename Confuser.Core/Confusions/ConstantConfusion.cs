@@ -147,6 +147,9 @@ namespace Confuser.Core.Confusions
 
                 rand.NextBytes(txt.types);
                 rand.NextBytes(txt.keyBuff);
+                for (int i = 0; i < txt.keyBuff.Length; i++)
+                    txt.keyBuff[i] &= 0x7f;
+                txt.keyBuff[0] = 7; txt.keyBuff[1] = 0;
                 while (txt.types.Distinct().Count() != 5) rand.NextBytes(txt.types);
                 txt.resKey = rand.Next();
                 txt.resId = Encoding.UTF8.GetString(BitConverter.GetBytes(txt.resKey));
@@ -187,7 +190,7 @@ namespace Confuser.Core.Confusions
                 for (int i = 0; i < typeDefCount; i++)
                 {
                     TypeDefinition typeDef = new TypeDefinition(
-                        "", Encoding.UTF8.GetString(Guid.NewGuid().ToByteArray()),
+                        "", ObfuscationHelper.GetNewName(Guid.NewGuid().ToString()),
                         TypeAttributes.Class | TypeAttributes.Abstract | TypeAttributes.NotPublic | TypeAttributes.Sealed,
                         mod.TypeSystem.Object);
                     mod.Types.Add(typeDef);
@@ -196,8 +199,7 @@ namespace Confuser.Core.Confusions
                     for (int j = 0; j < methodCount; j++)
                     {
                         MethodDefinition mtd = CecilHelper.Inject(mod, method);
-                        rand.NextBytes(n);
-                        mtd.Name = Encoding.UTF8.GetString(n);
+                        mtd.Name = ObfuscationHelper.GetNewName(Guid.NewGuid().ToString());
                         mtd.IsCompilerControlled = true;
 
                         AddHelper(mtd, HelperAttribute.NoInjection);
@@ -697,7 +699,7 @@ namespace Confuser.Core.Confusions
             public Dictionary<object, int> dict;
             public int idx = 0;
             public int key;
-            public byte[] keyBuff = new byte[8];
+            public byte[] keyBuff = new byte[16];
 
             public int resKey;
             public string resId;
@@ -799,7 +801,7 @@ namespace Confuser.Core.Confusions
             {
                 for (int i = 0; i < tmp.Length; i++)
                 {
-                    int en = (int)ExpressionEvaluator.Evaluate(exp, tmp[i] ^ keyBuff[i % 8]);
+                    int en = (int)ExpressionEvaluator.Evaluate(exp, tmp[i] ^ keyBuff[i % 16]);
                     Write7BitEncodedInt(wtr, en);
                 }
             }
@@ -814,7 +816,7 @@ namespace Confuser.Core.Confusions
             byte[] ret = (byte[])bytes.Clone();
             for (int i = 0; i < ret.Length; i++)
             {
-                ret[i] ^= (byte)(((key * m + c) % 0x100) ^ keyBuff[i % 8]);
+                ret[i] ^= (byte)(((key * m + c) % 0x100) ^ keyBuff[i % 16]);
                 m = (ushort)((key * m + _m) % 0x10000);
                 c = (ushort)((key * c + _c) % 0x10000);
             }

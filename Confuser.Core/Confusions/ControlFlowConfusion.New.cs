@@ -395,23 +395,29 @@ namespace Confuser.Core.Confusions
         }
         public override void Initialize(ModuleDefinition mod)
         {
-            rand = new Random();
             if (mod.Architecture != TargetArchitecture.I386)
-                Log("Junk code is not supported on target architecture, it won't generated.");
+                Log("Junk code is not supported on target architecture, it won't be generated.");
+
+            generator = new ExpressionGenerator();
         }
         public override void DeInitialize()
         {
             //
         }
 
-        public void Init() { }
-        public void Deinit() { }
+        Dictionary<ModuleDefinition, Tuple<byte[], FieldDefinition>> txts = new Dictionary<ModuleDefinition, Tuple<byte[], FieldDefinition>>();
+        public void Init() { txts.Clear(); }
+        public void Deinit() { txts.Clear(); }
 
-        Random rand;
+        static Random rand = new Random();
         bool genJunk;
         int level;
         bool fakeBranch;
         MethodDefinition method;
+        Expression exp;
+        Expression invExp;
+
+        ExpressionGenerator generator;
         public override void Process(ConfusionParameter parameter)
         {
             method = parameter.Target as MethodDefinition;
@@ -544,7 +550,11 @@ namespace Confuser.Core.Confusions
                     return _ == -1 ? null : sts[_];
                 };
 
-                Instruction begin = Instruction.Create(OpCodes.Ldloc, stateVar);
+
+                exp = generator.Generate(level);
+                invExp = ExpressionInverser.InverseExpression(exp);
+                Instruction[] ldloc = new CecilVisitor(invExp, new Instruction[] { Instruction.Create(OpCodes.Ldloc, stateVar) }).GetInstructions();
+                Instruction begin = ldloc[0];
                 Instruction swit = Instruction.Create(OpCodes.Switch, Empty<Instruction>.Array);
                 Instruction end = Instruction.Create(OpCodes.Nop);
                 List<Instruction> targets = new List<Instruction>();
@@ -627,7 +637,7 @@ namespace Confuser.Core.Confusions
                     else
                     {
                         insts.AddRange(stInsts.ToArray());
-                        insts.Add(begin);
+                        insts.AddRange(ldloc);
                         insts.Add(swit);
                         firstSt = false;
                     }
@@ -764,21 +774,26 @@ namespace Confuser.Core.Confusions
         }
         Instruction EncryptNum(int original, VariableDefinition varDef, int num, IList<Instruction> insts)
         {
-            ExpressionGenerator gen = new ExpressionGenerator();
-            Expression exp = gen.Generate(3);
-            int i = ExpressionEvaluator.Evaluate(exp, num);
-            exp = ExpressionInverser.InverseExpression(exp);
-            bool first = true;
+            //original = original < 0 ? 0 : original;
+
+            //ExpressionGenerator gen = new ExpressionGenerator();
+            //Expression exp = gen.Generate(3);
+            //int i = ExpressionEvaluator.Evaluate(exp, (num ^ original));
+            //exp = ExpressionInverser.InverseExpression(exp);
+            //bool first = true;
             Instruction ret = null;
-            foreach (var inst in new CecilVisitor(exp, new Instruction[] { Instruction.Create(OpCodes.Ldc_I4, i) }).GetInstructions())
-            {
-                if (first)
-                {
-                    ret = inst;
-                    first = false;
-                }
-                insts.Add(inst);
-            }
+            //foreach (var inst in new CecilVisitor(exp, new Instruction[] { Instruction.Create(OpCodes.Ldc_I4, i) }).GetInstructions())
+            //{
+            //    if (first)
+            //    {
+            //        ret = inst;
+            //        first = false;
+            //    }
+            //    insts.Add(inst);
+            //}
+            //insts.Add(Instruction.Create(OpCodes.Ldloc, varDef));
+            //insts.Add(Instruction.Create(OpCodes.Xor));
+            insts.Add(ret = Instruction.Create(OpCodes.Ldc_I4, ExpressionEvaluator.Evaluate(exp, num)));
             insts.Add(Instruction.Create(OpCodes.Stloc, varDef));
             return ret;
         }
@@ -976,22 +991,26 @@ namespace Confuser.Core.Confusions
                                                     0x19fe, 0x1bfe, 0x1ffe};
         IEnumerable<Instruction> GetJunk_(VariableDefinition stateVar)
         {
-            yield return Instruction.Create(OpCodes.Break);
+            TypeDefinition randType = method.Module.Types[rand.Next(0, method.Module.Types.Count)];
+            if (randType.Methods.Count > 0 && rand.Next() % 2 == 0)
+                yield return Instruction.Create(OpCodes.Ldtoken, randType.Methods[rand.Next(0, randType.Methods.Count)]);
+            else if (randType.Fields.Count > 0)
+                yield return Instruction.Create(OpCodes.Ldtoken, randType.Fields[rand.Next(0, randType.Fields.Count)]);
+            else
+                yield return Instruction.Create(OpCodes.Ldtoken, randType);
             if (genJunk)
             {
                 switch (rand.Next(0, 5))
                 {
                     case 0:
-                        yield return Instruction.Create(OpCodes.Break);
+                        yield return Instruction.Create(OpCodes.Pop);
                         break;
                     case 1:
                         yield return Instruction.Create(OpCodes.Ldc_I4, rand.Next(0, 9));
-                        yield return Instruction.Create(OpCodes.Dup);
                         yield return Instruction.Create(OpCodes.Stloc, stateVar);
                         yield return Instruction.Create(OpCodes.Pop);
                         break;
                     case 2:
-                        yield return Instruction.Create(OpCodes.Ldtoken, method.DeclaringType.Methods[rand.Next(0, method.DeclaringType.Methods.Count)]);
                         Instruction inst = Instruction.Create(OpCodes.Pop);
                         yield return Instruction.Create(OpCodes.Ldc_I4, rand.Next(0, 9));
                         yield return Instruction.Create(OpCodes.Ldc_I4, rand.Next(0, 9));
@@ -1035,6 +1054,7 @@ namespace Confuser.Core.Confusions
                                 break;
                         }
                         yield return Instruction.Create(OpCodes.Stloc, stateVar);
+                        yield return Instruction.Create(OpCodes.Pop);
                         break;
                     case 4:
                         yield return Instruction.CreateJunkCode(junkCode[rand.Next(0, junkCode.Length)]);
@@ -1046,16 +1066,14 @@ namespace Confuser.Core.Confusions
                 switch (rand.Next(0, 4))
                 {
                     case 0:
-                        yield return Instruction.Create(OpCodes.Break);
+                        yield return Instruction.Create(OpCodes.Pop);
                         break;
                     case 1:
                         yield return Instruction.Create(OpCodes.Ldc_I4, rand.Next(-1, 9));
-                        yield return Instruction.Create(OpCodes.Dup);
                         yield return Instruction.Create(OpCodes.Stloc, stateVar);
                         yield return Instruction.Create(OpCodes.Pop);
                         break;
                     case 2:
-                        yield return Instruction.Create(OpCodes.Ldtoken, method.DeclaringType.Methods[rand.Next(0, method.DeclaringType.Methods.Count)]);
                         Instruction inst = Instruction.Create(OpCodes.Pop);
                         yield return Instruction.Create(OpCodes.Ldc_I4, rand.Next(0, 9));
                         yield return Instruction.Create(OpCodes.Ldc_I4, rand.Next(0, 9));
@@ -1099,12 +1117,14 @@ namespace Confuser.Core.Confusions
                                 break;
                         }
                         yield return Instruction.Create(OpCodes.Stloc, stateVar);
+                        yield return Instruction.Create(OpCodes.Pop);
                         break;
                 }
             }
         }
         IEnumerable<Instruction> GetJunk(VariableDefinition stateVar)
         {
+            //return new Instruction[0];
             return GetJunk_(stateVar);
         }
 

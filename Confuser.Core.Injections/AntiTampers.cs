@@ -34,6 +34,7 @@ static class AntiTamperJIT
         int snLen;
         using (BinaryReader rdr = new BinaryReader(stream))
         {
+            Console.WriteLine('X');
             stream.Seek(0x3c, SeekOrigin.Begin);
             uint offset = rdr.ReadUInt32();
             stream.Seek(offset, SeekOrigin.Begin);
@@ -48,6 +49,7 @@ static class AntiTamperJIT
             uint md = rdr.ReadUInt32() ^ 0x11111111;
             if (md == 0x11111111)
                 return;
+            Console.WriteLine('Y');
 
             stream.Seek(offset = offset + optSize, SeekOrigin.Begin);  //sect hdr
             uint datLoc = 0;
@@ -73,6 +75,7 @@ static class AntiTamperJIT
 
                 stream.Seek(0x10, SeekOrigin.Current);
             }
+            Console.WriteLine('Z');
 
             stream.Seek(md, SeekOrigin.Begin);
             using (MemoryStream str = new MemoryStream())
@@ -603,11 +606,12 @@ static class AntiTamperJIT
         {
             ICorMethodInfo* mtdInfo = ICorStaticInfo.ICorMethodInfo(ICorDynamicInfo.ICorStaticInfo(ICorJitInfo.ICorDynamicInfo(comp)));
             IntPtr* vfTbl = mtdInfo->vfptr;
-            IntPtr* newVfTbl = (IntPtr*)Marshal.AllocHGlobal(0x19 * IntPtr.Size);
-            for (int i = 0; i < 0x19; i++)
+            const int SLOT_NUM = 0x1B;
+            IntPtr* newVfTbl = (IntPtr*)Marshal.AllocHGlobal(SLOT_NUM * IntPtr.Size);
+            for (int i = 0; i < SLOT_NUM; i++)
                 newVfTbl[i] = vfTbl[i];
             if (ehNum == -1)
-                for (int i = 0; i < 0x19; i++)
+                for (int i = 0; i < SLOT_NUM; i++)
                 {
                     bool isEh = true;
                     for (byte* func = (byte*)vfTbl[i]; *func != 0xe9; func++)
@@ -729,11 +733,12 @@ static class AntiTamperJIT
         {
             ICorDynamicInfo* dynInfo = ICorJitInfo.ICorDynamicInfo(comp);
             IntPtr* vfTbl = dynInfo->vfptr;
-            IntPtr* newVfTbl = (IntPtr*)Marshal.AllocHGlobal(0x27 * IntPtr.Size);
-            for (int i = 0; i < 0x27; i++)
+            const int SLOT_NUM = 0x27;
+            IntPtr* newVfTbl = (IntPtr*)Marshal.AllocHGlobal(SLOT_NUM * IntPtr.Size);
+            for (int i = 0; i < SLOT_NUM; i++)
                 newVfTbl[i] = vfTbl[i];
             if (ctNum == -1)
-                for (int i = 0; i < 0x27; i++)
+                for (int i = 0; i < SLOT_NUM; i++)
                 {
                     bool overrided = true;
                     for (byte* func = (byte*)vfTbl[i]; *func != 0xe9; func++)
@@ -966,6 +971,7 @@ static class AntiTamperJIT
                     k = (k * arr[i] + key) % 0xff;
                 }
 
+                Console.WriteLine(ptr);
                 MethodData* dat = (MethodData*)arr;
                 info->ILCodeSize = dat->ILCodeSize;
                 if (ver)
@@ -1018,7 +1024,8 @@ static class AntiTamperJIT
                 var hook1 = CorMethodInfoHook.Hook(comp, info->ftn, ehs);
                 var hook2 = CorDynamicInfoHook.Hook(comp);
                 uint ret = originalDelegate(self, comp, info, flags, nativeEntry, nativeSizeOfCode);
-                hook2.Dispose(); hook1.Dispose();
+                hook2.Dispose();
+                hook1.Dispose();
                 return ret;
             }
         }

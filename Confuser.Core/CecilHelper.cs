@@ -211,7 +211,18 @@ namespace Confuser.Core
             }
 
             foreach (ParameterDefinition param in mtd.Parameters)
-                newMtd.Parameters.Add(new ParameterDefinition(param.Name, param.Attributes, ImportType(param.ParameterType, mod, mems)));
+            {
+                var p = new ParameterDefinition(param.Name, param.Attributes, ImportType(param.ParameterType, mod, mems));
+                if (param.HasCustomAttributes)
+                {
+                    foreach (CustomAttribute attr in param.CustomAttributes)
+                    {
+                        CustomAttribute nAttr = new CustomAttribute(ImportMethod(attr.Constructor, mod, mems), attr.GetBlob());
+                        p.CustomAttributes.Add(nAttr);
+                    }
+                }
+                newMtd.Parameters.Add(p);
+            }
 
             if (mtd.HasBody)
             {
@@ -361,7 +372,18 @@ namespace Confuser.Core
             }
 
             foreach (ParameterDefinition param in mtd.Parameters)
-                ret.Parameters.Add(new ParameterDefinition(param.Name, param.Attributes, mod.Import(param.ParameterType)));
+            {
+                var p = new ParameterDefinition(param.Name, param.Attributes, mod.Import(param.ParameterType));
+                if (param.HasCustomAttributes)
+                {
+                    foreach (CustomAttribute attr in param.CustomAttributes)
+                    {
+                        CustomAttribute nAttr = new CustomAttribute(mod.Import(attr.Constructor), attr.GetBlob());
+                        p.CustomAttributes.Add(nAttr);
+                    }
+                }
+                ret.Parameters.Add(p);
+            }
 
             if (mtd.HasBody)
             {

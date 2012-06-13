@@ -228,7 +228,7 @@ namespace Confuser.Core.Project
             this.SNKeyPath = docElem.Attributes["snKey"].Value;
             if (docElem.Attributes["preset"] != null)
                 this.DefaultPreset = (Preset)Enum.Parse(typeof(Preset), docElem.Attributes["preset"].Value, true);
-            foreach (XmlElement i in docElem.ChildNodes)
+            foreach (XmlElement i in docElem.ChildNodes.OfType<XmlElement>())
             {
                 if (i.Name == "plugin")
                 {

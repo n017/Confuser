@@ -56,7 +56,7 @@ namespace Confuser.Core.Poly
             }
             else
             {
-                ret = (Expression)Activator.CreateInstance(ExpressionTypes[rand.Next(0, ExpressionTypes.Length - 1)]);
+                ret = (Expression)Activator.CreateInstance(ExpressionTypes[rand.Next(0, ExpressionTypes.Length)]);
                 ret.Generate(this, level - 1, rand);
             }
             ret.Parent = parent;
