@@ -5,7 +5,6 @@ using System.Text;
 using System.Security.Cryptography;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-using Mono.Cecil.Rocks;
 using Confuser.Core.Analyzers;
 
 namespace Confuser.Core.Confusions

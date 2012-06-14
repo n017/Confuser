@@ -9,7 +9,6 @@ using System.Diagnostics;
 using System.Security;
 using System.Security.Permissions;
 using Mono.Cecil.Cil;
-using Mono.Cecil.Rocks;
 using System.Security.Cryptography;
 using Mono.Cecil.Metadata;
 using Mono.Cecil.PE;

@@ -6,7 +6,6 @@ using System.Threading;
 using System.IO;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-using Mono.Cecil.Rocks;
 using Mono.Cecil.Metadata;
 using System.Collections.Specialized;
 using Confuser.Core.Project;

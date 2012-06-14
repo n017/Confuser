@@ -7,7 +7,6 @@ using System.Runtime.InteropServices;
 using System.Diagnostics;
 using System.Threading;
 using Mono.Cecil.Cil;
-using Mono.Cecil.Rocks;
 
 namespace Confuser.Core.Confusions
 {

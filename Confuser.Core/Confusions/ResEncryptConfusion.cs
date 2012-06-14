@@ -7,7 +7,6 @@ using System.Linq;
 using System.Text;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-using Mono.Cecil.Rocks;
 using System.IO.Compression;
 using System.Collections.Specialized;
 

@@ -4,7 +4,6 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using Mono.Cecil;
-using Mono.Cecil.Rocks;
 using Mono.Collections.Generic;
 using System.Collections.Specialized;
 using System.IO;

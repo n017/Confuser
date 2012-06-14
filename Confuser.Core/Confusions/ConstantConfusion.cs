@@ -7,7 +7,6 @@ using Confuser.Core.Poly;
 using System.IO;
 using Mono.Cecil.Cil;
 using System.IO.Compression;
-using Mono.Cecil.Rocks;
 using Confuser.Core.Poly.Visitors;
 using System.Collections.Specialized;
 using Mono.Cecil.Metadata;

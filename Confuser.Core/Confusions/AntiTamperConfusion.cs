@@ -5,7 +5,6 @@ using System.Text;
 using System.Collections.Specialized;
 using Mono.Cecil;
 using Mono.Cecil.Metadata;
-using Mono.Cecil.Rocks;
 using System.IO;
 using System.IO.Compression;
 using System.Security.Cryptography;

@@ -4,7 +4,6 @@ using System.Linq;
 using System.Text;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-using Mono.Cecil.Rocks;
 using System.Collections;
 using System.Security.Cryptography;
 using System.IO;

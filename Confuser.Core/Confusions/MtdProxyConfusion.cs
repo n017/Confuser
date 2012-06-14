@@ -5,7 +5,6 @@ using System.Text;
 using Mono.Cecil;
 using System.Security.Cryptography;
 using Mono.Cecil.Cil;
-using Mono.Cecil.Rocks;
 using System.IO;
 using System.Globalization;
 using System.IO.Compression;
