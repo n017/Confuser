@@ -237,8 +237,6 @@ namespace Confuser.Core
                         phases.Add(phase);
 
                 param.Logger._BeginPhase("Obfuscating Phase 1...");
-                List<byte[]> pes = new List<byte[]>();
-                List<ModuleDefinition> mods = new List<ModuleDefinition>();
 
                 for (int i = 0; i < settings.Count; i++)
                 {
@@ -269,18 +267,40 @@ namespace Confuser.Core
                     }
 
                 param.Logger._BeginPhase("Obfuscating Phase 2...");
+
+                var provider = new Mono.Cecil.Pdb.PdbWriterProvider();
+
+                List<byte[]> pes = new List<byte[]>();
+                List<byte[]> syms = new List<byte[]>();
+                List<ModuleDefinition> mods = new List<ModuleDefinition>();
+
                 for (int i = 0; i < settings.Count; i++)
                     using (param.Logger._Assembly(settings[i].Assembly))
                         foreach (var j in settings[i].Modules)
                         {
                             MemoryStream final = new MemoryStream();
-                            ProcessMdPePhases(j, settings[i].GlobalParameters, phases, final, new WriterParameters() { StrongNameKeyPair = (j.Module.Attributes & ModuleAttributes.StrongNameSigned) != 0 ? sn : null });
+                            MemoryStream symbol = new MemoryStream();
+
+                            WriterParameters writerParams = new WriterParameters();
+                            if ((j.Module.Attributes & ModuleAttributes.StrongNameSigned) != 0)
+                                writerParams.StrongNameKeyPair = sn;
+                            else
+                                writerParams.StrongNameKeyPair = null;
+                            if (param.Project.Debug)
+                            {
+                                writerParams.WriteSymbols = true;
+                                writerParams.SymbolWriterProvider = provider;
+                                writerParams.SymbolStream = symbol;
+                            }
+
+                            ProcessMdPePhases(j, settings[i].GlobalParameters, phases, final, writerParams);
 
                             pes.Add(final.ToArray());
+                            syms.Add(symbol.ToArray());
                             mods.Add(j.Module);
                         }
 
-                Finalize(mods.ToArray(), pes.ToArray());
+                Finalize(mods.ToArray(), pes.ToArray(), syms.ToArray());
 
                 param.Logger._Finish("Ended at " + DateTime.Now.ToShortTimeString() + ".");
             }
@@ -414,6 +434,19 @@ namespace Confuser.Core
             Log(string.Format("Loading assemblies..."));
             mkr.Initalize(confusions, packers);
             mkrSettings = mkr.MarkAssemblies(this, param.Logger);
+
+            if (param.Project.Debug)
+            {
+                var provider = new Mono.Cecil.Pdb.PdbReaderProvider();
+                Log(string.Format("Loading debug symbols..."));
+                for (int i = 0; i < mkrSettings.Assemblies.Length; i++)
+                {
+                    foreach (var mod in mkrSettings.Assemblies[i].Assembly.Modules)
+                        mod.ReadSymbols(provider.GetSymbolReader(mod, mod.FullyQualifiedName));
+                    param.Logger._Progress(i + 1, mkrSettings.Assemblies.Length);
+                }
+            }
+
             settings = mkrSettings.Assemblies.ToList();
 
             var mainAsm = settings.SingleOrDefault(_ => _.IsMain);
@@ -421,8 +454,12 @@ namespace Confuser.Core
                 mainAsm.Assembly.MainModule.Kind == ModuleKind.Dll ||
                 mainAsm.Assembly.MainModule.Kind == ModuleKind.NetModule))
             {
-                Log("Warning: Cannot pack a library or net module!");
+                Log("WARNING: Cannot pack a library or net module!");
                 mkrSettings.Packer = null;
+            }
+            if (mkrSettings.Packer != null && param.Project.Debug)
+            {
+                Log("WARNING: When packer is used, debug symbol may not loaded properly into debugger!");
             }
 
             Dictionary<string, string> repl = new Dictionary<string, string>();
@@ -716,7 +753,7 @@ namespace Confuser.Core
             Log(string.Format("Obfuscating metadata of module {0}...", mod.Module.Name));
             psr.Process(mod.Module, stream, parameters);
         }
-        void Finalize(ModuleDefinition[] mods, byte[][] pes)
+        void Finalize(ModuleDefinition[] mods, byte[][] pes, byte[][] syms)
         {
             param.Logger._BeginPhase("Finalizing...");
             Packer packer = mkrSettings.Packer;
@@ -760,6 +797,13 @@ namespace Confuser.Core
                         dstStream.Dispose();
                     }
                 }
+            }
+
+            if (param.Project.Debug)
+            {
+                Log("Writing symbols...");
+                for (int i = 0; i < mods.Length; i++)
+                    File.WriteAllBytes(Path.Combine(param.Project.OutputPath, Path.ChangeExtension(mods[i].Name, "pdb")), syms[i]);
             }
         }
 

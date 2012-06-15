@@ -730,7 +730,7 @@ namespace Mono.Cecil.PE {
 			WriteInt32 (debug_directory.Type);
 			WriteInt32 (debug_directory.SizeOfData);
 			WriteInt32 (debug_directory.AddressOfRawData);
-			WriteInt32 ((int) BaseStream.Position + 4);
+			WriteInt32 ((int) (debug_directory.AddressOfRawData - GetSection(".text").VirtualAddress + GetSection(".text").PointerToRawData));
 
 			WriteBytes (debug_data);
 		}

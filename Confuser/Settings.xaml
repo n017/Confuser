@@ -85,7 +85,8 @@
                     </Style>
                 </TextBox.Style>
             </TextBox>
-            <CheckBox Grid.Column="2" HorizontalContentAlignment="Right" VerticalAlignment="Center">Generate debug symbols</CheckBox>
+            <CheckBox Grid.Column="2" HorizontalContentAlignment="Right" 
+                      VerticalAlignment="Center" IsChecked="{Binding Debug}">Generate debug symbols</CheckBox>
         </Grid>
 
         <Button Grid.Row="4" Grid.Column="0" Margin="5" Click="LoadPlugin_Click" Height="30" VerticalAlignment="Top">Add Plugin</Button>

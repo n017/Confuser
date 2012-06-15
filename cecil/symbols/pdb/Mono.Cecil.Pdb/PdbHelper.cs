@@ -4,7 +4,7 @@
 // Author:
 //   Jb Evain (jbevain@gmail.com)
 //
-// Copyright (c) 2008 - 2010 Jb Evain
+// Copyright (c) 2008 - 2011 Jb Evain
 //
 // Permission is hereby granted, free of charge, to any person obtaining
 // a copy of this software and associated documentation files (the
@@ -36,6 +36,7 @@ namespace Mono.Cecil.Pdb {
 
 	class PdbHelper {
 
+#if !READ_ONLY
 		public static SymWriter CreateWriter (ModuleDefinition module, string pdb)
 		{
 			var writer = new SymWriter ();
@@ -47,6 +48,15 @@ namespace Mono.Cecil.Pdb {
 
 			return writer;
 		}
+		public static SymWriter CreateWriter (ModuleDefinition module, string path, Stream pdb)
+		{
+			var writer = new SymWriter ();
+
+			writer.Initialize (new ModuleMetadata (module), path, pdb, true);
+
+			return writer;
+		}
+#endif
 
 		public static string GetPdbFileName (string assemblyFileName)
 		{
@@ -63,9 +73,11 @@ namespace Mono.Cecil.Pdb {
 
 		public ISymbolReader GetSymbolReader (ModuleDefinition module, Stream symbolStream)
 		{
-			throw new NotImplementedException ();
+			return new PdbReader (symbolStream);
 		}
 	}
+
+#if !READ_ONLY
 
 	public class PdbWriterProvider : ISymbolWriterProvider {
 
@@ -76,9 +88,11 @@ namespace Mono.Cecil.Pdb {
 
 		public ISymbolWriter GetSymbolWriter (ModuleDefinition module, Stream symbolStream)
 		{
-			throw new NotImplementedException ();
+			return new PdbWriter (module, PdbHelper.CreateWriter (module, PdbHelper.GetPdbFileName (module.FullyQualifiedName), symbolStream));
 		}
 	}
+
+#endif
 
 	static class GuidMapping {
 

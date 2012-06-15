@@ -33,6 +33,9 @@ using System.Runtime.InteropServices;
 
 using Mono.Cecil.Cil;
 using Mono.Collections.Generic;
+using System.IO;
+
+#if !READ_ONLY
 
 namespace Mono.Cecil.Pdb
 {
@@ -134,7 +137,12 @@ namespace Mono.Cecil.Pdb
 		public void Initialize (object emitter, string filename, bool fFullBuild)
 		{
 			m_writer.Initialize (emitter, filename, null, fFullBuild);
-		}
+        }
+
+        public void Initialize(object emitter, string filename, Stream stream, bool fFullBuild)
+        {
+            m_writer.Initialize(emitter, filename, new IStreamImpl(stream), fFullBuild);
+        }
 
 		public void SetUserEntryPoint (SymbolToken method)
 		{
@@ -164,3 +172,5 @@ namespace Mono.Cecil.Pdb
 		}
 	}
 }
+
+#endif

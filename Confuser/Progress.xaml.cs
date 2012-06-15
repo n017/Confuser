@@ -13,6 +13,8 @@ using Confuser.Core;
 using System.Threading;
 using Mono.Cecil;
 using System.Windows.Media.Imaging;
+using System.IO;
+using System.Security;
 
 namespace Confuser
 {
@@ -125,6 +127,22 @@ namespace Confuser
             if (e.Exception is ThreadAbortException)
             {
                 log.AppendText("Cancelled!\r\n");
+            }
+            else if (
+                e.Exception is SecurityException ||
+                e.Exception is DirectoryNotFoundException ||
+                e.Exception is UnauthorizedAccessException ||
+                e.Exception is IOException)
+            {
+                log.AppendText("\r\n\r\n\r\n");
+                log.AppendText("Oops... Confuser crushed...\r\n");
+                log.AppendText("\r\n");
+                log.AppendText(e.Exception.GetType().FullName + "\r\n");
+                log.AppendText("Message : " + e.Exception.Message + "\r\n");
+                log.AppendText("Stack Trace :\r\n");
+                log.AppendText(e.Exception.StackTrace + "\r\n");
+                log.AppendText("\r\n");
+                log.AppendText("Please ensure Confuser have enough permission!!!\r\n");
             }
             else
             {

@@ -1496,7 +1496,10 @@ namespace Mono.Cecil {
             var symbol_writer_provider = parameters.SymbolWriterProvider;
             if (symbol_writer_provider == null && parameters.WriteSymbols)
                 symbol_writer_provider = SymbolProvider.GetPlatformWriterProvider();
-            var symbol_writer = symbol_writer_provider == null ? null : symbol_writer_provider.GetSymbolWriter(module, fq_name);
+            var symbol_writer = symbol_writer_provider == null ? null : 
+                (parameters.SymbolStream != null ? 
+                    symbol_writer_provider.GetSymbolWriter(module, parameters.SymbolStream) :
+                    symbol_writer_provider.GetSymbolWriter(module, fq_name));
             
 			if ((module.Attributes & ModuleAttributes.ILOnly) == 0)
 				throw new ArgumentException ();

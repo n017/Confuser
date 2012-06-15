@@ -139,13 +139,14 @@ namespace Confuser.Core.Confusions
                 }
             }
 
-            if (mtd.HasBody)
-            {
-                foreach (VariableDefinition var in mtd.Body.Variables)
-                {
-                    var.Name = ObfuscationHelper.GetNewName(var.Name, mode);
-                }
-            }
+            //Variable names are stored in pdb, so no need to rename
+            //if (mtd.HasBody)
+            //{
+            //    foreach (VariableDefinition var in mtd.Body.Variables)
+            //    {
+            //        var.Name = ObfuscationHelper.GetNewName(var.Name, mode);
+            //    }
+            //}
         }
 
         public override Analyzer GetAnalyzer()

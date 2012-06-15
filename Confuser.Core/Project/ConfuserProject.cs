@@ -55,6 +55,8 @@ namespace Confuser.Core.Project
             this.Id = elem.Attributes["id"].Value;
             if (elem.Attributes["action"] != null)
                 this.Action = (SettingItemAction)Enum.Parse(typeof(SettingItemAction), elem.Attributes["action"].Value, true);
+            else
+                this.Action = SettingItemAction.Add;
             foreach (XmlElement i in elem.ChildNodes.OfType<XmlElement>())
                 this.Add(i.Attributes["name"].Value, i.Attributes["value"].Value);
         }
@@ -90,6 +92,8 @@ namespace Confuser.Core.Project
             this.Name = elem.Attributes["name"].Value;
             if (elem.Attributes["preset"] != null)
                 this.Preset = (Preset)Enum.Parse(typeof(Preset), elem.Attributes["preset"].Value, true);
+            else
+                this.Preset = Preset.None;
             foreach (XmlElement i in elem.ChildNodes.OfType<XmlElement>())
             {
                 var x = new SettingItem<IConfusion>();
@@ -149,10 +153,16 @@ namespace Confuser.Core.Project
         public void Load(XmlElement elem)
         {
             this.Id = elem.Attributes["id"].Value;
+
             if (elem.Attributes["applytomembers"] != null)
                 this.ApplyToMembers = bool.Parse(elem.Attributes["applytomembers"].Value);
+            else
+                this.ApplyToMembers = false;
+            
             if (elem.Attributes["inherit"] != null)
                 this.Inherit = bool.Parse(elem.Attributes["inherit"].Value);
+            else
+                this.Inherit = false;
         }
     }
 
@@ -166,6 +176,7 @@ namespace Confuser.Core.Project
         public IList<string> Plugins { get; private set; }
         public IList<ObfSettings> Settings { get; private set; }
         public string Seed { get; set; }
+        public bool Debug { get; set; }
         public string OutputPath { get; set; }
         public string SNKeyPath { get; set; }
         public Preset DefaultPreset { get; set; }
@@ -202,6 +213,13 @@ namespace Confuser.Core.Project
                 elem.Attributes.Append(seedAttr);
             }
 
+            if (Debug != false)
+            {
+                XmlAttribute debugAttr = xmlDoc.CreateAttribute("debug");
+                debugAttr.Value = Debug.ToString().ToLower();
+                elem.Attributes.Append(debugAttr);
+            }
+
             foreach (var i in Plugins)
             {
                 XmlElement plug = xmlDoc.CreateElement("plugin", Namespace);
@@ -234,10 +252,22 @@ namespace Confuser.Core.Project
 
             this.OutputPath = docElem.Attributes["outputDir"].Value;
             this.SNKeyPath = docElem.Attributes["snKey"].Value;
+
             if (docElem.Attributes["preset"] != null)
                 this.DefaultPreset = (Preset)Enum.Parse(typeof(Preset), docElem.Attributes["preset"].Value, true);
+            else
+                this.DefaultPreset = Preset.None;
+
             if (docElem.Attributes["seed"] != null)
                 this.Seed = docElem.Attributes["seed"].Value;
+            else
+                this.Seed = null;
+
+            if (docElem.Attributes["debug"] != null)
+                this.Debug = bool.Parse(docElem.Attributes["debug"].Value);
+            else
+                this.Debug = false;
+
             foreach (XmlElement i in docElem.ChildNodes.OfType<XmlElement>())
             {
                 if (i.Name == "plugin")

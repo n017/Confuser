@@ -399,6 +399,7 @@ namespace Confuser.Core.Confusions
                     Instruction now = txts[i].str;
                     if (IsNull(now.Operand)) continue;
                     Instruction call = Instruction.Create(OpCodes.Call, txts[i].conster.conster);
+                    call.SequencePoint = now.SequencePoint;
                     txts[i].psr.InsertAfter(idx, call);
                     if (now.Operand is int)
                         txts[i].psr.InsertAfter(call, Instruction.Create(OpCodes.Unbox_Any, txts[i].mtd.Module.TypeSystem.Int32));

@@ -457,6 +457,9 @@ namespace Confuser.Core.Confusions
             body.SimplifyMacros();
             body.ComputeHeader();
             body.MaxStackSize += 0x10;
+
+            PropagateSeqPoints(body);
+
             VariableDefinition stateVar = new VariableDefinition(method.Module.TypeSystem.Int32);
             body.Variables.Add(stateVar);
             body.InitLocals = true;
@@ -568,7 +571,8 @@ namespace Confuser.Core.Confusions
                     {
                         if (last.OpCode.Code == Code.Br)  //uncond
                         {
-                            stInsts.RemoveAt(stInsts.Count - 1);
+                            int index = stInsts.Count - 1;
+                            stInsts.RemoveAt(index);
                             if (fakeBranch)
                             {
                                 Statement targetSt = resolveHdr(last.Operand);
@@ -583,10 +587,12 @@ namespace Confuser.Core.Confusions
                                 stInsts.Add(Instruction.Create(OpCodes.Br, begin));
                                 stInsts.AddRange(GetJunk(stateVar));
                             }
+                            stInsts[index].SequencePoint = last.SequencePoint;
                         }
                         else if (last.OpCode.Code != Code.Leave)  //cond
                         {
-                            stInsts.RemoveAt(stInsts.Count - 1);
+                            int index = stInsts.Count - 1;
+                            stInsts.RemoveAt(index);
                             Statement targetSt = resolveHdr(last.Operand);
                             Statement fallSt = resolveHdr(last.Next);
 
@@ -605,6 +611,7 @@ namespace Confuser.Core.Confusions
                                 stInsts.Add(Instruction.Create(OpCodes.Br, begin));
                                 stInsts.AddRange(GetJunk(stateVar));
                             }
+                            stInsts[index].SequencePoint = last.SequencePoint;
                         }
                     }
                     else
@@ -716,6 +723,8 @@ namespace Confuser.Core.Confusions
 
             body.ComputeOffsets();
             body.PreserveMaxStackSize = true;
+
+            ReduceSeqPoints(body);
         }
         static void SetLvHandler(Scope scope, MethodBody body, IList<Instruction> block)
         {
@@ -757,6 +766,33 @@ namespace Confuser.Core.Confusions
                     default:
                         throw new InvalidOperationException();
                 }
+            }
+        }
+
+        void PropagateSeqPoints(MethodBody body)
+        {
+            SequencePoint active = null;
+            foreach (var i in body.Instructions)
+            {
+                if (i.SequencePoint != null &&
+                    i.OpCode.FlowControl != FlowControl.Branch &&
+                    i.OpCode.FlowControl != FlowControl.Cond_Branch)
+                    active = i.SequencePoint;
+                else if (i.OpCode.FlowControl != FlowControl.Branch &&
+                    i.OpCode.FlowControl != FlowControl.Cond_Branch)
+                    i.SequencePoint = active;
+            }
+        }
+
+        void ReduceSeqPoints(MethodBody body)
+        {
+            SequencePoint active = null;
+            foreach (var i in body.Instructions)
+            {
+                if (i.SequencePoint == active)
+                    i.SequencePoint = null;
+                else
+                    active = i.SequencePoint;
             }
         }
 

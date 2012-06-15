@@ -34,7 +34,6 @@ static class AntiTamperJIT
         int snLen;
         using (BinaryReader rdr = new BinaryReader(stream))
         {
-            Console.WriteLine('X');
             stream.Seek(0x3c, SeekOrigin.Begin);
             uint offset = rdr.ReadUInt32();
             stream.Seek(offset, SeekOrigin.Begin);
@@ -49,7 +48,6 @@ static class AntiTamperJIT
             uint md = rdr.ReadUInt32() ^ 0x11111111;
             if (md == 0x11111111)
                 return;
-            Console.WriteLine('Y');
 
             stream.Seek(offset = offset + optSize, SeekOrigin.Begin);  //sect hdr
             uint datLoc = 0;
@@ -75,7 +73,6 @@ static class AntiTamperJIT
 
                 stream.Seek(0x10, SeekOrigin.Current);
             }
-            Console.WriteLine('Z');
 
             stream.Seek(md, SeekOrigin.Begin);
             using (MemoryStream str = new MemoryStream())
@@ -971,7 +968,6 @@ static class AntiTamperJIT
                     k = (k * arr[i] + key) % 0xff;
                 }
 
-                Console.WriteLine(ptr);
                 MethodData* dat = (MethodData*)arr;
                 info->ILCodeSize = dat->ILCodeSize;
                 if (ver)
