@@ -202,7 +202,7 @@ namespace Mono.Cecil.PE {
 			this.GetWin32Resources ();
 			this.text_map = BuildTextMap ();
 			this.sections = new Collection<Section>(2); // text + reloc
-			this.time_stamp = (uint) DateTime.UtcNow.Subtract (new DateTime (1970, 1, 1)).TotalSeconds;
+			this.time_stamp = module.TimeStamp != 0 ? module.TimeStamp : (uint) DateTime.UtcNow.Subtract (new DateTime (1970, 1, 1)).TotalSeconds;
 		}
 
 		void GetDebugHeader ()

@@ -106,7 +106,7 @@
     <None Include="Confusions\StringConfusion.cs" />
     <Compile Include="Confusion.cs" />
     <Compile Include="Analyzers\NameAnalyzer.cs" />
-    <Compile Include="Analyzer.cs" />
+    <Compile Include="Project\Analyzer.cs" />
     <None Include="Marker.cs" />
     <Compile Include="ObfuscationHelper.cs" />
     <Compile Include="Packer.cs" />

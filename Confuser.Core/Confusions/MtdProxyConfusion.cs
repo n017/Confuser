@@ -68,11 +68,11 @@ namespace Confuser.Core.Confusions
                 txt.proxy = CecilHelper.Inject(mod, txt.proxy);
                 modType.Methods.Add(txt.proxy);
                 txt.proxy.IsAssembly = true;
-                txt.proxy.Name = ObfuscationHelper.GetNewName("Proxy" + Guid.NewGuid().ToString());
+                txt.proxy.Name = ObfuscationHelper.GetRandomName();
                 AddHelper(txt.proxy, 0);
 
                 Instruction placeholder = null;
-                txt.key = new Random().Next();
+                txt.key = Random.Next();
                 foreach (Instruction inst in txt.proxy.Body.Instructions)
                     if (inst.Operand is MethodReference && (inst.Operand as MethodReference).Name == "PlaceHolder")
                     {
@@ -82,7 +82,7 @@ namespace Confuser.Core.Confusions
                 if (txt.isNative)
                 {
                     txt.nativeDecr = new MethodDefinition(
-                        ObfuscationHelper.GetNewName("NativeDecrypter" + Guid.NewGuid().ToString()),
+                        ObfuscationHelper.GetRandomName(),
                         MethodAttributes.Abstract | MethodAttributes.CompilerControlled |
                         MethodAttributes.ReuseSlot | MethodAttributes.Static,
                         mod.TypeSystem.Int32);
@@ -91,7 +91,7 @@ namespace Confuser.Core.Confusions
                     modType.Methods.Add(txt.nativeDecr);
                     do
                     {
-                        txt.exp = new ExpressionGenerator().Generate(6);
+                        txt.exp = new ExpressionGenerator(Random.Next()).Generate(6);
                         txt.invExp = ExpressionInverser.InverseExpression(txt.exp);
                     } while ((txt.visitor = new x86Visitor(txt.invExp, null)).RegisterOverflowed);
 
@@ -281,6 +281,19 @@ namespace Confuser.Core.Confusions
                 txt.isVirt = txt.inst.OpCode.Name == "callvirt";
                 txt.inst.OpCode = OpCodes.Call;
                 txt.inst.Operand = bdge;
+            }
+
+            string GetNameO(bool isVirt, MethodReference mbr)
+            {
+                return ObfuscationHelper.GetNewName((isVirt ? "V>." : "") + mbr.ToString());
+            }
+            string GetNameO(ParameterDefinition arg)
+            {
+                return ObfuscationHelper.GetNewName(arg.Name);
+            }
+            string GetSignatureO(MethodReference mbr)
+            {
+                return ObfuscationHelper.GetNewName(GetSignature(mbr));
             }
 
             IProgresser progresser;
@@ -578,18 +591,6 @@ namespace Confuser.Core.Confusions
                 ret.MarshalInfo = param.MarshalInfo;
             }
             return ret;
-        }
-        static string GetNameO(bool isVirt, MethodReference mbr)
-        {
-            return ObfuscationHelper.GetNewName((isVirt ? "V>." : "") + mbr.ToString());
-        }
-        static string GetNameO(ParameterDefinition arg)
-        {
-            return ObfuscationHelper.GetNewName(arg.Name);
-        }
-        static string GetSignatureO(MethodReference mbr)
-        {
-            return ObfuscationHelper.GetNewName(GetSignature(mbr));
         }
         static string GetSignature(MethodReference mbr)
         {

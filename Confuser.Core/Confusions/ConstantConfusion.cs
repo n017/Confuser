@@ -65,30 +65,29 @@ namespace Confuser.Core.Confusions
                 _Context txt = cc.txts[mod];
                 txt.isNative = parameter.GlobalParameters["type"] == "native";
 
-                Random rand = new Random();
                 TypeDefinition modType = mod.GetType("<Module>");
 
                 FieldDefinition constTbl = new FieldDefinition(
-                    ObfuscationHelper.GetNewName("constTbl" + Guid.NewGuid().ToString()),
+                    ObfuscationHelper.GetRandomName(),
                     FieldAttributes.Static | FieldAttributes.CompilerControlled,
                     mod.Import(typeof(Dictionary<uint, object>)));
                 modType.Fields.Add(constTbl);
                 AddHelper(constTbl, HelperAttribute.NoInjection);
 
                 FieldDefinition constStream = new FieldDefinition(
-                    ObfuscationHelper.GetNewName("constStream" + Guid.NewGuid().ToString()),
+                    ObfuscationHelper.GetRandomName(),
                     FieldAttributes.Static | FieldAttributes.CompilerControlled,
                     mod.Import(typeof(Stream)));
                 modType.Fields.Add(constStream);
                 AddHelper(constStream, HelperAttribute.NoInjection);
 
-                txt.consters = CreateConsters(txt, rand, "Constants", constTbl, constStream);
+                txt.consters = CreateConsters(txt, Confuser.Random, "Constants", constTbl, constStream);
 
 
                 if (txt.isNative)
                 {
                     txt.nativeDecr = new MethodDefinition(
-                        ObfuscationHelper.GetNewName("NativeDecrypter" + Guid.NewGuid().ToString()),
+                        ObfuscationHelper.GetRandomName(),
                         MethodAttributes.Abstract | MethodAttributes.CompilerControlled |
                         MethodAttributes.ReuseSlot | MethodAttributes.Static,
                         mod.TypeSystem.Int32);
@@ -97,13 +96,13 @@ namespace Confuser.Core.Confusions
                     modType.Methods.Add(txt.nativeDecr);
 
 
-                    var expGen = new ExpressionGenerator();
+                    var expGen = new ExpressionGenerator(Random.Next());
                     int seed = expGen.Seed;
                     if (txt.isNative)
                     {
                         do
                         {
-                            txt.exp = new ExpressionGenerator().Generate(6);
+                            txt.exp = new ExpressionGenerator(Random.Next()).Generate(6);
                             txt.invExp = ExpressionInverser.InverseExpression(txt.exp);
                         } while ((txt.visitor = new x86Visitor(txt.invExp, null)).RegisterOverflowed);
                     }
@@ -118,24 +117,23 @@ namespace Confuser.Core.Confusions
             {
                 _Context txt = cc.txts[mod];
 
-                Random rand = new Random();
                 TypeDefinition modType = mod.GetType("<Module>");
 
                 FieldDefinition constTbl = new FieldDefinition(
-                    ObfuscationHelper.GetNewName("constTbl" + Guid.NewGuid().ToString()),
+                    ObfuscationHelper.GetRandomName(),
                     FieldAttributes.Static | FieldAttributes.CompilerControlled,
                     mod.Import(typeof(Dictionary<uint, object>)));
                 modType.Fields.Add(constTbl);
                 AddHelper(constTbl, HelperAttribute.NoInjection);
 
                 FieldDefinition constStream = new FieldDefinition(
-                    ObfuscationHelper.GetNewName("constStream" + Guid.NewGuid().ToString()),
+                    ObfuscationHelper.GetRandomName(),
                     FieldAttributes.Static | FieldAttributes.CompilerControlled,
                     mod.Import(typeof(Stream)));
                 modType.Fields.Add(constStream);
                 AddHelper(constStream, HelperAttribute.NoInjection);
 
-                txt.consters = CreateConsters(txt, rand, "SafeConstants", constTbl, constStream);
+                txt.consters = CreateConsters(txt, Random, "SafeConstants", constTbl, constStream);
             }
             Conster[] CreateConsters(_Context txt, Random rand, string injectName,
                                      FieldDefinition constTbl, FieldDefinition constStream)
@@ -189,7 +187,7 @@ namespace Confuser.Core.Confusions
                 for (int i = 0; i < typeDefCount; i++)
                 {
                     TypeDefinition typeDef = new TypeDefinition(
-                        "", ObfuscationHelper.GetNewName(Guid.NewGuid().ToString()),
+                        "", ObfuscationHelper.GetRandomName(),
                         TypeAttributes.Class | TypeAttributes.Abstract | TypeAttributes.NotPublic | TypeAttributes.Sealed,
                         mod.TypeSystem.Object);
                     mod.Types.Add(typeDef);
@@ -198,7 +196,7 @@ namespace Confuser.Core.Confusions
                     for (int j = 0; j < methodCount; j++)
                     {
                         MethodDefinition mtd = CecilHelper.Inject(mod, method);
-                        mtd.Name = ObfuscationHelper.GetNewName(Guid.NewGuid().ToString());
+                        mtd.Name = ObfuscationHelper.GetRandomName();
                         mtd.IsCompilerControlled = true;
 
                         AddHelper(mtd, HelperAttribute.NoInjection);
@@ -324,7 +322,6 @@ namespace Confuser.Core.Confusions
             void ExtractData(IList<Tuple<IAnnotationProvider, NameValueCollection>> mtds,
                 List<Context> txts, bool num, _Context txt)
             {
-                Random rand = new Random();
                 foreach (var tuple in mtds)
                 {
                     MethodDefinition mtd = tuple.Item1 as MethodDefinition;
@@ -345,8 +342,8 @@ namespace Confuser.Core.Confusions
                                 mtd = mtd,
                                 psr = psr,
                                 str = insts[i],
-                                a = (uint)rand.Next(),
-                                conster = txt.consters[rand.Next(0, txt.consters.Length)]
+                                a = (uint)Random.Next(),
+                                conster = txt.consters[Random.Next(0, txt.consters.Length)]
                             });
                         }
                     }

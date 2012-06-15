@@ -31,12 +31,12 @@ namespace Confuser.Core.Confusions
             ByteBuffer finalDat;
 
             public Action<IMemberDefinition, HelperAttribute> AddHelper { get; set; }
+            public Confuser Confuser { get; set; }
 
             public void InitPhase1(ModuleDefinition mod)
             {
-                Random rand = new Random();
                 byte[] dat = new byte[25];
-                rand.NextBytes(dat);
+                Confuser.Random.NextBytes(dat);
                 key0 = BitConverter.ToInt32(dat, 0);
                 key1 = BitConverter.ToInt64(dat, 4);
                 key2 = BitConverter.ToInt32(dat, 12);
@@ -46,8 +46,8 @@ namespace Confuser.Core.Confusions
                 fieldLayout = new byte[5];
                 for (int i = 1; i <= 5; i++)
                 {
-                    int idx = rand.Next(0, 5);
-                    while (fieldLayout[idx] != 0) idx = rand.Next(0, 5);
+                    int idx = Confuser.Random.Next(0, 5);
+                    while (fieldLayout[idx] != 0) idx = Confuser.Random.Next(0, 5);
                     fieldLayout[idx] = (byte)i;
                 }
                 bodies = new Dictionary<int, MethodBody>();
@@ -88,18 +88,18 @@ namespace Confuser.Core.Confusions
                     if (inst.Operand is int && (int)inst.Operand == 0x11111111)
                         inst.Operand = (int)key4;
 
-                //root.Name = ObfuscationHelper.GetNewName("AntiTamperModule" + Guid.NewGuid().ToString());
+                root.Name = Confuser.ObfuscationHelper.GetRandomName();
                 root.Namespace = "";
                 AddHelper(root, HelperAttribute.NoInjection);
                 foreach (MethodDefinition mtdDef in root.Methods)
                 {
                     if (mtdDef.IsConstructor) continue;
-                    //mtdDef.Name = ObfuscationHelper.GetNewName(mtdDef.Name + Guid.NewGuid().ToString());
+                    mtdDef.Name = Confuser.ObfuscationHelper.GetRandomName();
                     AddHelper(mtdDef, HelperAttribute.NoInjection);
                 }
                 foreach (FieldDefinition fldDef in root.Fields)
                 {
-                    //fldDef.Name = ObfuscationHelper.GetNewName(fldDef.Name + Guid.NewGuid().ToString());
+                    fldDef.Name = Confuser.ObfuscationHelper.GetRandomName();
                     AddHelper(fldDef, HelperAttribute.NoInjection);
                 }
                 foreach (TypeDefinition nested in root.NestedTypes)
@@ -117,7 +117,7 @@ namespace Confuser.Core.Confusions
                             nested.Fields.Add(f);
                     }
 
-                    //nested.Name = ObfuscationHelper.GetNewName(nested.Name + Guid.NewGuid().ToString());
+                    nested.Name = Confuser.ObfuscationHelper.GetRandomName();
                     AddHelper(nested, HelperAttribute.NoInjection);
                     foreach (MethodDefinition mtdDef in nested.Methods)
                     {
@@ -128,13 +128,13 @@ namespace Confuser.Core.Confusions
                             mtdDef.Body.Instructions.Add(Instruction.Create(OpCodes.Ldarg_0));
                             mtdDef.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
                         }
-                        //mtdDef.Name = ObfuscationHelper.GetNewName(mtdDef.Name + Guid.NewGuid().ToString());
+                        mtdDef.Name = Confuser.ObfuscationHelper.GetRandomName();
                         AddHelper(mtdDef, HelperAttribute.NoInjection);
                     }
                     foreach (FieldDefinition fldDef in nested.Fields)
                     {
                         if (fldDef.IsRuntimeSpecialName) continue;
-                        //fldDef.Name = ObfuscationHelper.GetNewName(fldDef.Name + Guid.NewGuid().ToString());
+                        fldDef.Name = Confuser.ObfuscationHelper.GetRandomName();
                         AddHelper(fldDef, HelperAttribute.NoInjection);
                     }
                 }
@@ -294,8 +294,7 @@ namespace Confuser.Core.Confusions
                     }
                 }
             }
-            static Random rand = new Random();
-            static void ExtractRefs(MethodBody body, int idx, List<object> objs)
+            void ExtractRefs(MethodBody body, int idx, List<object> objs)
             {
                 foreach (var i in body.Instructions)
                 {
@@ -310,7 +309,7 @@ namespace Confuser.Core.Confusions
                     }
                 }
             }
-            static MethodData Transform(MethodBody body, int idx, byte[] codes, Range range)
+            MethodData Transform(MethodBody body, int idx, byte[] codes, Range range)
             {
                 MethodData ret = new MethodData();
                 ret.Index = idx;
@@ -321,7 +320,7 @@ namespace Confuser.Core.Confusions
                     Buffer.BlockCopy(codes, (int)range.Start + 1, ret.ILCodes, 0, ret.ILCodes.Length);
                     ret.LocalVars = 0;
                     ret.MaxStack = (uint)8;
-                    ret.Options = (uint)rand.Next(0, 2) << 8;
+                    ret.Options = (uint)Confuser.Random.Next(0, 2) << 8;
                 }
                 else
                 {
@@ -331,7 +330,7 @@ namespace Confuser.Core.Confusions
                     ret.LocalVars = BitConverter.ToUInt32(codes, (int)range.Start + 8);
                     ret.MaxStack = BitConverter.ToUInt16(codes, (int)range.Start + 2);
                     ret.Options = (flags & 0x10) != 0 ? 0x10 : 0U;
-                    ret.Options |= (uint)rand.Next(0, 2) << 8;
+                    ret.Options |= (uint)Confuser.Random.Next(0, 2) << 8;
 
                     if ((flags & 0x8) != 0)
                     {
@@ -402,7 +401,6 @@ namespace Confuser.Core.Confusions
                 accessor.Codes.Reset(null);
                 accessor.Codes.Position = 0;
 
-                Random rand = new Random();
                 uint bas = accessor.Codebase;
                 List<object> o = new List<object>();
                 for (int i = 0; i < tbl.Length; i++)
@@ -433,7 +431,7 @@ namespace Confuser.Core.Confusions
                 }
 
                 int[] randArray = new int[o.Count];
-                for (int i = 0; i < o.Count; i++) randArray[i] = rand.Next();
+                for (int i = 0; i < o.Count; i++) randArray[i] = Confuser.Random.Next();
                 object[] objs = o.ToArray();
                 Array.Sort(randArray, objs);
 
@@ -471,7 +469,7 @@ namespace Confuser.Core.Confusions
                 {
                     uint ptr = (uint)i.Value.BufferOffset;
 
-                    rand.NextBytes(randBuff);
+                    Confuser.Random.NextBytes(randBuff);
                     uint key = BitConverter.ToUInt32(randBuff, 0);
                     tbl[i.Key].Col1 = (uint)accessor.Codes.Position + bas;
                     byte[] buff = i.Value.Serialize(fieldLayout);
@@ -535,7 +533,7 @@ namespace Confuser.Core.Confusions
                 sn = accessor.ResolveVirtualAddress(rdr.ReadUInt32());
                 snLen = rdr.ReadUInt32();
             }
-            static byte[] Encrypt(byte[] buff, byte[] dat, out byte[] iv, byte key)
+            static byte[] Encrypt(ObfuscationHelper helper, byte[] buff, byte[] dat, out byte[] iv, byte key)
             {
                 dat = (byte[])dat.Clone();
                 SHA512 sha = SHA512.Create();
@@ -550,8 +548,8 @@ namespace Confuser.Core.Confusions
                     c = sha.ComputeHash(o);
                 }
 
-                Rijndael ri = Rijndael.Create();
-                ri.GenerateIV(); iv = ri.IV;
+                RijndaelManaged ri = helper.CreateRijndael();
+                iv = ri.IV;
                 MemoryStream ret = new MemoryStream();
                 using (CryptoStream cStr = new CryptoStream(ret, ri.CreateEncryptor(SHA256.Create().ComputeHash(buff), iv), CryptoStreamMode.Write))
                     cStr.Write(dat, 0, dat.Length);
@@ -559,7 +557,7 @@ namespace Confuser.Core.Confusions
             }
             static byte[] Decrypt(byte[] buff, byte[] iv, byte[] dat, byte key)
             {
-                Rijndael ri = Rijndael.Create();
+                RijndaelManaged ri = new RijndaelManaged();
                 byte[] ret = new byte[dat.Length];
                 MemoryStream ms = new MemoryStream(dat);
                 using (CryptoStream cStr = new CryptoStream(ms, ri.CreateDecryptor(SHA256.Create().ComputeHash(buff), iv), CryptoStreamMode.Read))
@@ -621,7 +619,7 @@ namespace Confuser.Core.Confusions
                 }
 
                 byte[] iv;
-                byte[] dat = Encrypt(buff, ms.ToArray(), out iv, key4);
+                byte[] dat = Encrypt(Confuser.ObfuscationHelper, buff, ms.ToArray(), out iv, key4);
 
                 byte[] md5 = MD5.Create().ComputeHash(buff);
                 long checkSum = BitConverter.ToInt64(md5, 0) ^ BitConverter.ToInt64(md5, 8);

@@ -133,7 +133,7 @@ static class AntiTamperJIT
 
     static byte[] Decrypt(byte[] buff, byte[] iv, byte[] dat)
     {
-        Rijndael ri = Rijndael.Create();
+        RijndaelManaged ri = new RijndaelManaged();
         byte[] ret = new byte[dat.Length];
         MemoryStream ms = new MemoryStream(dat);
         using (CryptoStream cStr = new CryptoStream(ms, ri.CreateDecryptor(SHA256.Create().ComputeHash(buff), iv), CryptoStreamMode.Read))
@@ -1175,7 +1175,7 @@ static class AntiTamperMem
 
     static byte[] Decrypt(byte[] buff, byte[] iv, byte[] dat)
     {
-        Rijndael ri = Rijndael.Create();
+        RijndaelManaged ri = new RijndaelManaged();
         byte[] ret = new byte[dat.Length];
         MemoryStream ms = new MemoryStream(dat);
         using (CryptoStream cStr = new CryptoStream(ms, ri.CreateDecryptor(SHA256.Create().ComputeHash(buff), iv), CryptoStreamMode.Read))

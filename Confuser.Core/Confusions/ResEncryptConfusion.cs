@@ -56,34 +56,29 @@ namespace Confuser.Core.Confusions
                 txt.reso = i.MainModule.GetType("Encryptions").Methods.FirstOrDefault(mtd => mtd.Name == "Resources");
                 txt.reso = CecilHelper.Inject(mod, txt.reso);
                 modType.Methods.Add(txt.reso);
-                byte[] n = Guid.NewGuid().ToByteArray();
-                txt.reso.Name = Encoding.UTF8.GetString(n);
+                txt.reso.Name = ObfuscationHelper.GetRandomName();
                 txt.reso.IsAssembly = true;
                 AddHelper(txt.reso, HelperAttribute.NoInjection);
 
                 FieldDefinition datAsm = new FieldDefinition(
-                    ObfuscationHelper.GetNewName("datAsm" + Guid.NewGuid().ToString()),
+                    ObfuscationHelper.GetRandomName(),
                     FieldAttributes.Static | FieldAttributes.CompilerControlled,
                     mod.Import(typeof(System.Reflection.Assembly)));
                 modType.Fields.Add(datAsm);
                 AddHelper(datAsm, HelperAttribute.NoInjection);
 
-                n = Guid.NewGuid().ToByteArray();
-                txt.key0 = txt.key1 = n[0];
-                for (int x = 0; x < n.Length; x++)
-                    if (n[x] != 0)
-                    {
-                        txt.key1 = n[x];
-                        break;
-                    }
+                txt.key0 = (byte)Random.Next(0, 0x100);
+                do
+                {
+                    txt.key1 = (byte)Random.Next(0, 0x100);
+                } while (txt.key1 != 0);
 
-                n = Guid.NewGuid().ToByteArray();
-
+                txt.resId = ObfuscationHelper.GetRandomName();
                 txt.reso.Body.SimplifyMacros();
                 foreach (Instruction inst in txt.reso.Body.Instructions)
                 {
                     if ((inst.Operand as string) == "PADDINGPADDINGPADDING")
-                        inst.Operand = Encoding.UTF8.GetString(n);
+                        inst.Operand = txt.resId;
                     else if (inst.Operand is FieldReference && (inst.Operand as FieldReference).Name == "datAsm")
                         inst.Operand = datAsm;
                     else if (inst.Operand is int && (int)inst.Operand == 0x11)
@@ -95,8 +90,6 @@ namespace Confuser.Core.Confusions
                 }
                 txt.reso.Body.OptimizeMacros();
                 txt.reso.Body.ComputeOffsets();
-
-                txt.resId = Encoding.UTF8.GetString(n);
 
                 MethodDefinition cctor = mod.GetType("<Module>").GetStaticConstructor();
                 MethodBody bdy = cctor.Body as MethodBody;
@@ -143,7 +136,7 @@ namespace Confuser.Core.Confusions
                     MemoryStream ms = new MemoryStream();
                     BinaryWriter wtr = new BinaryWriter(new DeflateStream(ms, CompressionMode.Compress, true));
 
-                    byte[] dat = Transform(GetAsm(txt.dats), txt.key0, txt.key1);
+                    byte[] dat = Transform(GetAsm(mod.TimeStamp, txt.dats), txt.key0, txt.key1);
                     wtr.Write(dat.Length);
                     wtr.Write(dat);
                     wtr.BaseStream.Dispose();
@@ -151,11 +144,15 @@ namespace Confuser.Core.Confusions
                     mod.Resources.Add(new EmbeddedResource(txt.resId, ManifestResourceAttributes.Private, ms.ToArray()));
                 }
             }
-            byte[] GetAsm(List<KeyValuePair<string, byte[]>> dats)
+            byte[] GetAsm(uint timestamp, List<KeyValuePair<string, byte[]>> dats)
             {
-                AssemblyDefinition asm = AssemblyDefinition.CreateAssembly(new AssemblyNameDefinition(ObfuscationHelper.GetNewName(Guid.NewGuid().ToString()), new Version()), ObfuscationHelper.GetNewName(Guid.NewGuid().ToString()), ModuleKind.Dll);
+                AssemblyDefinition asm = AssemblyDefinition.CreateAssembly(new AssemblyNameDefinition(ObfuscationHelper.GetRandomName(), new Version()), ObfuscationHelper.GetRandomName(), ModuleKind.Dll);
                 foreach (KeyValuePair<string, byte[]> i in dats)
                     asm.MainModule.Resources.Add(new EmbeddedResource(i.Key, ManifestResourceAttributes.Public, i.Value));
+                asm.MainModule.TimeStamp = timestamp;
+                byte[] mvid = new byte[0x10];
+                Random.NextBytes(mvid);
+                asm.MainModule.Mvid = new Guid(mvid);
                 MemoryStream ms = new MemoryStream();
                 asm.Write(ms);
                 return ms.ToArray();

@@ -651,6 +651,19 @@ namespace Confuser
                 }
             }
         }
+        string seed;
+        public string Seed
+        {
+            get { return seed; }
+            set
+            {
+                if (seed != value)
+                {
+                    seed = value;
+                    OnPropertyChanged(new PropertyChangedEventArgs("Seed"));
+                }
+            }
+        }
 
         string file;
         public string FileName
@@ -775,6 +788,7 @@ namespace Confuser
             ConfuserProject ret = new ConfuserProject();
             ret.OutputPath = output;
             ret.SNKeyPath = snKey;
+            ret.Seed = seed;
 
 
             List<PrjSettings> s = new List<PrjSettings>();
@@ -808,6 +822,7 @@ namespace Confuser
         {
             output = prj.OutputPath;
             snKey = prj.SNKeyPath;
+            seed = prj.Seed;
             preset = (PrjPreset)prj.DefaultPreset;
             foreach (var i in prj.Plugins)
                 LoadAssembly(Assembly.LoadFrom(i), false);

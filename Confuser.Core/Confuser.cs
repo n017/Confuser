@@ -187,13 +187,22 @@ namespace Confuser.Core
     public class Confuser
     {
         internal ConfuserParameter param;
+
         internal List<AssemblySetting> settings;
         internal MarkerSetting mkrSettings;
+
         internal List<Analyzer> analyzers;
         internal List<IConfusion> confusions;
         internal List<Packer> packers;
+
         ConfuserAssemblyResolver resolver;
+        ObfuscationHelper helper;
+        Random random;
+
         internal void Log(string message) { param.Logger._Log(message); }
+
+        public ObfuscationHelper ObfuscationHelper { get { return helper; } }
+        public Random Random { get { return random; } }
 
         public Thread ConfuseAsync(ConfuserParameter param)
         {
@@ -260,7 +269,7 @@ namespace Confuser.Core
                     }
 
                 param.Logger._BeginPhase("Obfuscating Phase 2...");
-                for(int i=0;i<settings.Count;i++)
+                for (int i = 0; i < settings.Count; i++)
                     using (param.Logger._Assembly(settings[i].Assembly))
                         foreach (var j in settings[i].Modules)
                         {
@@ -490,6 +499,14 @@ namespace Confuser.Core
                 resolver.RegisterAssembly(i.Assembly);
             helpers = new Dictionary<IMemberDefinition, HelperAttribute>();
 
+            int seed;
+            if (param.Project.Seed == null)
+                seed = Environment.TickCount;
+            else if (!int.TryParse(param.Project.Seed, out seed))
+                seed = param.Project.Seed.GetHashCode();
+            helper = new ObfuscationHelper(this, seed);
+            random = new Random(seed);
+
             Log(string.Format("Analyzing assemblies..."));
             analyzers = new List<Analyzer>();
             Dictionary<Analyzer, string> aPhases = new Dictionary<Analyzer, string>();
@@ -501,7 +518,7 @@ namespace Confuser.Core
                     {
                         analyzers.Add(analyzer);
                         aPhases.Add(analyzer, cion.Name);
-                        analyzer.SetLogger(param.Logger);
+                        analyzer.SetConfuser(this);
                         analyzer.SetProgresser(param.Logger);
                     }
                 }

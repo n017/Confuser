@@ -8,13 +8,15 @@ namespace Confuser.Core
 {
     public abstract class Analyzer : IProgressProvider
     {
+        protected Confuser Confuser { get; private set; }
         protected Logger Logger { get; private set; }
         protected IProgresser Progresser { get; private set; }
         public abstract void Analyze(IEnumerable<AssemblyDefinition> asms);
 
-        internal void SetLogger(Logger logger)
+        internal void SetConfuser(Confuser cr)
         {
-            this.Logger = logger;
+            this.Confuser = cr;
+            this.Logger = cr.param.Logger;
         }
         public void SetProgresser(IProgresser progresser)
         {

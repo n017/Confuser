@@ -89,12 +89,12 @@ namespace Confuser.Core.Confusions
                 ILProcessor psr = modType.GetStaticConstructor().Body.GetILProcessor();
                 psr.InsertBefore(psr.Body.Instructions.Count - 1, Instruction.Create(OpCodes.Call, type.Methods.FirstOrDefault(mtd => mtd.Name == "Initialize")));
 
-                type.Name = ObfuscationHelper.GetNewName("AntiDebugModule" + Guid.NewGuid().ToString()); 
+                type.Name = ObfuscationHelper.GetRandomName();
                 type.Namespace = "";
                 AddHelper(type, HelperAttribute.NoInjection);
                 foreach (MethodDefinition mtdDef in type.Methods)
                 {
-                    mtdDef.Name = ObfuscationHelper.GetNewName(mtdDef.Name + Guid.NewGuid().ToString());
+                    mtdDef.Name = ObfuscationHelper.GetRandomName();
                     AddHelper(mtdDef, HelperAttribute.NoInjection);
                 }
             }
@@ -108,12 +108,12 @@ namespace Confuser.Core.Confusions
                 ILProcessor psr = modType.GetStaticConstructor().Body.GetILProcessor();
                 psr.InsertBefore(psr.Body.Instructions.Count - 1, Instruction.Create(OpCodes.Call, type.Methods.FirstOrDefault(mtd => mtd.Name == "InitializeSafe")));
 
-                type.Name = ObfuscationHelper.GetNewName("AntiDebugModule" + Guid.NewGuid().ToString());
+                type.Name = ObfuscationHelper.GetRandomName();
                 type.Namespace = "";
                 AddHelper(type, HelperAttribute.NoInjection);
                 foreach (MethodDefinition mtdDef in type.Methods)
                 {
-                    mtdDef.Name = ObfuscationHelper.GetNewName(mtdDef.Name + Guid.NewGuid().ToString());
+                    mtdDef.Name = ObfuscationHelper.GetRandomName();
                     AddHelper(mtdDef, HelperAttribute.NoInjection);
                 }
             }

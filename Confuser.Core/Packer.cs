@@ -29,6 +29,9 @@ namespace Confuser.Core
         internal Confuser Confuser { get { return cr; } set { cr = value; } }
         protected void Log(string message) { cr.Log(message); }
 
+        protected ObfuscationHelper ObfuscationHelper { get { return cr.ObfuscationHelper; } }
+        protected Random Random { get { return cr.Random; } }
+
         internal protected virtual void ProcessModulePhase1(ModuleDefinition mod, bool isMain) { }
         internal protected virtual void ProcessModulePhase3(ModuleDefinition mod, bool isMain) { }
         internal protected virtual void ProcessMetadataPhase1(MetadataProcessor.MetadataAccessor accessor, bool isMain) { }
@@ -42,6 +45,10 @@ namespace Confuser.Core
             string tmp = Path.GetTempPath() + "\\" + Path.GetRandomFileName() + "\\";
             Directory.CreateDirectory(tmp);
             ModuleDefinition modDef = this.cr.settings.Single(_ => _.IsMain).Assembly.MainModule;
+            asm.MainModule.TimeStamp = modDef.TimeStamp;
+            byte[] mvid = new byte[0x10];
+            Random.NextBytes(mvid);
+            asm.MainModule.Mvid = new Guid(mvid);
             MetadataProcessor psr = new MetadataProcessor();
             Section oldRsrc = null;
             foreach (Section s in modDef.GetSections())
@@ -101,6 +108,7 @@ namespace Confuser.Core
             }
 
             ConfuserProject proj = new ConfuserProject();
+            proj.Seed = Random.Next().ToString();
             proj.Settings.Add(settings);
             proj.Add(new ProjectAssembly()
             {

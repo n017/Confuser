@@ -13,15 +13,25 @@ namespace Confuser.Core
         ASCII,
         Letters
     }
-    public static class ObfuscationHelper
+    public class ObfuscationHelper
     {
-        static MD5 md5 = MD5.Create();
+        public static readonly ObfuscationHelper Instance = new ObfuscationHelper(
+            null, typeof(Confuser).Assembly.GetName().Version.ToString().GetHashCode());
 
-        public static string GetNewName(string originalName)
+        MD5 md5 = MD5.Create();
+        int seed;
+        Confuser cr;
+        internal ObfuscationHelper(Confuser cr, int seed)
+        {
+            this.cr = cr;
+            this.seed = seed;
+        }
+
+        public string GetNewName(string originalName)
         {
             return GetNewName(originalName, NameMode.Unreadable);
         }
-        public static string GetNewName(string originalName, NameMode mode)
+        public string GetNewName(string originalName, NameMode mode)
         {
             switch (mode)
             {
@@ -31,11 +41,26 @@ namespace Confuser.Core
             } throw new InvalidOperationException();
         }
 
-        static string RenameUnreadable(string originalName)
+        public string GetRandomString()
+        {
+            if (cr == null) // Hey! Should not use GetRandomString on static instance
+                            // because it make output vary!
+                return Guid.NewGuid().ToString();
+
+            byte[] ret = new byte[8];
+            cr.Random.NextBytes(ret);
+            return Convert.ToBase64String(ret);
+        }
+        public string GetRandomName()
+        {
+            return GetNewName(GetRandomString());
+        }
+
+        string RenameUnreadable(string originalName)
         {
             BitArray arr = new BitArray(md5.ComputeHash(Encoding.UTF8.GetBytes(originalName)));
 
-            Random rand = new Random(originalName.GetHashCode());
+            Random rand = new Random(originalName.GetHashCode() * seed);
             byte[] xorB = new byte[arr.Length / 8];
             rand.NextBytes(xorB);
             BitArray xor = new BitArray(xorB);
@@ -46,12 +71,11 @@ namespace Confuser.Core
 
             return Encoding.Unicode.GetString(ret).Replace("\0", "").Replace(".", "").Replace("/", "");
         }
-
-        static string RenameASCII(string originalName)
+        string RenameASCII(string originalName)
         {
             BitArray arr = new BitArray(md5.ComputeHash(Encoding.UTF8.GetBytes(originalName)));
 
-            Random rand = new Random(originalName.GetHashCode());
+            Random rand = new Random(originalName.GetHashCode() * seed);
             byte[] xorB = new byte[arr.Length / 8];
             rand.NextBytes(xorB);
             BitArray xor = new BitArray(xorB);
@@ -62,12 +86,11 @@ namespace Confuser.Core
 
             return Convert.ToBase64String(ret);
         }
-
-        static string RenameLetters(string originalName)
+        string RenameLetters(string originalName)
         {
             BitArray arr = new BitArray(md5.ComputeHash(Encoding.UTF8.GetBytes(originalName)));
 
-            Random rand = new Random(originalName.GetHashCode());
+            Random rand = new Random(originalName.GetHashCode() * seed);
             byte[] xorB = new byte[arr.Length / 8];
             rand.NextBytes(xorB);
             BitArray xor = new BitArray(xorB);
@@ -92,6 +115,21 @@ namespace Confuser.Core
                 }
             }
             return ret.ToString();
+        }
+
+        public RijndaelManaged CreateRijndael()
+        {
+            if (cr == null) // Hey again! Should not use CreateRijndaelManaged on static
+                            // instance because it make output vary!
+                return null;
+            RijndaelManaged ret = new RijndaelManaged();
+            byte[] key = new byte[ret.KeySize / 8];
+            cr.Random.NextBytes(key);
+            ret.Key = key;
+            byte[] iv = new byte[ret.BlockSize / 8];
+            cr.Random.NextBytes(iv);
+            ret.IV = iv;
+            return ret;
         }
     }
 }

@@ -219,7 +219,7 @@ namespace Confuser.Core.Analyzers
                         {
                             XmlnsPropertyRecord r = new XmlnsPropertyRecord();
                             r.AssemblyIds = xmlns.AssemblyIds;
-                            r.Prefix = prefix = ObfuscationHelper.GetNewName(xmlns.Prefix, NameMode.Letters);
+                            r.Prefix = prefix = ObfuscationHelper.Instance.GetNewName(xmlns.Prefix, NameMode.Letters);
                             r.XmlNamespace = xmlNamespace;
                             doc.Insert(i, r);
                             break;

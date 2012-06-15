@@ -106,6 +106,7 @@
       <xs:attribute name="outputDir" type="xs:string" use="required" />
       <xs:attribute name="snKey" type="xs:string" use="optional" />
       <xs:attribute name="preset" type="preset" default="none" />
+      <xs:attribute name="seed" type="xs:string" use="optional"/>
     </xs:complexType>
   </xs:element>
 </xs:schema>

@@ -44,6 +44,8 @@ namespace Mono.Cecil.PE {
 		public ulong ImageBase;
 		public string FileName;
 
+        public uint TimeStamp;
+
 		public Section [] Sections;
 
 		public Section MetadataSection;

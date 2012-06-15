@@ -11,10 +11,6 @@ namespace Confuser.Core.Poly
         public int Seed { get; private set; }
         public Type[] ExpressionTypes { get; set; }
 
-        public ExpressionGenerator()
-            : this(BitConverter.ToInt32(Guid.NewGuid().ToByteArray(), 0))
-        {
-        }
         public ExpressionGenerator(int seed)
         {
             Seed = seed;

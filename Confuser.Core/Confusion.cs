@@ -103,6 +103,9 @@ namespace Confuser.Core
         protected void AddHelper(IMemberDefinition helper, HelperAttribute attr) { cr.helpers.Add(helper, attr); }
         protected IEnumerable<IMemberDefinition> GetHelpers() { return cr.helpers.Keys; }
 
+        protected ObfuscationHelper ObfuscationHelper { get { return cr.ObfuscationHelper; } }
+        protected Random Random { get { return cr.Random; } }
+
         public abstract IConfusion Confusion { get; }
         public abstract int PhaseID { get; }
         public abstract Priority Priority { get; }

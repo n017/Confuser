@@ -397,7 +397,7 @@ namespace Confuser.Core.Confusions
             if (mod.Architecture != TargetArchitecture.I386)
                 Log("Junk code is not supported on target architecture, it won't be generated.");
 
-            generator = new ExpressionGenerator();
+            generator = new ExpressionGenerator(Random.Next());
         }
         public override void DeInitialize()
         {
@@ -408,7 +408,6 @@ namespace Confuser.Core.Confusions
         public void Init() { txts.Clear(); }
         public void Deinit() { txts.Clear(); }
 
-        static Random rand = new Random();
         bool genJunk;
         int level;
         bool fakeBranch;
@@ -505,7 +504,7 @@ namespace Confuser.Core.Confusions
                 //Merge statements for level
                 for (int i = 0; i < sts.Count - 1; i++)
                 {
-                    if (rand.Next(1, 10) > level)
+                    if (Random.Next(1, 10) > level)
                     {
                         Statement newSt = new Statement();
                         newSt.Type = sts[i + 1].Type;
@@ -531,7 +530,7 @@ namespace Confuser.Core.Confusions
                 List<Instruction> insts = new List<Instruction>();
                 for (int i = 1; i < sts.Count; i++)
                 {
-                    int j = rand.Next(1, sts.Count);
+                    int j = Random.Next(1, sts.Count);
                     var tmp = sts[j];
                     sts[j] = sts[i];
                     sts[i] = tmp;
@@ -615,7 +614,7 @@ namespace Confuser.Core.Confusions
                         {
                             if (fakeBranch)
                             {
-                                Statement fakeSt = sts[rand.Next(0, sts.Count)];
+                                Statement fakeSt = sts[Random.Next(0, sts.Count)];
                                 GenFakeBranch(st, fallSt, fakeSt, stInsts, stateVar, begin);
                             }
                             else
@@ -649,7 +648,7 @@ namespace Confuser.Core.Confusions
                 if (scope.Level.Type.Contains(LevelType.Filter) ||
                     scope.Level.Type.Contains(LevelType.FilterStart))
                 {
-                    insts.Add(Instruction.Create(OpCodes.Ldc_I4, rand.Next()));
+                    insts.Add(Instruction.Create(OpCodes.Ldc_I4, Random.Next()));
                     insts.Add(Instruction.Create(OpCodes.Endfilter));
                 }
                 else if (scope.Level.Type.Contains(LevelType.Try) ||
@@ -763,9 +762,9 @@ namespace Confuser.Core.Confusions
 
         int ComputeRandNum(IList<Instruction> insts)
         {
-            ExpressionGenerator gen = new ExpressionGenerator();
+            ExpressionGenerator gen = new ExpressionGenerator(Random.Next());
             Expression exp = gen.Generate(2);
-            int r = rand.Next(-10, 10);
+            int r = Random.Next(-10, 10);
             int i = ExpressionEvaluator.Evaluate(exp, r);
             foreach (var inst in new CecilVisitor(exp, new Instruction[] { Instruction.Create(OpCodes.Ldc_I4, r) }).GetInstructions())
                 insts.Add(inst);
@@ -990,30 +989,30 @@ namespace Confuser.Core.Confusions
                                                     0x19fe, 0x1bfe, 0x1ffe};
         IEnumerable<Instruction> GetJunk_(VariableDefinition stateVar)
         {
-            TypeDefinition randType = method.Module.Types[rand.Next(0, method.Module.Types.Count)];
-            if (randType.Methods.Count > 0 && rand.Next() % 2 == 0)
-                yield return Instruction.Create(OpCodes.Ldtoken, randType.Methods[rand.Next(0, randType.Methods.Count)]);
+            TypeDefinition randType = method.Module.Types[Random.Next(0, method.Module.Types.Count)];
+            if (randType.Methods.Count > 0 && Random.Next() % 2 == 0)
+                yield return Instruction.Create(OpCodes.Ldtoken, randType.Methods[Random.Next(0, randType.Methods.Count)]);
             else if (randType.Fields.Count > 0)
-                yield return Instruction.Create(OpCodes.Ldtoken, randType.Fields[rand.Next(0, randType.Fields.Count)]);
+                yield return Instruction.Create(OpCodes.Ldtoken, randType.Fields[Random.Next(0, randType.Fields.Count)]);
             else
                 yield return Instruction.Create(OpCodes.Ldtoken, randType);
             if (genJunk)
             {
-                switch (rand.Next(0, 5))
+                switch (Random.Next(0, 5))
                 {
                     case 0:
                         yield return Instruction.Create(OpCodes.Pop);
                         break;
                     case 1:
-                        yield return Instruction.Create(OpCodes.Ldc_I4, rand.Next(0, 9));
+                        yield return Instruction.Create(OpCodes.Ldc_I4, Random.Next(0, 9));
                         yield return Instruction.Create(OpCodes.Stloc, stateVar);
                         yield return Instruction.Create(OpCodes.Pop);
                         break;
                     case 2:
                         Instruction inst = Instruction.Create(OpCodes.Pop);
-                        yield return Instruction.Create(OpCodes.Ldc_I4, rand.Next(0, 9));
-                        yield return Instruction.Create(OpCodes.Ldc_I4, rand.Next(0, 9));
-                        switch (rand.Next(0, 4))
+                        yield return Instruction.Create(OpCodes.Ldc_I4, Random.Next(0, 9));
+                        yield return Instruction.Create(OpCodes.Ldc_I4, Random.Next(0, 9));
+                        switch (Random.Next(0, 4))
                         {
                             case 0:
                                 yield return Instruction.Create(OpCodes.Bne_Un, inst);
@@ -1035,9 +1034,9 @@ namespace Confuser.Core.Confusions
                         yield return e;
                         break;
                     case 3:
-                        yield return Instruction.Create(OpCodes.Ldc_I4, rand.Next(0, 9));
-                        yield return Instruction.Create(OpCodes.Ldc_I4, rand.Next(0, 9));
-                        switch (rand.Next(0, 4))
+                        yield return Instruction.Create(OpCodes.Ldc_I4, Random.Next(0, 9));
+                        yield return Instruction.Create(OpCodes.Ldc_I4, Random.Next(0, 9));
+                        switch (Random.Next(0, 4))
                         {
                             case 0:
                                 yield return Instruction.Create(OpCodes.Add);
@@ -1056,27 +1055,27 @@ namespace Confuser.Core.Confusions
                         yield return Instruction.Create(OpCodes.Pop);
                         break;
                     case 4:
-                        yield return Instruction.CreateJunkCode(junkCode[rand.Next(0, junkCode.Length)]);
+                        yield return Instruction.CreateJunkCode(junkCode[Random.Next(0, junkCode.Length)]);
                         break;
                 }
             }
             else
             {
-                switch (rand.Next(0, 4))
+                switch (Random.Next(0, 4))
                 {
                     case 0:
                         yield return Instruction.Create(OpCodes.Pop);
                         break;
                     case 1:
-                        yield return Instruction.Create(OpCodes.Ldc_I4, rand.Next(-1, 9));
+                        yield return Instruction.Create(OpCodes.Ldc_I4, Random.Next(-1, 9));
                         yield return Instruction.Create(OpCodes.Stloc, stateVar);
                         yield return Instruction.Create(OpCodes.Pop);
                         break;
                     case 2:
                         Instruction inst = Instruction.Create(OpCodes.Pop);
-                        yield return Instruction.Create(OpCodes.Ldc_I4, rand.Next(0, 9));
-                        yield return Instruction.Create(OpCodes.Ldc_I4, rand.Next(0, 9));
-                        switch (rand.Next(0, 4))
+                        yield return Instruction.Create(OpCodes.Ldc_I4, Random.Next(0, 9));
+                        yield return Instruction.Create(OpCodes.Ldc_I4, Random.Next(0, 9));
+                        switch (Random.Next(0, 4))
                         {
                             case 0:
                                 yield return Instruction.Create(OpCodes.Bne_Un, inst);
@@ -1098,9 +1097,9 @@ namespace Confuser.Core.Confusions
                         yield return e;
                         break;
                     case 3:
-                        yield return Instruction.Create(OpCodes.Ldc_I4, rand.Next());
-                        yield return Instruction.Create(OpCodes.Ldc_I4, rand.Next());
-                        switch (rand.Next(0, 4))
+                        yield return Instruction.Create(OpCodes.Ldc_I4, Random.Next());
+                        yield return Instruction.Create(OpCodes.Ldc_I4, Random.Next());
+                        switch (Random.Next(0, 4))
                         {
                             case 0:
                                 yield return Instruction.Create(OpCodes.Add);
@@ -1132,7 +1131,7 @@ namespace Confuser.Core.Confusions
         {
             Instruction ret;
             int num = ComputeRandNum(insts);
-            switch (rand.Next(0, 4))
+            switch (Random.Next(0, 4))
             {
                 case 0: //if (r == r) goto target; else goto fake;
                     insts.Add(ret = Instruction.Create(OpCodes.Ldc_I4, num));
@@ -1142,7 +1141,7 @@ namespace Confuser.Core.Confusions
                     insts.Add(Instruction.Create(OpCodes.Br, begin));
                     break;
                 case 1: //if (r == r + x) goto fake; else goto target;
-                    insts.Add(ret = Instruction.Create(OpCodes.Ldc_I4, num + (rand.Next() % 2 == 0 ? -1 : 1)));
+                    insts.Add(ret = Instruction.Create(OpCodes.Ldc_I4, num + (Random.Next() % 2 == 0 ? -1 : 1)));
                     EncryptNum(self.Key, stateVar, fake.Key, insts);
                     insts.Add(Instruction.Create(OpCodes.Beq, begin));
                     EncryptNum(self.Key, stateVar, target.Key, insts);
@@ -1156,7 +1155,7 @@ namespace Confuser.Core.Confusions
                     insts.Add(Instruction.Create(OpCodes.Br, begin));
                     break;
                 case 3: //if (r != r + x) goto target; else goto fake;
-                    insts.Add(ret = Instruction.Create(OpCodes.Ldc_I4, num + (rand.Next() % 2 == 0 ? -1 : 1)));
+                    insts.Add(ret = Instruction.Create(OpCodes.Ldc_I4, num + (Random.Next() % 2 == 0 ? -1 : 1)));
                     EncryptNum(self.Key, stateVar, target.Key, insts);
                     insts.Add(Instruction.Create(OpCodes.Bne_Un, begin));
                     EncryptNum(self.Key, stateVar, fake.Key, insts);

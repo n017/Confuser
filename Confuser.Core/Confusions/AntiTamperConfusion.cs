@@ -17,6 +17,7 @@ namespace Confuser.Core.Confusions
     {
         interface IAntiTamper
         {
+            Confuser Confuser { get; set; }
             Action<IMemberDefinition, HelperAttribute> AddHelper { get; set; }
             void InitPhase1(ModuleDefinition mod);
             void Phase1(ModuleDefinition mod);
@@ -66,6 +67,7 @@ namespace Confuser.Core.Confusions
                 else
                     ver = new Mem();
                 ver.AddHelper = AddHelper;
+                ver.Confuser = Confuser;
                 cion.vers[mod] = ver;
 
                 ver.InitPhase1(mod);

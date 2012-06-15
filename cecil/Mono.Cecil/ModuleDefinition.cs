@@ -259,6 +259,18 @@ namespace Mono.Cecil {
 			get { return assembly; }
 		}
 
+        uint timestamp;
+        public uint TimeStamp
+        {
+            get
+            {
+                if (Image != null && timestamp == 0)
+                    timestamp = Image.TimeStamp;
+                return timestamp;
+            }
+            set { timestamp = value; }
+        }
+
 #if !READ_ONLY
 		internal MetadataImporter MetadataImporter {
 			get { return importer ?? (importer = new MetadataImporter (this)); }

@@ -165,6 +165,7 @@ namespace Confuser.Core.Project
         }
         public IList<string> Plugins { get; private set; }
         public IList<ObfSettings> Settings { get; private set; }
+        public string Seed { get; set; }
         public string OutputPath { get; set; }
         public string SNKeyPath { get; set; }
         public Preset DefaultPreset { get; set; }
@@ -192,6 +193,13 @@ namespace Confuser.Core.Project
                 XmlAttribute presetAttr = xmlDoc.CreateAttribute("preset");
                 presetAttr.Value = DefaultPreset.ToString().ToLower();
                 elem.Attributes.Append(presetAttr);
+            }
+
+            if (Seed != null)
+            {
+                XmlAttribute seedAttr = xmlDoc.CreateAttribute("seed");
+                seedAttr.Value = Seed;
+                elem.Attributes.Append(seedAttr);
             }
 
             foreach (var i in Plugins)
@@ -228,6 +236,8 @@ namespace Confuser.Core.Project
             this.SNKeyPath = docElem.Attributes["snKey"].Value;
             if (docElem.Attributes["preset"] != null)
                 this.DefaultPreset = (Preset)Enum.Parse(typeof(Preset), docElem.Attributes["preset"].Value, true);
+            if (docElem.Attributes["seed"] != null)
+                this.Seed = docElem.Attributes["seed"].Value;
             foreach (XmlElement i in docElem.ChildNodes.OfType<XmlElement>())
             {
                 if (i.Name == "plugin")

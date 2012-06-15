@@ -130,16 +130,15 @@ namespace Confuser.Core
             mod.Attributes |= (originMain.Attributes & ModuleAttributes.Required32Bit); // added -- christallire - to prevent BadImageFormatException, Stub assembly need to set ModuleAttribute.Required32Bit if oringinMain has one.
             hash = new ByteBuffer(SHA1Managed.Create().ComputeHash(param.PEs[originIndex]));
 
-            Random rand = new Random();
-            int key0 = rand.Next(0, 0xff);
-            int key1 = rand.Next(0, 0xff);
+            int key0 = Random.Next(0, 0xff);
+            int key1 = Random.Next(0, 0xff);
 
 
             ulong e = 0x47;
-            ulong p = (ulong)rand.Next(0x1000, 0x10000);
-            while (!isPrime(p) || (p - 1) % e == 0) p = (ulong)rand.Next(0x1000, 0x10000);
-            ulong q = (ulong)rand.Next(0x1000, 0x10000);
-            while (!isPrime(q) || (q - 1) % e == 0) q = (ulong)rand.Next(0x1000, 0x10000);
+            ulong p = (ulong)Random.Next(0x1000, 0x10000);
+            while (!isPrime(p) || (p - 1) % e == 0) p = (ulong)Random.Next(0x1000, 0x10000);
+            ulong q = (ulong)Random.Next(0x1000, 0x10000);
+            while (!isPrime(q) || (q - 1) % e == 0) q = (ulong)Random.Next(0x1000, 0x10000);
             ulong n = p * q;
             ulong n_ = (p - 1) * (q - 1);
             ulong d = modInv(e, n_);
@@ -147,7 +146,7 @@ namespace Confuser.Core
 
 
 
-            EmbeddedResource res = new EmbeddedResource(Encoding.UTF8.GetString(Guid.NewGuid().ToByteArray()), ManifestResourceAttributes.Private, Encrypt(param.PEs[originIndex], key0));
+            EmbeddedResource res = new EmbeddedResource(ObfuscationHelper.GetRandomName(), ManifestResourceAttributes.Private, Encrypt(param.PEs[originIndex], key0));
             mod.Resources.Add(res);
             for (int i = 1; i < param.Modules.Length; i++)
                 if (param.Modules[i].IsMain)
@@ -204,10 +203,9 @@ namespace Confuser.Core
                 b[i] = (byte)(b[i] ^ key ^ i);
             return Encoding.UTF8.GetString(b);
         }
-        static byte[] Encrypt(byte[] asm, int key0)
+        byte[] Encrypt(byte[] asm, int key0)
         {
-            RijndaelManaged rijn = new RijndaelManaged();
-            rijn.GenerateIV(); rijn.GenerateKey();
+            RijndaelManaged rijn = ObfuscationHelper.CreateRijndael();
 
             int dictionary = 1 << 23;
 
@@ -281,7 +279,7 @@ namespace Confuser.Core
             }
             return str.ToArray();
         }
-        static byte[] Decrypt(byte[] asm, int key)
+        byte[] Decrypt(byte[] asm, int key)
         {
             byte[] ret;
             DeflateStream str = new DeflateStream(new MemoryStream(asm), CompressionMode.Decompress);

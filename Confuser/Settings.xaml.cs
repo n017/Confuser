@@ -15,6 +15,7 @@ using System.IO;
 using System.Windows.Forms;
 using System.Reflection;
 using Confuser.Core;
+using System.Windows.Threading;
 
 namespace Confuser
 {
