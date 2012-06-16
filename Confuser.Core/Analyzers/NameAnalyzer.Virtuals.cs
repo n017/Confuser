@@ -11,13 +11,15 @@ namespace Confuser.Core.Analyzers
     {
         public MethodReference Root;
         public MethodReference OpenRoot;
-        public void ReplaceRoot(MethodReference newRoot)
+        public void ReplaceRoot(NameAnalyzer analyzer, MethodReference newRoot)
         {
             if (Root == newRoot || OpenRoot == newRoot) return;
 
             var renRef = (newRoot.Resolve() as IAnnotationProvider).Annotations[NameAnalyzer.RenRef] as List<IReference>;
             var root = (OpenRoot ?? Root).Resolve();
             var renId = (root as IAnnotationProvider).Annotations[NameAnalyzer.RenId] as Identifier?;
+            if (analyzer.Assemblies.Contains(root.Module.Assembly))
+                analyzer.Cr.Database.AddEntry(NameAnalyzer.DB_SRC, root.FullName, string.Format("Virtual override @ {0} => Not renamed", newRoot.FullName));
             (root as IAnnotationProvider).Annotations[NameAnalyzer.RenOk] = false;
             if (renRef != null && renId != null)
             {
@@ -28,7 +30,7 @@ namespace Confuser.Core.Analyzers
         }
         public MethodReference Current;
         public MethodReference OpenCurrent;
-        public void ReplaceCurrent(MethodReference newCurrent)
+        public void ReplaceCurrent(NameAnalyzer analyzer, MethodReference newCurrent)
         {
             if (Current == newCurrent || OpenCurrent == newCurrent) return;
 
@@ -36,11 +38,14 @@ namespace Confuser.Core.Analyzers
             if (m != null)
             {
                 var renRef = (m as IAnnotationProvider).Annotations[NameAnalyzer.RenRef] as List<IReference>;
-                var renId = (newCurrent.Resolve() as IAnnotationProvider).Annotations[NameAnalyzer.RenId] as Identifier?;
-                (newCurrent.Resolve() as IAnnotationProvider).Annotations[NameAnalyzer.RenOk] = false;
+                var newCurrentDef = newCurrent.Resolve();
+                var renId = (newCurrentDef as IAnnotationProvider).Annotations[NameAnalyzer.RenId] as Identifier?;
+                if (analyzer.Assemblies.Contains(newCurrentDef.Module.Assembly))
+                    analyzer.Cr.Database.AddEntry(NameAnalyzer.DB_SRC, newCurrent.FullName, string.Format("Virtual override @ {0} => Not renamed", m.FullName));
+                (newCurrentDef as IAnnotationProvider).Annotations[NameAnalyzer.RenOk] = false;
                 if (renRef != null)
                 {
-                    renRef.Add(new VirtualMethodReference(newCurrent.Resolve()));
+                    renRef.Add(new VirtualMethodReference(newCurrentDef));
                 }
             }
             Current = newCurrent;
@@ -196,7 +201,7 @@ namespace Confuser.Core.Analyzers
             return ret;
         }
 
-        public static VTable GetVTable(TypeDefinition typeDef, Dictionary<TypeDefinition, VTable> tbls)
+        public static VTable GetVTable(NameAnalyzer analyzer, TypeDefinition typeDef, Dictionary<TypeDefinition, VTable> tbls)
         {
             if (tbls.ContainsKey(typeDef))
                 return tbls[typeDef];
@@ -208,7 +213,7 @@ namespace Confuser.Core.Analyzers
             TypeDefinition baseType = null;
             if (typeDef.BaseType != null)
             {
-                ret.Table = new List<VTableSlot>(GetVTable(baseType = typeDef.BaseType.Resolve(), tbls).Table);
+                ret.Table = new List<VTableSlot>(GetVTable(analyzer, baseType = typeDef.BaseType.Resolve(), tbls).Table);
                 if (typeDef.BaseType is GenericInstanceType)
                 {
                     GenericInstanceType genInst = typeDef.BaseType as GenericInstanceType;
@@ -265,7 +270,7 @@ namespace Confuser.Core.Analyzers
                         }
                         else
                         {
-                            slot.ReplaceRoot(j);
+                            slot.ReplaceRoot(analyzer, j);
                         }
                     }
                 }
@@ -277,7 +282,7 @@ namespace Confuser.Core.Analyzers
                 for (int j = 0; j < ret.Table.Count; j++)
                     if (ret.Table[j].Current == null && Match(i, ret.Table[j].Root))
                     {
-                        ret.Table[j].ReplaceCurrent(i);
+                        ret.Table[j].ReplaceCurrent(analyzer, i);
                         break;
                     }
             }
@@ -287,7 +292,7 @@ namespace Confuser.Core.Analyzers
                 for (int j = 0; j < ret.Table.Count; j++)
                     if (ret.Table[j].Current == null && Match(i, ret.Table[j].Root))
                     {
-                        ret.Table[j].ReplaceCurrent(i);
+                        ret.Table[j].ReplaceCurrent(analyzer, i);
                         break;
                     }
             }
@@ -298,7 +303,7 @@ namespace Confuser.Core.Analyzers
                     if (Match(i, ret.Table[j].Current))
                     {
                         ret.Table[j].Root = i;
-                        ret.Table[j].ReplaceCurrent(i);
+                        ret.Table[j].ReplaceCurrent(analyzer, i);
                         break;
                     }
             }
@@ -308,7 +313,7 @@ namespace Confuser.Core.Analyzers
                 for (int j = 0; j < ret.Table.Count; j++)
                     if (i != ret.Table[j].Current && Match(i, ret.Table[j].Current))
                     {
-                        ret.Table[j].ReplaceCurrent(i);
+                        ret.Table[j].ReplaceCurrent(analyzer, i);
                         break;
                     }
             }
@@ -341,7 +346,7 @@ namespace Confuser.Core.Analyzers
         {
             foreach (var i in typeDef.NestedTypes)
                 ConstructVTable(i);
-            VTable.GetVTable(typeDef, vTbls);
+            VTable.GetVTable(this, typeDef, vTbls);
         }
     }
 }

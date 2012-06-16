@@ -59,6 +59,7 @@ namespace Confuser.Core.Confusions
                 txt.reso.Name = ObfuscationHelper.GetRandomName();
                 txt.reso.IsAssembly = true;
                 AddHelper(txt.reso, HelperAttribute.NoInjection);
+                Database.AddEntry("AntiDump", "Resolver", txt.reso.FullName);
 
                 FieldDefinition datAsm = new FieldDefinition(
                     ObfuscationHelper.GetRandomName(),
@@ -66,14 +67,18 @@ namespace Confuser.Core.Confusions
                     mod.Import(typeof(System.Reflection.Assembly)));
                 modType.Fields.Add(datAsm);
                 AddHelper(datAsm, HelperAttribute.NoInjection);
+                Database.AddEntry("AntiDump", "Store", datAsm.FullName);
 
                 txt.key0 = (byte)Random.Next(0, 0x100);
                 do
                 {
                     txt.key1 = (byte)Random.Next(0, 0x100);
                 } while (txt.key1 != 0);
+                Database.AddEntry("AntiDump", "Key0", txt.key0);
+                Database.AddEntry("AntiDump", "Key1", txt.key1);
 
                 txt.resId = ObfuscationHelper.GetRandomName();
+                Database.AddEntry("AntiDump", "ResID", txt.resId);
                 txt.reso.Body.SimplifyMacros();
                 foreach (Instruction inst in txt.reso.Body.Instructions)
                 {

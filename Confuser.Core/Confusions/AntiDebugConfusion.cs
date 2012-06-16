@@ -79,6 +79,7 @@ namespace Confuser.Core.Confusions
         public override void Process(ConfusionParameter parameter)
         {
             AssemblyDefinition self = AssemblyDefinition.ReadAssembly(typeof(Iid).Assembly.Location);
+            Database.AddEntry("AntiDebug", "Win32", Array.IndexOf(parameter.GlobalParameters.AllKeys, "win32") != -1);
             if (Array.IndexOf(parameter.GlobalParameters.AllKeys, "win32") != -1)
             {
                 TypeDefinition type = CecilHelper.Inject(mod, self.MainModule.GetType("AntiDebugger"));
@@ -97,6 +98,7 @@ namespace Confuser.Core.Confusions
                     mtdDef.Name = ObfuscationHelper.GetRandomName();
                     AddHelper(mtdDef, HelperAttribute.NoInjection);
                 }
+                Database.AddEntry("AntiDebug", "Helper", type.FullName);
             }
             else
             {
@@ -116,6 +118,7 @@ namespace Confuser.Core.Confusions
                     mtdDef.Name = ObfuscationHelper.GetRandomName();
                     AddHelper(mtdDef, HelperAttribute.NoInjection);
                 }
+                Database.AddEntry("AntiDebug", "Helper", type.FullName);
             }
         }
 

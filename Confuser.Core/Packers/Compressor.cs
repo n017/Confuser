@@ -132,6 +132,8 @@ namespace Confuser.Core
 
             int key0 = Random.Next(0, 0xff);
             int key1 = Random.Next(0, 0xff);
+            Database.AddEntry("Compressor", "Key0", key0);
+            Database.AddEntry("Compressor", "Key1", key1);
 
 
             ulong e = 0x47;
@@ -142,6 +144,11 @@ namespace Confuser.Core
             ulong n = p * q;
             ulong n_ = (p - 1) * (q - 1);
             ulong d = modInv(e, n_);
+
+            Database.AddEntry("Compressor", "p", p);
+            Database.AddEntry("Compressor", "q", q);
+            Database.AddEntry("Compressor", "n", n);
+            Database.AddEntry("Compressor", "d", d);
 
 
 

@@ -521,12 +521,14 @@ namespace Confuser.Core.Confusions
                 }
 
                 //Detect branches
+                int k = 0;
                 foreach (var st in sts)
                 {
                     Instruction last = st.Instructions[st.Instructions.Length - 1];
                     if (last.Operand is Instruction &&
                         sts.Exists(_ => _.Instructions[0] == last.Operand))
                         st.Type = StatementType.Branch;
+                    st.Key = k; k++;
                 }
 
                 //Shuffle the statements
@@ -538,6 +540,14 @@ namespace Confuser.Core.Confusions
                     sts[j] = sts[i];
                     sts[i] = tmp;
                 }
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < sts.Count; i++)
+                {
+                    if (i != 0) sb.Append(", ");
+                    sb.Append(sts[i].Key);
+                }
+                Database.AddEntry("CtrlFlow", method.FullName, sb);
+
                 Instruction[] stHdrs = new Instruction[sts.Count];
                 for (int i = 0; i < sts.Count; i++)
                 {

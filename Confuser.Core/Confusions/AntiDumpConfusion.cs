@@ -90,6 +90,7 @@ namespace Confuser.Core.Confusions
                 mtdDef.Name = ObfuscationHelper.GetRandomName();
                 AddHelper(mtdDef, HelperAttribute.NoInjection);
             }
+            Database.AddEntry("AntiDump", "Helper", type.FullName);
         }
 
         public void Init() { }

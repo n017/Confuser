@@ -92,15 +92,18 @@ namespace Confuser.Core.Confusions
                             t.Fields.RemoveAt(idx);
                         else
                             idx++;
+                    Database.AddEntry("MdReduce", t.FullName, "Enum");
                 }
-                else if (def is EventDefinition)
-                {
-                    def.DeclaringType.Events.Remove(def as EventDefinition);
-                }
-                else if (def is PropertyDefinition)
-                {
-                    def.DeclaringType.Properties.Remove(def as PropertyDefinition);
-                }
+            }
+            else if (def is EventDefinition)
+            {
+                def.DeclaringType.Events.Remove(def as EventDefinition);
+                Database.AddEntry("MdReduce", def.FullName, "Evt");
+            }
+            else if (def is PropertyDefinition)
+            {
+                def.DeclaringType.Properties.Remove(def as PropertyDefinition);
+                Database.AddEntry("MdReduce", def.FullName, "Prop");
             }
         }
 

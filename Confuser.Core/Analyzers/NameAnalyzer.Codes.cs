@@ -16,7 +16,10 @@ namespace Confuser.Core.Analyzers
             {
                 Instruction inst = mtd.Body.Instructions[i];
                 if (inst.OpCode.Code == Code.Ldtoken && inst.Operand is IMemberDefinition)
+                {
+                    Confuser.Database.AddEntry(DB_SRC, inst.Operand.ToString(), string.Format("ldtoken @ {0} => Not renamed", mtd));
                     (inst.Operand as IAnnotationProvider).Annotations[RenOk] = false;
+                }
 
                 if (inst.Operand is MethodReference ||
                     inst.Operand is FieldReference)

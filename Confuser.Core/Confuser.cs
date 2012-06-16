@@ -198,11 +198,13 @@ namespace Confuser.Core
         ConfuserAssemblyResolver resolver;
         ObfuscationHelper helper;
         Random random;
+        ObfuscationDatabase db;
 
         internal void Log(string message) { param.Logger._Log(message); }
 
         public ObfuscationHelper ObfuscationHelper { get { return helper; } }
         public Random Random { get { return random; } }
+        public ObfuscationDatabase Database { get { return db; } }
 
         public Thread ConfuseAsync(ConfuserParameter param)
         {
@@ -223,9 +225,14 @@ namespace Confuser.Core
                 foreach (var i in param.Project)
                     resolver.AddSearchDirectory(Path.GetDirectoryName(i.Path));
 
+                db = new ObfuscationDatabase();
+                db.Module("");
+
                 this.param = param;
                 param.Logger._BeginPhase("Initializing...");
-                Log("Started at " + DateTime.Now.ToShortTimeString() + ".");
+                string t = DateTime.Now.ToShortTimeString();
+                Database.AddEntry("Project", "Start", t);
+                Log("Started at " + t + ".");
                 Log("Loading...");
 
                 System.Reflection.StrongNameKeyPair sn;
@@ -247,6 +254,7 @@ namespace Confuser.Core
                         foreach (ModuleSetting mod in settings[i].Modules)
                         {
                             Log(string.Format("Obfuscating structure of module {0}...", mod.Module.Name));
+                            db.Module(Path.GetFileName(mod.Module.FullyQualifiedName));
 
                             helpers.Clear();
                             helpers.Add(mod.Module.GetType("<Module>").GetStaticConstructor(), HelperAttribute.NoEncrypt);
@@ -293,6 +301,7 @@ namespace Confuser.Core
                                 writerParams.SymbolStream = symbol;
                             }
 
+                            db.Module(Path.GetFileName(j.Module.FullyQualifiedName));
                             ProcessMdPePhases(j, settings[i].GlobalParameters, phases, final, writerParams);
 
                             pes.Add(final.ToArray());
@@ -300,9 +309,16 @@ namespace Confuser.Core
                             mods.Add(j.Module);
                         }
 
+                db.Module("");
                 Finalize(mods.ToArray(), pes.ToArray(), syms.ToArray());
 
-                param.Logger._Finish("Ended at " + DateTime.Now.ToShortTimeString() + ".");
+                t = DateTime.Now.ToShortTimeString();
+                Database.AddEntry("Project", "End", t);
+                param.Logger._Finish("Ended at " + t + ".");
+
+                //Ya, finally done it. Now save the db
+                using (BinaryWriter wtr = new BinaryWriter(File.OpenWrite(Path.Combine(param.Project.OutputPath, "report.crdb"))))
+                    Database.Serialize(wtr);
             }
             catch (Exception ex)
             {
@@ -543,6 +559,8 @@ namespace Confuser.Core
                 seed = param.Project.Seed.GetHashCode();
             helper = new ObfuscationHelper(this, seed);
             random = new Random(seed);
+            Database.AddEntry("Project", "Seed", seed.ToString());
+            Database.AddEntry("Project", "Debug", param.Project.Debug);
 
             Log(string.Format("Analyzing assemblies..."));
             analyzers = new List<Analyzer>();

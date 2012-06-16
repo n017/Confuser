@@ -164,6 +164,8 @@ namespace Confuser.Core.Analyzers
             return null;
         }
 
+        BamlDocument doc;
+        string docName;
         void ProcessProperty(BamlRecord rec, string path)
         {
             int idx = -1;
@@ -184,7 +186,11 @@ namespace Confuser.Core.Analyzers
                     var ms = GetMember(name, out hasImport);
                     if (ms != null)
                         foreach (var m in ms)
+                        {
+                            Confuser.Database.AddEntry(DB_SRC, m.FullName, string.Format(
+                                "BAML Prop Ref @ {0}:{1}:{2} => Not renamed", docName, rec.Position, path));
                             (m as IAnnotationProvider).Annotations[RenOk] = false;
+                        }
                     //if (p != null && prevSym == '.')
                     //{
                     //    var specProp = p.SingleOrDefault(_ => _.DeclaringType.Name == prev);
@@ -227,7 +233,11 @@ namespace Confuser.Core.Analyzers
                 //    }
                 if (ms != null)
                     foreach (var m in ms)
+                    {
+                        Confuser.Database.AddEntry(DB_SRC, m.FullName, string.Format(
+                            "BAML Prop Ref @ {0}:{1}:{2} => Not renamed", docName, rec.Position, path));
                         (m as IAnnotationProvider).Annotations[RenOk] = false;
+                    }
             }
             else
             {
@@ -243,7 +253,11 @@ namespace Confuser.Core.Analyzers
                 //    }
                 if (ms != null)
                     foreach (var m in ms)
+                    {
+                        Confuser.Database.AddEntry(DB_SRC, m.FullName, string.Format(
+                            "BAML Prop Ref @ {0}:{1}:{2} => Not renamed", docName, rec.Position, path));
                         (m as IAnnotationProvider).Annotations[RenOk] = false;
+                    }
             }
 
             foreach (var i in refers)
@@ -299,7 +313,8 @@ namespace Confuser.Core.Analyzers
                 if (stream != null && (entry.Key as string).EndsWith(".baml"))
                 {
                     cc++;
-                    BamlDocument doc = BamlReader.ReadDocument(stream);
+                    docName = entry.Key as string;
+                    doc = BamlReader.ReadDocument(stream);
                     (mod as IAnnotationProvider).Annotations[RenMode] = NameMode.Letters;
 
                     for (int i = 0; i < doc.Count; i++)

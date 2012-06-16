@@ -105,6 +105,7 @@ namespace Confuser.Core
 
         protected ObfuscationHelper ObfuscationHelper { get { return cr.ObfuscationHelper; } }
         protected Random Random { get { return cr.Random; } }
+        protected ObfuscationDatabase Database { get { return cr.Database; } }
 
         public abstract IConfusion Confusion { get; }
         public abstract int PhaseID { get; }

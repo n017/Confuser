@@ -78,6 +78,7 @@ namespace Confuser.Core.Confusions
                 TypeDefinition type = mem as TypeDefinition;
                 if (GetRenOk(type))
                 {
+                    string original = type.FullName;
                     var mode = (NameMode)(mem.Module as IAnnotationProvider).Annotations[NameAnalyzer.RenMode];
                     type.Name = ObfuscationHelper.GetNewName(type.FullName, mode);
                     switch (mode)
@@ -97,6 +98,7 @@ namespace Confuser.Core.Confusions
                     {
                         refer.UpdateReference(id, n);
                     }
+                    Database.AddEntry("Rename", original, type.FullName);
                 }
             }
             else if (mem is MethodDefinition)
@@ -106,6 +108,7 @@ namespace Confuser.Core.Confusions
             }
             else if (GetRenOk(mem as IAnnotationProvider))
             {
+                string original = mem.Name;
                 mem.Name = ObfuscationHelper.GetNewName(mem.Name, (NameMode)(mem.Module as IAnnotationProvider).Annotations[NameAnalyzer.RenMode]);
                 Identifier id = (Identifier)(mem as IAnnotationProvider).Annotations[NameAnalyzer.RenId];
                 Identifier n = id;
@@ -115,6 +118,7 @@ namespace Confuser.Core.Confusions
                 {
                     refer.UpdateReference(id, n);
                 }
+                Database.AddEntry("Rename", original, mem.Name);
             }
         }
 
@@ -123,6 +127,7 @@ namespace Confuser.Core.Confusions
             var mode = (NameMode)(mtd.Module as IAnnotationProvider).Annotations[NameAnalyzer.RenMode];
             if (GetRenOk(mtd))
             {
+                string original = mtd.Name;
                 mtd.Name = ObfuscationHelper.GetNewName(mtd.Name, mode);
                 Identifier id = (Identifier)(mtd as IAnnotationProvider).Annotations[NameAnalyzer.RenId];
                 Identifier n = id;
@@ -132,10 +137,13 @@ namespace Confuser.Core.Confusions
                 {
                     refer.UpdateReference(id, n);
                 }
+                Database.AddEntry("Rename", original, mtd.Name);
 
                 foreach (ParameterDefinition para in mtd.Parameters)
                 {
+                    original = para.Name;
                     para.Name = ObfuscationHelper.GetNewName(para.Name, mode);
+                    Database.AddEntry("Rename", original, para.Name);
                 }
             }
 

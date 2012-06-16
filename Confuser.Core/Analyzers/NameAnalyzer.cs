@@ -9,12 +9,17 @@ namespace Confuser.Core.Analyzers
 {
     partial class NameAnalyzer : Analyzer
     {
+        public const string DB_SRC = "RenameAnalysis";
+
         public static readonly object RenMode = new object();
         public static readonly object RenOk = new object();
         public static readonly object RenId = new object();
         public static readonly object RenRef = new object();
 
         Dictionary<TypeDefinition, VTable> vTbls = new Dictionary<TypeDefinition, VTable>();
+
+        internal Confuser Cr { get { return Confuser; } }
+        internal IEnumerable<AssemblyDefinition> Assemblies { get; private set; }
 
         int modCount;
         int progressMod;
@@ -29,6 +34,7 @@ namespace Confuser.Core.Analyzers
                     Init(mod);
                     progressMod++;
                 }
+            Assemblies = asms;
 
             Logger._Log("> Analyzing IVT attributes...");
             AnalyzeIvtMap(asms);
@@ -141,7 +147,10 @@ namespace Confuser.Core.Analyzers
         void Analyze(TypeDefinition type)
         {
             if (type.Name == "<Module>" || IsTypePublic(type))
+            {
                 (type as IAnnotationProvider).Annotations[RenOk] = false;
+                Confuser.Database.AddEntry(DB_SRC, type.FullName, "Pub/Global type => Not renamed");
+            }
             foreach (Resource res in (type.Scope as ModuleDefinition).Resources)
                 if (res.Name == type.FullName + ".resources")
                     ((type as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new ResourceReference(res));
@@ -186,7 +195,10 @@ namespace Confuser.Core.Analyzers
         {
             if (mtd.IsConstructor || (IsTypePublic(mtd.DeclaringType) &&
                 (mtd.IsFamily || mtd.IsAssembly || mtd.IsFamilyAndAssembly || mtd.IsFamilyOrAssembly || mtd.IsPublic)))
+            {
                 (mtd as IAnnotationProvider).Annotations[RenOk] = false;
+                Confuser.Database.AddEntry(DB_SRC, mtd.FullName, "Pub method/ctor => Not renamed");
+            }
             else if (mtd.DeclaringType.BaseType != null && mtd.DeclaringType.BaseType.Resolve() != null)
             {
                 TypeReference bType = mtd.DeclaringType.BaseType;
@@ -194,6 +206,7 @@ namespace Confuser.Core.Analyzers
                     bType.FullName == "System.MulticastDelegate")
                 {
                     (mtd as IAnnotationProvider).Annotations[RenOk] = false;
+                    Confuser.Database.AddEntry(DB_SRC, mtd.FullName, "Delegate => Not renamed");
                 }
             }
 
@@ -215,19 +228,28 @@ namespace Confuser.Core.Analyzers
             AnalyzeCustomAttributes(fld);
             if (fld.IsRuntimeSpecialName || fld.DeclaringType.IsEnum || (IsTypePublic(fld.DeclaringType) &&
                 (fld.IsFamily || fld.IsFamilyAndAssembly || fld.IsFamilyOrAssembly || fld.IsPublic)))
+            {
                 (fld as IAnnotationProvider).Annotations[RenOk] = false;
+                Confuser.Database.AddEntry(DB_SRC, fld.FullName, "Enum/pub field => Not renamed");
+            }
         }
         void Analyze(PropertyDefinition prop)
         {
             AnalyzeCustomAttributes(prop);
             if (prop.IsRuntimeSpecialName || IsTypePublic(prop.DeclaringType))
+            {
                 (prop as IAnnotationProvider).Annotations[RenOk] = false;
+                Confuser.Database.AddEntry(DB_SRC, prop.FullName, "Pub prop => Not renamed");
+            }
         }
         void Analyze(EventDefinition evt)
         {
             AnalyzeCustomAttributes(evt);
             if (evt.IsRuntimeSpecialName || IsTypePublic(evt.DeclaringType))
+            {
                 (evt as IAnnotationProvider).Annotations[RenOk] = false;
+                Confuser.Database.AddEntry(DB_SRC, evt.FullName, "Pub evt => Not renamed");
+            }
         }
 
         bool AnalyzeCustomAttributes(ICustomAttributeProvider ca)
@@ -268,6 +290,7 @@ namespace Confuser.Core.Analyzers
                 if (Database.ExcludeAttributes.Contains(i.AttributeType.FullName) && ca is IAnnotationProvider)
                 {
                     (ca as IAnnotationProvider).Annotations[RenOk] = false;
+                    Confuser.Database.AddEntry(DB_SRC, ca.ToString(), i.AttributeType.FullName + " => Not renamed");
                     ret = true;
                 }
             }

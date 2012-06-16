@@ -106,7 +106,7 @@
     <None Include="Confusions\StringConfusion.cs" />
     <Compile Include="Confusion.cs" />
     <Compile Include="Analyzers\NameAnalyzer.cs" />
-    <Compile Include="Project\Analyzer.cs" />
+    <Compile Include="Analyzer.cs" />
     <None Include="Marker.cs" />
     <Compile Include="ObfuscationHelper.cs" />
     <Compile Include="Packer.cs" />
@@ -128,6 +128,7 @@
   <ItemGroup>
     <Compile Include="Confusions\ControlFlowConfusion.New.cs" />
     <Compile Include="Marker.New.cs" />
+    <Compile Include="ObfuscationDatabase.cs" />
     <Compile Include="Packers\Compression\Common\CRC.cs" />
     <Compile Include="Packers\Compression\Common\InBuffer.cs" />
     <Compile Include="Packers\Compression\Common\OutBuffer.cs" />

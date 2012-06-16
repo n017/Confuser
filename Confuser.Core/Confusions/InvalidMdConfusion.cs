@@ -83,6 +83,8 @@ namespace Confuser.Core.Confusions
                 accessor.TableHeap.GetTable<TypeDefTable>(Table.TypeDef)[0].Col2 = 0xffff;
                 uint mtdLen = (uint)accessor.TableHeap.GetTable<MethodTable>(Table.Method).Length + 1;
                 uint fldLen = (uint)accessor.TableHeap.GetTable<FieldTable>(Table.Field).Length + 1;
+                Database.AddEntry("InvalidMd", "HasReflection", Array.IndexOf(parameters.AllKeys, "hasreflection") != -1);
+                Database.AddEntry("InvalidMd", "Runtime", accessor.Module.Runtime);
                 if (Array.IndexOf(parameters.AllKeys, "hasreflection") == -1)
                 {
                     if (accessor.Module.Runtime != TargetRuntime.Net_4_0)

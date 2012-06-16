@@ -57,6 +57,7 @@ namespace Confuser.Core.Confusions
             ModuleDefinition mod;
             public override void Process(ConfusionParameter parameter)
             {
+                Database.AddEntry("Const", "Type", parameter.GlobalParameters["type"] ?? "normal");
                 if (parameter.GlobalParameters["type"] != "dynamic" &&
                     parameter.GlobalParameters["type"] != "native")
                 {
@@ -74,12 +75,15 @@ namespace Confuser.Core.Confusions
                 modType.Fields.Add(constTbl);
                 AddHelper(constTbl, HelperAttribute.NoInjection);
 
+                Database.AddEntry("Const", "ConstTbl", constTbl.FullName);
+
                 FieldDefinition constStream = new FieldDefinition(
                     ObfuscationHelper.GetRandomName(),
                     FieldAttributes.Static | FieldAttributes.CompilerControlled,
                     mod.Import(typeof(Stream)));
                 modType.Fields.Add(constStream);
                 AddHelper(constStream, HelperAttribute.NoInjection);
+                Database.AddEntry("Const", "ConstStream", constStream.FullName);
 
                 txt.consters = CreateConsters(txt, Confuser.Random, "Constants", constTbl, constStream);
 
@@ -94,24 +98,26 @@ namespace Confuser.Core.Confusions
                     txt.nativeDecr.ImplAttributes = MethodImplAttributes.Native;
                     txt.nativeDecr.Parameters.Add(new ParameterDefinition(mod.TypeSystem.Int32));
                     modType.Methods.Add(txt.nativeDecr);
-
-
-                    var expGen = new ExpressionGenerator(Random.Next());
-                    int seed = expGen.Seed;
-                    if (txt.isNative)
-                    {
-                        do
-                        {
-                            txt.exp = new ExpressionGenerator(Random.Next()).Generate(6);
-                            txt.invExp = ExpressionInverser.InverseExpression(txt.exp);
-                        } while ((txt.visitor = new x86Visitor(txt.invExp, null)).RegisterOverflowed);
-                    }
-                    else
-                    {
-                        txt.exp = expGen.Generate(10);
-                        txt.invExp = ExpressionInverser.InverseExpression(txt.exp);
-                    }
+                    Database.AddEntry("Const", "NativeDecr", txt.nativeDecr.FullName);
                 }
+
+                var expGen = new ExpressionGenerator(Random.Next());
+                int seed = expGen.Seed;
+                if (txt.isNative)
+                {
+                    do
+                    {
+                        txt.exp = new ExpressionGenerator(Random.Next()).Generate(6);
+                        txt.invExp = ExpressionInverser.InverseExpression(txt.exp);
+                    } while ((txt.visitor = new x86Visitor(txt.invExp, null)).RegisterOverflowed);
+                }
+                else
+                {
+                    txt.exp = expGen.Generate(10);
+                    txt.invExp = ExpressionInverser.InverseExpression(txt.exp);
+                }
+                Database.AddEntry("Const", "Exp", txt.exp);
+                Database.AddEntry("Const", "InvExp", txt.invExp);
             }
             private void ProcessSafe(ConfusionParameter parameter)
             {
@@ -125,6 +131,7 @@ namespace Confuser.Core.Confusions
                     mod.Import(typeof(Dictionary<uint, object>)));
                 modType.Fields.Add(constTbl);
                 AddHelper(constTbl, HelperAttribute.NoInjection);
+                Database.AddEntry("Const", "ConstTbl", constTbl.FullName);
 
                 FieldDefinition constStream = new FieldDefinition(
                     ObfuscationHelper.GetRandomName(),
@@ -132,6 +139,7 @@ namespace Confuser.Core.Confusions
                     mod.Import(typeof(Stream)));
                 modType.Fields.Add(constStream);
                 AddHelper(constStream, HelperAttribute.NoInjection);
+                Database.AddEntry("Const", "constStream", constStream.FullName);
 
                 txt.consters = CreateConsters(txt, Random, "SafeConstants", constTbl, constStream);
             }
@@ -151,6 +159,12 @@ namespace Confuser.Core.Confusions
                 txt.resKey = rand.Next();
                 txt.resId = Encoding.UTF8.GetString(BitConverter.GetBytes(txt.resKey));
                 txt.key = rand.Next();
+
+                Database.AddEntry("Const", "KeyTypes", txt.types);
+                Database.AddEntry("Const", "KeyBuff", txt.keyBuff);
+                Database.AddEntry("Const", "ResKey", txt.resKey);
+                Database.AddEntry("Const", "ResId", txt.resId);
+                Database.AddEntry("Const", "Key", txt.key);
 
 
                 MethodDefinition init = injection.MainModule.GetType("Encryptions").Methods.FirstOrDefault(mtd => mtd.Name == "Initialize");
@@ -192,6 +206,7 @@ namespace Confuser.Core.Confusions
                         mod.TypeSystem.Object);
                     mod.Types.Add(typeDef);
                     int methodCount = rand.Next(1, 5);
+                    Database.AddEntry("Const", "ConsterTypes", typeDef.FullName);
 
                     for (int j = 0; j < methodCount; j++)
                     {
@@ -202,12 +217,15 @@ namespace Confuser.Core.Confusions
                         AddHelper(mtd, HelperAttribute.NoInjection);
                         typeDef.Methods.Add(mtd);
 
+                        Database.AddEntry("Const", "ConsterMethods", mtd.FullName);
+
                         Conster conster = new Conster();
                         conster.key0 = rand.Next();
                         conster.key1 = rand.Next();
                         conster.key2 = rand.Next();
                         conster.key3 = rand.Next();
                         conster.conster = mtd;
+                        Database.AddEntry("Const", mtd.FullName, string.Format("{0}, {1}, {2}, {3}", conster.key0, conster.key1, conster.key2, conster.key3));
 
                         mtd.Body.SimplifyMacros();
                         foreach (Instruction inst in mtd.Body.Instructions)
@@ -398,8 +416,10 @@ namespace Confuser.Core.Confusions
                     int idx = txts[i].mtd.Body.Instructions.IndexOf(txts[i].str);
                     Instruction now = txts[i].str;
                     if (IsNull(now.Operand)) continue;
+
                     Instruction call = Instruction.Create(OpCodes.Call, txts[i].conster.conster);
                     call.SequencePoint = now.SequencePoint;
+
                     txts[i].psr.InsertAfter(idx, call);
                     if (now.Operand is int)
                         txts[i].psr.InsertAfter(call, Instruction.Create(OpCodes.Unbox_Any, txts[i].mtd.Module.TypeSystem.Int32));
@@ -413,6 +433,7 @@ namespace Confuser.Core.Confusions
                         txts[i].psr.InsertAfter(call, Instruction.Create(OpCodes.Castclass, txts[i].mtd.Module.TypeSystem.String));
                     txts[i].psr.Replace(idx, Instruction.Create(OpCodes.Ldc_I4, (int)txts[i].a));
                     txts[i].psr.InsertAfter(idx, Instruction.Create(OpCodes.Ldc_I4, (int)txts[i].b));
+
                     if (i % interval == 0 || i == txts.Count - 1)
                         progresser.SetProgress(i + 1, txts.Count);
                 }
@@ -476,6 +497,9 @@ namespace Confuser.Core.Confusions
                         Buffer.BlockCopy(BitConverter.GetBytes(len ^ txt.key), 0, final, 0, 4);
                         txt.dats.Add(new Data() { Dat = final, Type = t });
                         txt.dict[val] = txt.idx;
+                        Database.AddEntry("Const", val.ToString(), string.Format("{0}, {1}, {2}", txts[i].a, txts[i].b, txt.idx));
+
+
                         txt.idx += final.Length + 5;
                     }
                 }
@@ -546,6 +570,7 @@ namespace Confuser.Core.Confusions
 
                         txt.dats.Add(new Data() { Dat = dat, Type = t });
                         txt.dict[val] = txt.idx;
+                        Database.AddEntry("Const", val.ToString(), string.Format("{0}, {1}, {2}", txts[i].a, txts[i].b, txt.idx));
                         txt.idx += dat.Length + 5;
                     }
                 }
@@ -590,6 +615,7 @@ namespace Confuser.Core.Confusions
                 {
                     i.keyInst.Operand = (int)(token ^ i.conster.MetadataToken.ToInt32());
                 }
+                Database.AddEntry("Const", "KeyBuffToken", token);
 
                 if (!txt.isNative) return;
 
@@ -630,6 +656,7 @@ namespace Confuser.Core.Confusions
                     wtr.Write(new byte[((ms.Length + 3) & ~3) - ms.Length]);
                 }
                 byte[] codes = ms.ToArray();
+                Database.AddEntry("Const", "Native", codes);
                 accessor.Codes.WriteBytes(codes);
                 accessor.SetCodePosition(accessor.Codebase + (uint)accessor.Codes.Position);
                 txt.nativeRange.Length = (uint)codes.Length;

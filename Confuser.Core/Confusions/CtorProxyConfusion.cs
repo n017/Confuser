@@ -70,9 +70,11 @@ namespace Confuser.Core.Confusions
                 txt.proxy.IsAssembly = true;
                 txt.proxy.Name = ObfuscationHelper.GetRandomName();
                 AddHelper(txt.proxy, 0);
+                Database.AddEntry("CtorProxy", "Proxy", txt.proxy.FullName);
 
                 Instruction placeholder = null;
                 txt.key = Random.Next();
+                Database.AddEntry("CtorProxy", "Key", txt.key);
                 foreach (Instruction inst in txt.proxy.Body.Instructions)
                     if (inst.Operand is MethodReference && (inst.Operand as MethodReference).Name == "PlaceHolder")
                     {
@@ -89,11 +91,15 @@ namespace Confuser.Core.Confusions
                     txt.nativeDecr.ImplAttributes = MethodImplAttributes.Native;
                     txt.nativeDecr.Parameters.Add(new ParameterDefinition(mod.TypeSystem.Int32));
                     modType.Methods.Add(txt.nativeDecr);
+                    Database.AddEntry("CtorProxy", "NativeDecr", txt.nativeDecr.FullName);
                     do
                     {
                         txt.exp = new ExpressionGenerator(Random.Next()).Generate(6);
                         txt.invExp = ExpressionInverser.InverseExpression(txt.exp);
                     } while ((txt.visitor = new x86Visitor(txt.invExp, null)).RegisterOverflowed);
+
+                    Database.AddEntry("CtorProxy", "Exp", txt.exp);
+                    Database.AddEntry("CtorProxy", "InvExp", txt.invExp);
 
                     CecilHelper.Replace(txt.proxy.Body, placeholder, new Instruction[]
                         {
@@ -121,6 +127,7 @@ namespace Confuser.Core.Confusions
                         onlyExternal = true;
                     }
                 }
+                Database.AddEntry("MtdProxy", "OnlyExternal", onlyExternal);
 
                 IList<Tuple<IAnnotationProvider, NameValueCollection>> targets = parameter.Target as IList<Tuple<IAnnotationProvider, NameValueCollection>>;
                 for (int i = 0; i < targets.Count; i++)
@@ -205,6 +212,8 @@ namespace Confuser.Core.Confusions
                     }
                     txt.dele.Methods.Add(invoke);
                     _txt.delegates.Add(sign, txt.dele);
+
+                    Database.AddEntry("MtdProxy", GetSignature(MtdRef), txt.dele.FullName);
                 }
                 _txt.txts.Add(txt);
             }
@@ -387,6 +396,9 @@ namespace Confuser.Core.Confusions
                     for (int i = 0; i < str.Length; i++)
                         sb.Append((char)((byte)str[i] ^ i));
                     txt.fld.Name = sb.ToString();
+
+                    Database.AddEntry("CtorProxy", txt.mtdRef.FullName, txt.fld.Name);
+                    Database.AddEntry("CtorProxy", txt.fld.Name, txt.inst.Operand.ToString());
                 }
                 if (!_txt.isNative) return;
 
@@ -427,6 +439,7 @@ namespace Confuser.Core.Confusions
                     wtr.Write(new byte[((ms.Length + 3) & ~3) - ms.Length]);
                 }
                 byte[] codes = ms.ToArray();
+                Database.AddEntry("CtorProxy", "Native", codes);
                 accessor.Codes.WriteBytes(codes);
                 accessor.SetCodePosition(accessor.Codebase + (uint)accessor.Codes.Position);
                 _txt.nativeRange.Length = (uint)codes.Length;

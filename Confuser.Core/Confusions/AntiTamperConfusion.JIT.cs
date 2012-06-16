@@ -50,6 +50,15 @@ namespace Confuser.Core.Confusions
                     while (fieldLayout[idx] != 0) idx = Confuser.Random.Next(0, 5);
                     fieldLayout[idx] = (byte)i;
                 }
+
+                Confuser.Database.AddEntry("AntiTamper", "Key0", key0);
+                Confuser.Database.AddEntry("AntiTamper", "Key1", key1);
+                Confuser.Database.AddEntry("AntiTamper", "Key2", key2);
+                Confuser.Database.AddEntry("AntiTamper", "Key3", key3);
+                Confuser.Database.AddEntry("AntiTamper", "Key4", key4);
+                Confuser.Database.AddEntry("AntiTamper", "SectName", sectName);
+                Confuser.Database.AddEntry("AntiTamper", "FieldLayout", fieldLayout);
+
                 bodies = new Dictionary<int, MethodBody>();
                 strings = new ByteBuffer();
                 finalDat = new ByteBuffer();
@@ -138,6 +147,8 @@ namespace Confuser.Core.Confusions
                         AddHelper(fldDef, HelperAttribute.NoInjection);
                     }
                 }
+
+                Confuser.Database.AddEntry("AntiTamper", "Helper", root.Name);
             }
 
             public void InitPhase2(ModuleDefinition mod)
@@ -444,12 +455,16 @@ namespace Confuser.Core.Confusions
                         mtdDats[mtdDat.Index] = mtdDat;
                         mtdDat.BufferOffset = finalDat.Position;
                         finalDat.WriteBytes(mtdDat.Serialize(fieldLayout));
+
+                        Confuser.Database.AddEntry("AntiTamper", (0x06000001 + mtdDat.Index).ToString(), mtdDat.BufferOffset);
                     }
                     else
                     {
                         StringData strDat = i as StringData;
                         strDat.BufferOffset = finalDat.Position;
                         finalDat.WriteBytes(strDat.Serialize());
+
+                        Confuser.Database.AddEntry("AntiTamper", strDat.String, strDat.BufferOffset);
                     }
                 }
 

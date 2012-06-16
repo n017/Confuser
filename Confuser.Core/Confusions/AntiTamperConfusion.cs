@@ -62,6 +62,8 @@ namespace Confuser.Core.Confusions
             public override void Process(ConfusionParameter parameter)
             {
                 IAntiTamper ver;
+
+                Confuser.Database.AddEntry("AntiTamper", "Type", parameter.GlobalParameters["type"] ?? "normal");
                 if (parameter.GlobalParameters["type"] == "jit")
                     ver = new JIT();
                 else

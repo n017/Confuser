@@ -44,6 +44,14 @@ namespace Confuser.Core.Confusions
                 key4 = BitConverter.ToInt32(dat, 20);
                 key5 = dat[24];
                 sectName = Convert.ToBase64String(MD5.Create().ComputeHash(dat)).Substring(0, 8);
+
+                Confuser.Database.AddEntry("AntiTamper", "Key0", key0);
+                Confuser.Database.AddEntry("AntiTamper", "Key1", key1);
+                Confuser.Database.AddEntry("AntiTamper", "Key2", key2);
+                Confuser.Database.AddEntry("AntiTamper", "Key3", key3);
+                Confuser.Database.AddEntry("AntiTamper", "Key4", key4);
+                Confuser.Database.AddEntry("AntiTamper", "Key5", key5);
+                Confuser.Database.AddEntry("AntiTamper", "SectName", sectName);
             }
 
             public void Phase1(ModuleDefinition mod)
@@ -89,6 +97,7 @@ namespace Confuser.Core.Confusions
                     mtdDef.Name = Confuser.ObfuscationHelper.GetRandomName();
                     AddHelper(mtdDef, HelperAttribute.NoInjection);
                 }
+                Confuser.Database.AddEntry("AntiTamper", "Helper", root.FullName);
             }
 
             public void InitPhase2(ModuleDefinition mod)
@@ -269,6 +278,7 @@ namespace Confuser.Core.Confusions
                 {
                     wtr.Write((int)(ptrs[i] ^ key4));
                     if (ptrs[i] == 0) continue;
+                    Confuser.Database.AddEntry("AntiTamper", rvas[i].ToString("X8"), ms.Position);
                     wtr.Write((int)(rvas[i] ^ key4));
                     wtr.Write(codes[i].Length);
                     wtr.Write(codes[i]);

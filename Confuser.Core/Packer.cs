@@ -31,6 +31,7 @@ namespace Confuser.Core
 
         protected ObfuscationHelper ObfuscationHelper { get { return cr.ObfuscationHelper; } }
         protected Random Random { get { return cr.Random; } }
+        protected ObfuscationDatabase Database { get { return cr.Database; } }
 
         internal protected virtual void ProcessModulePhase1(ModuleDefinition mod, bool isMain) { }
         internal protected virtual void ProcessModulePhase3(ModuleDefinition mod, bool isMain) { }

@@ -73,17 +73,26 @@ namespace Confuser.Core.Analyzers
                 {
                     TypeDefinition typeDef = typeRef.Resolve();
                     if (typeDef != null && ivts.Contains(typeDef.Module.Assembly.GetVersionName()))
+                    {
+                        Confuser.Database.AddEntry(DB_SRC, typeDef.FullName, string.Format("IVT ref @ {0} => Not renamed", asm.FullName));
                         (typeDef as IAnnotationProvider).Annotations[RenOk] = false;
+                    }
                 }
                 foreach (MemberReference memRef in mod.GetMemberReferences())
                 {
                     IMemberDefinition memDef;
                     if (memRef is MethodReference && (memDef = ((MethodReference)memRef).Resolve()) != null &&
                         ivts.Contains(((MethodDefinition)memDef).Module.Assembly.GetVersionName()))
+                    {
+                        Confuser.Database.AddEntry(DB_SRC, memDef.FullName, string.Format("IVT ref @ {0} => Not renamed", asm.FullName));
                         (memDef as IAnnotationProvider).Annotations[RenOk] = false;
+                    }
                     if (memRef is FieldReference && (memDef = ((FieldReference)memRef).Resolve()) != null &&
                         ivts.Contains(((FieldDefinition)memDef).Module.Assembly.GetVersionName()))
+                    {
+                        Confuser.Database.AddEntry(DB_SRC, memDef.FullName, string.Format("IVT ref @ {0} => Not renamed", asm.FullName));
                         (memDef as IAnnotationProvider).Annotations[RenOk] = false;
+                    }
                 }
             }
         }
