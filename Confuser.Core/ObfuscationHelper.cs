@@ -33,12 +33,17 @@ namespace Confuser.Core
         }
         public string GetNewName(string originalName, NameMode mode)
         {
+            string ret;
             switch (mode)
             {
-                case NameMode.Unreadable: return RenameUnreadable(originalName);
-                case NameMode.ASCII: return RenameASCII(originalName);
-                case NameMode.Letters: return RenameLetters(originalName);
-            } throw new InvalidOperationException();
+                case NameMode.Unreadable: ret = RenameUnreadable(originalName); break;
+                case NameMode.ASCII: ret = RenameASCII(originalName); break;
+                case NameMode.Letters: ret = RenameLetters(originalName); break;
+                default: throw new InvalidOperationException();
+            }
+            if (cr != null)
+                cr.Database.AddEntry("Rename", originalName, ret);
+            return ret;
         }
 
         public string GetRandomString()

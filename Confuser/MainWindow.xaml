@@ -4,6 +4,14 @@
     xmlns:local="clr-namespace:Confuser" AllowDrop="True"
     WindowStyle="None" AllowsTransparency="True" Background="Transparent">
 
+    <Window.Resources>
+        <ContextMenu x:Key="dropMenu">
+            <MenuItem Header="Confuser database viewer..."/>
+            <MenuItem Header="Stack trace decoder..."/>
+            <MenuItem Header="About..."/>
+        </ContextMenu>
+    </Window.Resources>
+    
     <Border x:Name="Chrome" CornerRadius="0">
         <Grid>
             <Rectangle StrokeThickness="2">
@@ -46,6 +54,10 @@
                                     Margin="1" Padding="1" Click="Save_Click" ToolTip="Save project">
                                 <local:Bitmap Source="{StaticResource save}"/>
                             </Button>
+                            <Button VerticalAlignment="Top" Focusable="False" Background="Transparent" BorderBrush="Transparent" 
+                                    Margin="0,2,0,0" Click="Drop_Click" x:Name="drop">
+                                <Path Data="M 0,6 L 6,6 L 3,12 Z" Fill="#FFFFFF" Stroke="#BBBBBB"/>
+                            </Button>
                         </StackPanel>
                     </Border>
                 </DockPanel>
@@ -53,12 +65,13 @@
                     <Path Data="M 1,2 L 3,2 7.5,6.5 12,2 14,2 8.5,7.5 14,13 12,13 7.5,8.5 3,13 1,13 6.5,7.5 Z" Fill="#BBFFFFFF"/>
                 </Button>
                 <TabControl x:Name="Tab" Margin="5,25,5,5" PreviewMouseLeftButtonDown="Tab_MouseDown" 
-                            Focusable="False" Padding="80,2,2,0" SelectionChanged="Tab_SelectionChanged">
+                            Focusable="False" Padding="90,2,2,0" SelectionChanged="Tab_SelectionChanged">
                     <TabControl.ItemContainerStyle>
                         <Style TargetType="{x:Type TabItem}" BasedOn="{StaticResource {x:Type TabItem}}">
                             <Setter Property="Focusable" Value="False"/>
                             <Setter Property="Width" Value="{Binding RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type TabControl}}, Converter={x:Static local:TabSizeConverter.Instance}}"/>
                             <Setter Property="Header" Value="{Binding Title}"/>
+                            <Setter Property="FontSize" Value="12"/>
                         </Style>
                     </TabControl.ItemContainerStyle>
                 </TabControl>

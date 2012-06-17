@@ -230,9 +230,9 @@ namespace Confuser.Core
 
                 this.param = param;
                 param.Logger._BeginPhase("Initializing...");
-                string t = DateTime.Now.ToShortTimeString();
+                var t = DateTime.Now;
                 Database.AddEntry("Project", "Start", t);
-                Log("Started at " + t + ".");
+                Log("Started at " + t.ToShortTimeString() + ".");
                 Log("Loading...");
 
                 System.Reflection.StrongNameKeyPair sn;
@@ -312,9 +312,9 @@ namespace Confuser.Core
                 db.Module("");
                 Finalize(mods.ToArray(), pes.ToArray(), syms.ToArray());
 
-                t = DateTime.Now.ToShortTimeString();
+                t = DateTime.Now;
                 Database.AddEntry("Project", "End", t);
-                param.Logger._Finish("Ended at " + t + ".");
+                param.Logger._Finish("Ended at " + t.ToShortTimeString() + ".");
 
                 //Ya, finally done it. Now save the db
                 using (BinaryWriter wtr = new BinaryWriter(File.OpenWrite(Path.Combine(param.Project.OutputPath, "report.crdb"))))
@@ -559,7 +559,7 @@ namespace Confuser.Core
                 seed = param.Project.Seed.GetHashCode();
             helper = new ObfuscationHelper(this, seed);
             random = new Random(seed);
-            Database.AddEntry("Project", "Seed", seed.ToString());
+            Database.AddEntry("Project", "Seed", seed);
             Database.AddEntry("Project", "Debug", param.Project.Debug);
 
             Log(string.Format("Analyzing assemblies..."));

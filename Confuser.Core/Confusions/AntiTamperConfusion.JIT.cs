@@ -456,7 +456,7 @@ namespace Confuser.Core.Confusions
                         mtdDat.BufferOffset = finalDat.Position;
                         finalDat.WriteBytes(mtdDat.Serialize(fieldLayout));
 
-                        Confuser.Database.AddEntry("AntiTamper", (0x06000001 + mtdDat.Index).ToString(), mtdDat.BufferOffset);
+                        Confuser.Database.AddEntry("AntiTamper", (0x06000001 + mtdDat.Index).ToString("X"), mtdDat.BufferOffset);
                     }
                     else
                     {

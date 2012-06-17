@@ -225,7 +225,7 @@ namespace Confuser.Core.Confusions
                         conster.key2 = rand.Next();
                         conster.key3 = rand.Next();
                         conster.conster = mtd;
-                        Database.AddEntry("Const", mtd.FullName, string.Format("{0}, {1}, {2}, {3}", conster.key0, conster.key1, conster.key2, conster.key3));
+                        Database.AddEntry("Const", mtd.FullName, string.Format("{0:X}, {1:X}, {2:X}, {3:X}", conster.key0, conster.key1, conster.key2, conster.key3));
 
                         mtd.Body.SimplifyMacros();
                         foreach (Instruction inst in mtd.Body.Instructions)
@@ -497,7 +497,7 @@ namespace Confuser.Core.Confusions
                         Buffer.BlockCopy(BitConverter.GetBytes(len ^ txt.key), 0, final, 0, 4);
                         txt.dats.Add(new Data() { Dat = final, Type = t });
                         txt.dict[val] = txt.idx;
-                        Database.AddEntry("Const", val.ToString(), string.Format("{0}, {1}, {2}", txts[i].a, txts[i].b, txt.idx));
+                        Database.AddEntry("Const", val.ToString(), string.Format("{0:X}, {1:X}, {2:X}", txts[i].a, txts[i].b, txt.idx));
 
 
                         txt.idx += final.Length + 5;
@@ -570,7 +570,7 @@ namespace Confuser.Core.Confusions
 
                         txt.dats.Add(new Data() { Dat = dat, Type = t });
                         txt.dict[val] = txt.idx;
-                        Database.AddEntry("Const", val.ToString(), string.Format("{0}, {1}, {2}", txts[i].a, txts[i].b, txt.idx));
+                        Database.AddEntry("Const", val.ToString(), string.Format("{0:X}, {1:X}, {2:X}", txts[i].a, txts[i].b, txt.idx));
                         txt.idx += dat.Length + 5;
                     }
                 }

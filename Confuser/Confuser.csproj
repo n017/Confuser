@@ -101,6 +101,12 @@
     <Compile Include="AsmSelector\Namespace.cs" />
     <Compile Include="AsmSelector\Texter.cs" />
     <Compile Include="ConfuserTab.cs" />
+    <Compile Include="Decoder.xaml.cs">
+      <DependentUpon>Decoder.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Database.xaml.cs">
+      <DependentUpon>Database.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Progress.xaml.cs">
       <DependentUpon>Progress.xaml</DependentUpon>
     </Compile>
@@ -184,7 +190,15 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="Decoder.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Page Include="Darkness.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Database.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
@@ -217,28 +231,28 @@
     <Resource Include="Themes\loading.png" />
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="AsmSelector\assembly.png" />
-    <EmbeddedResource Include="AsmSelector\constant.png" />
-    <EmbeddedResource Include="AsmSelector\constructor.png" />
-    <EmbeddedResource Include="AsmSelector\delegate.png" />
-    <EmbeddedResource Include="AsmSelector\enum.png" />
-    <EmbeddedResource Include="AsmSelector\event.png" />
-    <EmbeddedResource Include="AsmSelector\famasm.png" />
-    <EmbeddedResource Include="AsmSelector\field.png" />
-    <EmbeddedResource Include="AsmSelector\interface.png" />
-    <EmbeddedResource Include="AsmSelector\internal.png" />
-    <EmbeddedResource Include="AsmSelector\method.png" />
-    <EmbeddedResource Include="AsmSelector\module.png" />
-    <EmbeddedResource Include="AsmSelector\namespace.png" />
-    <EmbeddedResource Include="AsmSelector\omethod.png" />
-    <EmbeddedResource Include="AsmSelector\private.png" />
-    <EmbeddedResource Include="AsmSelector\property.png" />
-    <EmbeddedResource Include="AsmSelector\propget.png" />
-    <EmbeddedResource Include="AsmSelector\propset.png" />
-    <EmbeddedResource Include="AsmSelector\protected.png" />
-    <EmbeddedResource Include="AsmSelector\static.png" />
-    <EmbeddedResource Include="AsmSelector\type.png" />
-    <EmbeddedResource Include="AsmSelector\valuetype.png" />
+    <Resource Include="AsmSelector\assembly.png" />
+    <Resource Include="AsmSelector\constant.png" />
+    <Resource Include="AsmSelector\constructor.png" />
+    <Resource Include="AsmSelector\delegate.png" />
+    <Resource Include="AsmSelector\enum.png" />
+    <Resource Include="AsmSelector\event.png" />
+    <Resource Include="AsmSelector\famasm.png" />
+    <Resource Include="AsmSelector\field.png" />
+    <Resource Include="AsmSelector\interface.png" />
+    <Resource Include="AsmSelector\internal.png" />
+    <Resource Include="AsmSelector\method.png" />
+    <Resource Include="AsmSelector\module.png" />
+    <Resource Include="AsmSelector\namespace.png" />
+    <Resource Include="AsmSelector\omethod.png" />
+    <Resource Include="AsmSelector\private.png" />
+    <Resource Include="AsmSelector\property.png" />
+    <Resource Include="AsmSelector\propget.png" />
+    <Resource Include="AsmSelector\propset.png" />
+    <Resource Include="AsmSelector\protected.png" />
+    <Resource Include="AsmSelector\static.png" />
+    <Resource Include="AsmSelector\type.png" />
+    <Resource Include="AsmSelector\valuetype.png" />
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Themes\open.png" />

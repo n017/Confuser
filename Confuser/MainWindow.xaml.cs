@@ -38,6 +38,13 @@ namespace Confuser
             TabPanel panel = Tab.Template.FindName("HeaderPanel", Tab) as TabPanel;
             panel.SetBinding(TabPanel.IsEnabledProperty, new Binding() { Path = new PropertyPath(EnabledNavigationProperty), Source = this });
 
+            menu = FindResource("dropMenu") as ContextMenu;
+            menu.PlacementTarget = drop;
+            menu.Placement = PlacementMode.Bottom;
+            (menu.Items[0] as MenuItem).Click += DbViewer_Click;
+            (menu.Items[1] as MenuItem).Click += StackDecoder_Click;
+            (menu.Items[2] as MenuItem).Click += About_Click;
+
             IPage page;
 
             page = new Asms();
@@ -270,6 +277,24 @@ Stack Trace : {2}", ex.Message, ex.StackTrace), "Confuser", MessageBoxButton.OK,
                 Project.IsModified = false;
                 ProjectChanged(proj, new PropertyChangedEventArgs(""));
             }
+        }
+        ContextMenu menu;
+        private void Drop_Click(object sender, RoutedEventArgs e)
+        {
+            menu.IsOpen = true;
+        }
+
+        void DbViewer_Click(object sender, RoutedEventArgs e)
+        {
+            new Database().ShowDialog();
+        }
+        void StackDecoder_Click(object sender, RoutedEventArgs e)
+        {
+            new Decoder().ShowDialog();
+        }
+        void About_Click(object sender, RoutedEventArgs e)
+        {
+            MessageBox.Show(VerStr + " developed by Ki!", "Confuser", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         protected override void OnClosing(CancelEventArgs e)

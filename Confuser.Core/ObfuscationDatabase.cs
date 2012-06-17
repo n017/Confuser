@@ -19,7 +19,28 @@ namespace Confuser.Core
             List<Tuple<string, string>> tbl;
             if (!TryGetValue(table, out tbl))
                 tbl = this[table] = new List<Tuple<string, string>>();
-            tbl.Add(new Tuple<string, string>(name, value is byte[] ? GetString((byte[])value) : value.ToString()));
+            if (value is byte[])
+                tbl.Add(new Tuple<string, string>(name, GetString((byte[])value)));
+            else if (value is sbyte)
+                tbl.Add(new Tuple<string, string>(name, ((sbyte)value).ToString("X")));
+            else if (value is byte)
+                tbl.Add(new Tuple<string, string>(name, ((byte)value).ToString("X")));
+            else if (value is short)
+                tbl.Add(new Tuple<string, string>(name, ((short)value).ToString("X")));
+            else if (value is ushort)
+                tbl.Add(new Tuple<string, string>(name, ((ushort)value).ToString("X")));
+            else if (value is int)
+                tbl.Add(new Tuple<string, string>(name, ((int)value).ToString("X")));
+            else if (value is uint)
+                tbl.Add(new Tuple<string, string>(name, ((uint)value).ToString("X")));
+            else if (value is long)
+                tbl.Add(new Tuple<string, string>(name, ((long)value).ToString("X")));
+            else if (value is ulong)
+                tbl.Add(new Tuple<string, string>(name, ((ulong)value).ToString("X")));
+            else if (value is DateTime)
+                tbl.Add(new Tuple<string, string>(name, ((DateTime)value).ToString()));
+            else
+                tbl.Add(new Tuple<string, string>(name, value.ToString()));
         }
 
         public void Serialize(BinaryWriter wtr)

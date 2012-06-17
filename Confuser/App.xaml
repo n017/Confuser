@@ -17,6 +17,30 @@
             <BitmapSource x:Key="new">Themes\new.png</BitmapSource>
             <BitmapSource x:Key="open">Themes\open.png</BitmapSource>
             <BitmapSource x:Key="save">Themes\save.png</BitmapSource>
+            
+            <BitmapSource x:Key="assembly">AsmSelector\assembly.png</BitmapSource>
+            <BitmapSource x:Key="constant">AsmSelector\constant.png</BitmapSource>
+            <BitmapSource x:Key="constructor">AsmSelector\constructor.png</BitmapSource>
+            <BitmapSource x:Key="delegate">AsmSelector\delegate.png</BitmapSource>
+            <BitmapSource x:Key="enum">AsmSelector\enum.png</BitmapSource>
+            <BitmapSource x:Key="event">AsmSelector\event.png</BitmapSource>
+            <BitmapSource x:Key="famasm">AsmSelector\famasm.png</BitmapSource>
+            <BitmapSource x:Key="field">AsmSelector\field.png</BitmapSource>
+            <BitmapSource x:Key="interface">AsmSelector\interface.png</BitmapSource>
+            <BitmapSource x:Key="internal">AsmSelector\internal.png</BitmapSource>
+            <BitmapSource x:Key="method">AsmSelector\method.png</BitmapSource>
+            <BitmapSource x:Key="module">AsmSelector\module.png</BitmapSource>
+            <BitmapSource x:Key="namespace">AsmSelector\namespace.png</BitmapSource>
+            <BitmapSource x:Key="omethod">AsmSelector\omethod.png</BitmapSource>
+            <BitmapSource x:Key="private">AsmSelector\private.png</BitmapSource>
+            <BitmapSource x:Key="property">AsmSelector\property.png</BitmapSource>
+            <BitmapSource x:Key="propget">AsmSelector\propget.png</BitmapSource>
+            <BitmapSource x:Key="propset">AsmSelector\propset.png</BitmapSource>
+            <BitmapSource x:Key="protected">AsmSelector\protected.png</BitmapSource>
+            <BitmapSource x:Key="static">AsmSelector\static.png</BitmapSource>
+            <BitmapSource x:Key="type">AsmSelector\type.png</BitmapSource>
+            <BitmapSource x:Key="valuetype">AsmSelector\valuetype.png</BitmapSource>
+
             <Canvas x:Key="info" x:Shared="False" Width="48" Height="48" ClipToBounds="False">
                 <Canvas.Resources>
                     <LinearGradientBrush x:Key="linearGradient4873" MappingMode="RelativeToBoundingBox" StartPoint="0,0" EndPoint="1,1">

@@ -17,16 +17,7 @@ namespace Confuser.AsmSelector
         {
             if (res.ContainsKey(name)) return res[name] as T;
 
-            Stream stream = typeof(IconRenderer).Assembly.GetManifestResourceStream("Confuser.AsmSelector." + name);
-            T ret;
-            if (typeof(T) == typeof(Stream))
-                ret = stream as T;
-            else if (typeof(T) == typeof(string))
-                ret = new StreamReader(stream).ReadToEnd() as T;
-            else if (typeof(T) == typeof(BitmapSource))
-                ret = BitmapDecoder.Create(stream, 0, 0).Frames[0] as T;
-            else
-                throw new NotSupportedException();
+            T ret = App.Current.FindResource(name) as T;
             res[name] = ret;
             return ret;
         }
@@ -167,41 +158,41 @@ namespace Confuser.AsmSelector
             ImageSource vis = null;
             if (obj is AssemblyDefinition || obj is AssemblyNameReference)
             {
-                ico = GetResource<BitmapSource>("assembly.png");
+                ico = GetResource<BitmapSource>("assembly");
             }
             else if (obj is ModuleReference)
             {
-                ico = GetResource<BitmapSource>("module.png");
+                ico = GetResource<BitmapSource>("module");
             }
             else if (obj is Resource)
             {
-                ico = GetResource<BitmapSource>("file.png");
+                ico = GetResource<BitmapSource>("file");
             }
             else if (obj is Namespace)
             {
-                ico = GetResource<BitmapSource>("namespace.png");
+                ico = GetResource<BitmapSource>("namespace");
             }
             else if (obj is TypeDefinition)
             {
                 TypeDefinition typeDef = (TypeDefinition)obj;
-                ico = GetResource<BitmapSource>("type.png");
+                ico = GetResource<BitmapSource>("type");
                 if (typeDef.IsInterface)
                 {
-                    ico = GetResource<BitmapSource>("interface.png");
+                    ico = GetResource<BitmapSource>("interface");
                 }
                 else if (typeDef.BaseType != null)
                 {
                     if (typeDef.IsEnum)
                     {
-                        ico = GetResource<BitmapSource>("enum.png");
+                        ico = GetResource<BitmapSource>("enum");
                     }
                     else if (typeDef.IsValueType && !typeDef.IsAbstract)
                     {
-                        ico = GetResource<BitmapSource>("valuetype.png");
+                        ico = GetResource<BitmapSource>("valuetype");
                     }
                     else if (IsDelegate(typeDef))
                     {
-                        ico = GetResource<BitmapSource>("delegate.png");
+                        ico = GetResource<BitmapSource>("delegate");
                     }
                 }
                 switch (typeDef.Attributes & TypeAttributes.VisibilityMask)
@@ -209,54 +200,54 @@ namespace Confuser.AsmSelector
                     case TypeAttributes.NotPublic:
                     case TypeAttributes.NestedAssembly:
                     case TypeAttributes.NestedFamANDAssem:
-                        vis = GetResource<BitmapSource>("internal.png");
+                        vis = GetResource<BitmapSource>("internal");
                         break;
                     case TypeAttributes.Public:
                     case TypeAttributes.NestedPublic:
                         vis = null;
                         break;
                     case TypeAttributes.NestedPrivate:
-                        vis = GetResource<BitmapSource>("private.png");
+                        vis = GetResource<BitmapSource>("private");
                         break;
                     case TypeAttributes.NestedFamily:
-                        vis = GetResource<BitmapSource>("protected.png");
+                        vis = GetResource<BitmapSource>("protected");
                         break;
                     case TypeAttributes.NestedFamORAssem:
-                        vis = GetResource<BitmapSource>("famasm.png");
+                        vis = GetResource<BitmapSource>("famasm");
                         break;
                 }
             }
             else if (obj is TypeReference)
             {
-                ico = GetResource<BitmapSource>("type.png");
+                ico = GetResource<BitmapSource>("type");
             }
             else if (obj is FieldDefinition)
             {
                 FieldDefinition field = (FieldDefinition)obj;
-                ico = GetResource<BitmapSource>("field.png");
+                ico = GetResource<BitmapSource>("field");
                 if (field.IsStatic)
                 {
                     if (field.DeclaringType.IsEnum)
-                        ico = GetResource<BitmapSource>("constant.png");
+                        ico = GetResource<BitmapSource>("constant");
                     else
-                        ovr = GetResource<BitmapSource>("static.png");
+                        ovr = GetResource<BitmapSource>("static");
                 }
 
                 switch (field.Attributes & FieldAttributes.FieldAccessMask)
                 {
                     case FieldAttributes.CompilerControlled:
                     case FieldAttributes.Private:
-                        vis = GetResource<BitmapSource>("private.png");
+                        vis = GetResource<BitmapSource>("private");
                         break;
                     case FieldAttributes.FamANDAssem:
                     case FieldAttributes.Assembly:
-                        vis = GetResource<BitmapSource>("internal.png");
+                        vis = GetResource<BitmapSource>("internal");
                         break;
                     case FieldAttributes.Family:
-                        vis = GetResource<BitmapSource>("protected.png");
+                        vis = GetResource<BitmapSource>("protected");
                         break;
                     case FieldAttributes.FamORAssem:
-                        vis = GetResource<BitmapSource>("famasm.png");
+                        vis = GetResource<BitmapSource>("famasm");
                         break;
                     case FieldAttributes.Public:
                         vis = null;
@@ -265,42 +256,42 @@ namespace Confuser.AsmSelector
             }
             else if (obj is FieldReference)
             {
-                ico = GetResource<BitmapSource>("field.png");
+                ico = GetResource<BitmapSource>("field");
             }
             else if (obj is MethodDefinition)
             {
-                ico = GetResource<BitmapSource>("method.png");
+                ico = GetResource<BitmapSource>("method");
                 if (!((obj as MethodReference).DeclaringType is ArrayType))
                 {
                     MethodDefinition method = (MethodDefinition)obj;
                     string name = method.Name;
                     if ((name == ".ctor") || (name == ".cctor"))
                     {
-                        ico = GetResource<BitmapSource>("constructor.png");
+                        ico = GetResource<BitmapSource>("constructor");
                     }
                     else if (method.IsVirtual && !method.IsAbstract)
                     {
-                        ico = GetResource<BitmapSource>("omethod.png");
+                        ico = GetResource<BitmapSource>("omethod");
                     }
                     if (method.IsStatic)
                     {
-                        ovr = GetResource<BitmapSource>("static.png");
+                        ovr = GetResource<BitmapSource>("static");
                     }
                     switch (method.Attributes & MethodAttributes.MemberAccessMask)
                     {
                         case MethodAttributes.CompilerControlled:
                         case MethodAttributes.Private:
-                            vis = GetResource<BitmapSource>("private.png");
+                            vis = GetResource<BitmapSource>("private");
                             break;
                         case MethodAttributes.FamANDAssem:
                         case MethodAttributes.Assembly:
-                            vis = GetResource<BitmapSource>("internal.png");
+                            vis = GetResource<BitmapSource>("internal");
                             break;
                         case MethodAttributes.Family:
-                            vis = GetResource<BitmapSource>("protected.png");
+                            vis = GetResource<BitmapSource>("protected");
                             break;
                         case MethodAttributes.FamORAssem:
-                            vis = GetResource<BitmapSource>("famasm.png");
+                            vis = GetResource<BitmapSource>("famasm");
                             break;
                         case MethodAttributes.Public:
                             vis = null;
@@ -310,7 +301,7 @@ namespace Confuser.AsmSelector
             }
             else if (obj is MethodReference)
             {
-                ico = GetResource<BitmapSource>("method.png");
+                ico = GetResource<BitmapSource>("method");
             }
             else if (obj is PropertyDefinition)
             {
@@ -319,34 +310,34 @@ namespace Confuser.AsmSelector
                 MethodDefinition getDecl = (getMethod == null) ? null : getMethod.Resolve();
                 MethodReference setMethod = prop.SetMethod;
                 MethodDefinition setDecl = (setMethod == null) ? null : setMethod.Resolve();
-                ico = GetResource<BitmapSource>("property.png");
+                ico = GetResource<BitmapSource>("property");
                 if (getDecl != null && setDecl == null)
                 {
-                    ico = GetResource<BitmapSource>("propget.png");
+                    ico = GetResource<BitmapSource>("propget");
                 }
                 else if (setDecl != null && getDecl == null)
                 {
-                    ico = GetResource<BitmapSource>("propset.png");
+                    ico = GetResource<BitmapSource>("propset");
                 }
                 if (IsStatic(prop))
                 {
-                    ovr = GetResource<BitmapSource>("static.png");
+                    ovr = GetResource<BitmapSource>("static");
                 }
                 switch (GetPropVisibility(prop))
                 {
                     case MethodAttributes.CompilerControlled:
                     case MethodAttributes.Private:
-                        vis = GetResource<BitmapSource>("private.png");
+                        vis = GetResource<BitmapSource>("private");
                         break;
                     case MethodAttributes.FamANDAssem:
                     case MethodAttributes.Assembly:
-                        vis = GetResource<BitmapSource>("internal.png");
+                        vis = GetResource<BitmapSource>("internal");
                         break;
                     case MethodAttributes.Family:
-                        vis = GetResource<BitmapSource>("protected.png");
+                        vis = GetResource<BitmapSource>("protected");
                         break;
                     case MethodAttributes.FamORAssem:
-                        vis = GetResource<BitmapSource>("famasm.png");
+                        vis = GetResource<BitmapSource>("famasm");
                         break;
                     case MethodAttributes.Public:
                         vis = null;
@@ -355,30 +346,30 @@ namespace Confuser.AsmSelector
             }
             else if (obj is PropertyReference)
             {
-                ico = GetResource<BitmapSource>("property.png");
+                ico = GetResource<BitmapSource>("property");
             }
             else if (obj is EventDefinition)
             {
-                ico = GetResource<BitmapSource>("event.png");
+                ico = GetResource<BitmapSource>("event");
                 if (IsStatic(obj as EventReference))
                 {
-                    ovr = GetResource<BitmapSource>("static.png");
+                    ovr = GetResource<BitmapSource>("static");
                 }
                 switch (GetEvtVisibility(obj as EventReference))
                 {
                     case MethodAttributes.CompilerControlled:
                     case MethodAttributes.Private:
-                        vis = GetResource<BitmapSource>("private.png");
+                        vis = GetResource<BitmapSource>("private");
                         break;
                     case MethodAttributes.FamANDAssem:
                     case MethodAttributes.Assembly:
-                        vis = GetResource<BitmapSource>("internal.png");
+                        vis = GetResource<BitmapSource>("internal");
                         break;
                     case MethodAttributes.Family:
-                        vis = GetResource<BitmapSource>("protected.png");
+                        vis = GetResource<BitmapSource>("protected");
                         break;
                     case MethodAttributes.FamORAssem:
-                        vis = GetResource<BitmapSource>("famasm.png");
+                        vis = GetResource<BitmapSource>("famasm");
                         break;
                     case MethodAttributes.Public:
                         vis = null;
@@ -387,7 +378,7 @@ namespace Confuser.AsmSelector
             }
             else if (obj is EventReference)
             {
-                ico = GetResource<BitmapSource>("event.png");
+                ico = GetResource<BitmapSource>("event");
             }
             else
                 throw new NotSupportedException();

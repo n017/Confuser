@@ -127,7 +127,7 @@ namespace Confuser.Core.Confusions
                         onlyExternal = true;
                     }
                 }
-                Database.AddEntry("MtdProxy", "OnlyExternal", onlyExternal);
+                Database.AddEntry("CtorProxy", "OnlyExternal", onlyExternal);
 
                 IList<Tuple<IAnnotationProvider, NameValueCollection>> targets = parameter.Target as IList<Tuple<IAnnotationProvider, NameValueCollection>>;
                 for (int i = 0; i < targets.Count; i++)
@@ -213,7 +213,7 @@ namespace Confuser.Core.Confusions
                     txt.dele.Methods.Add(invoke);
                     _txt.delegates.Add(sign, txt.dele);
 
-                    Database.AddEntry("MtdProxy", GetSignature(MtdRef), txt.dele.FullName);
+                    Database.AddEntry("CtorProxy", GetSignature(MtdRef), txt.dele.FullName);
                 }
                 _txt.txts.Add(txt);
             }
