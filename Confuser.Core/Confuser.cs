@@ -466,7 +466,7 @@ namespace Confuser.Core
             settings = mkrSettings.Assemblies.ToList();
 
             var mainAsm = settings.SingleOrDefault(_ => _.IsMain);
-            if (mkrSettings.Packer != null && mainAsm.Assembly != null && (
+            if (mkrSettings.Packer != null && (mainAsm.Assembly == null ||
                 mainAsm.Assembly.MainModule.Kind == ModuleKind.Dll ||
                 mainAsm.Assembly.MainModule.Kind == ModuleKind.NetModule))
             {
