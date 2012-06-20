@@ -53,13 +53,14 @@ namespace Confuser.Core.Confusions
                 TypeDefinition modType = mod.GetType("<Module>");
 
                 AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(Iid).Assembly.Location);
+                i.MainModule.ReadSymbols();
                 txt.reso = i.MainModule.GetType("Encryptions").Methods.FirstOrDefault(mtd => mtd.Name == "Resources");
                 txt.reso = CecilHelper.Inject(mod, txt.reso);
                 modType.Methods.Add(txt.reso);
                 txt.reso.Name = ObfuscationHelper.GetRandomName();
                 txt.reso.IsAssembly = true;
                 AddHelper(txt.reso, HelperAttribute.NoInjection);
-                Database.AddEntry("AntiDump", "Resolver", txt.reso.FullName);
+                Database.AddEntry("ResEncrypt", "Resolver", txt.reso.FullName);
 
                 FieldDefinition datAsm = new FieldDefinition(
                     ObfuscationHelper.GetRandomName(),
@@ -67,18 +68,18 @@ namespace Confuser.Core.Confusions
                     mod.Import(typeof(System.Reflection.Assembly)));
                 modType.Fields.Add(datAsm);
                 AddHelper(datAsm, HelperAttribute.NoInjection);
-                Database.AddEntry("AntiDump", "Store", datAsm.FullName);
+                Database.AddEntry("ResEncrypt", "Store", datAsm.FullName);
 
                 txt.key0 = (byte)Random.Next(0, 0x100);
                 do
                 {
                     txt.key1 = (byte)Random.Next(0, 0x100);
                 } while (txt.key1 != 0);
-                Database.AddEntry("AntiDump", "Key0", txt.key0);
-                Database.AddEntry("AntiDump", "Key1", txt.key1);
+                Database.AddEntry("ResEncrypt", "Key0", txt.key0);
+                Database.AddEntry("ResEncrypt", "Key1", txt.key1);
 
                 txt.resId = ObfuscationHelper.GetRandomName();
-                Database.AddEntry("AntiDump", "ResID", txt.resId);
+                Database.AddEntry("ResEncrypt", "ResID", txt.resId);
                 txt.reso.Body.SimplifyMacros();
                 foreach (Instruction inst in txt.reso.Body.Instructions)
                 {
@@ -141,12 +142,14 @@ namespace Confuser.Core.Confusions
                     MemoryStream ms = new MemoryStream();
                     BinaryWriter wtr = new BinaryWriter(new DeflateStream(ms, CompressionMode.Compress, true));
 
-                    byte[] dat = Transform(GetAsm(mod.TimeStamp, txt.dats), txt.key0, txt.key1);
+                    byte[] dat = GetAsm(mod.TimeStamp, txt.dats);
                     wtr.Write(dat.Length);
                     wtr.Write(dat);
                     wtr.BaseStream.Dispose();
 
-                    mod.Resources.Add(new EmbeddedResource(txt.resId, ManifestResourceAttributes.Private, ms.ToArray()));
+                    dat = Transform(ms.ToArray(), txt.key0, txt.key1);
+
+                    mod.Resources.Add(new EmbeddedResource(txt.resId, ManifestResourceAttributes.Private, dat));
                 }
             }
             byte[] GetAsm(uint timestamp, List<KeyValuePair<string, byte[]>> dats)

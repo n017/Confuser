@@ -21,8 +21,6 @@ namespace Confuser
     /// </summary>
     public partial class MainWindow : Window, IHost
     {
-        UIElementAdorner adorner;
-
         static string VerStr;
         static MainWindow()
         {

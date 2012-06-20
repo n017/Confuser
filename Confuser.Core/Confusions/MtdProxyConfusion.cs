@@ -64,6 +64,7 @@ namespace Confuser.Core.Confusions
 
                 TypeDefinition modType = mod.GetType("<Module>");
                 AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(Iid).Assembly.Location);
+                i.MainModule.ReadSymbols();
                 txt.proxy = i.MainModule.GetType("Proxies").Methods.FirstOrDefault(mtd => mtd.Name == "MtdProxy");
                 txt.proxy = CecilHelper.Inject(mod, txt.proxy);
                 modType.Methods.Add(txt.proxy);
@@ -73,7 +74,7 @@ namespace Confuser.Core.Confusions
                 Database.AddEntry("MtdProxy", "Proxy", txt.proxy.FullName);
 
                 Instruction placeholder = null;
-                txt.key = Random.Next();
+                txt.key = (uint)Random.Next();
                 Database.AddEntry("MtdProxy", "Key", txt.key);
                 foreach (Instruction inst in txt.proxy.Body.Instructions)
                     if (inst.Operand is MethodReference && (inst.Operand as MethodReference).Name == "PlaceHolder")
@@ -109,7 +110,7 @@ namespace Confuser.Core.Confusions
                 else
                     CecilHelper.Replace(txt.proxy.Body, placeholder, new Instruction[]
                         {
-                            Instruction.Create(OpCodes.Ldc_I4, txt.key),
+                            Instruction.Create(OpCodes.Ldc_I4, (int)txt.key),
                             Instruction.Create(OpCodes.Xor)
                         });
             }
@@ -253,7 +254,7 @@ namespace Confuser.Core.Confusions
                 MethodDefinition bdge;
                 if (!_txt.bridges.TryGetValue(bridgeId, out bdge))
                 {
-                    bdge = new MethodDefinition(bridgeId, MethodAttributes.Static | MethodAttributes.Assembly, 
+                    bdge = new MethodDefinition(bridgeId, MethodAttributes.Static | MethodAttributes.Assembly,
                         mod.Import(txt.dele.Methods.Single(_ => _.Name == "Invoke").ReturnType));
                     if (txt.mtdRef.HasThis)
                     {
@@ -412,26 +413,41 @@ namespace Confuser.Core.Confusions
             public override void Process(NameValueCollection parameters, MetadataProcessor.MetadataAccessor accessor)
             {
                 _Context _txt = mc.txts[accessor.Module];
+                for (int i = 0; i < _txt.txts.Count; i++)
+                {
+                    int j = Random.Next(0, _txt.txts.Count);
+                    var tmp = _txt.txts[i];
+                    _txt.txts[i] = _txt.txts[j];
+                    _txt.txts[j] = tmp;
+                }
+
+                TypeDefinition typeDef = new TypeDefinition("", "", 0);
+
                 foreach (Context txt in _txt.txts)
                 {
+                    txt.token = accessor.LookupToken(txt.mtdRef);
                     if (txt.fld.Name[0] != '\0') continue;
-                    MetadataToken tkn = accessor.LookupToken(txt.mtdRef);
-                    byte[] dat = new byte[5];
-                    dat[0] = (byte)(txt.fld.Name[2] == '\r' ? 0x80 : 0);
-                    dat[0] |= (byte)((int)tkn.TokenType >> 24);
+                    txt.fld.Name = (txt.isVirt ? "\t" : " ") + "\n" + ObfuscationHelper.GetRandomName();
 
-                    if (_txt.isNative)
-                        Buffer.BlockCopy(BitConverter.GetBytes(ExpressionEvaluator.Evaluate(_txt.exp, (int)tkn.RID)), 0, dat, 1, 4);
-                    else
-                        Buffer.BlockCopy(BitConverter.GetBytes((int)tkn.RID ^ _txt.key), 0, dat, 1, 4);
+                    //Hack into cecil to generate diff sig for diff field -_-
+                    int pos = txt.fld.DeclaringType.Fields.IndexOf(txt.fld) + 1;
+                    while (typeDef.GenericParameters.Count < pos)
+                        typeDef.GenericParameters.Add(new GenericParameter(typeDef));
 
-                    string str = Convert.ToBase64String(dat);
-                    StringBuilder sb = new StringBuilder(str.Length);
-                    for (int i = 0; i < str.Length; i++)
-                        sb.Append((char)((byte)str[i] ^ i));
-                    txt.fld.Name = sb.ToString();
+                    txt.fld.FieldType = new GenericInstanceType(txt.fld.FieldType)
+                    {
+                        GenericArguments =
+                        {
+                            accessor.Module.TypeSystem.Object,
+                            accessor.Module.TypeSystem.Object,
+                            accessor.Module.TypeSystem.Object,
+                            accessor.Module.TypeSystem.Object,
+                            accessor.Module.TypeSystem.Object,
+                            typeDef.GenericParameters[pos - 1]
+                        }
+                    };
 
-                    Database.AddEntry("MtdProxy", (txt.fld.Name[2] == '\r' ? "callvirt " : "call ") + txt.mtdRef.FullName, txt.fld.Name);
+                    Database.AddEntry("MtdProxy", (txt.isVirt ? "callvirt " : "call ") + txt.mtdRef.FullName, txt.fld.Name);
                     Database.AddEntry("MtdProxy", txt.fld.Name, txt.inst.Operand.ToString());
                 }
                 if (!_txt.isNative) return;
@@ -501,6 +517,43 @@ namespace Confuser.Core.Confusions
             public override void Process(NameValueCollection parameters, MetadataProcessor.MetadataAccessor accessor)
             {
                 _Context txt = mc.txts[accessor.Module];
+
+                var fieldTbl = accessor.TableHeap.GetTable<FieldTable>(Table.Field);
+                foreach (var i in txt.txts)
+                {
+                    var fieldRow = fieldTbl[(int)i.fld.MetadataToken.RID - 1];
+
+                    TypeReference typeRef = i.fld.FieldType;
+                    accessor.BlobHeap.Position = (int)fieldRow.Col3;
+                    int len = (int)accessor.BlobHeap.ReadCompressedUInt32();
+                    int s = accessor.BlobHeap.Position;
+                    accessor.BlobHeap.WriteByte(0x6);
+                    accessor.BlobHeap.WriteByte((byte)(typeRef.IsValueType ? ElementType.ValueType : ElementType.Class));
+                    accessor.BlobHeap.WriteCompressedUInt32(CodedIndex.TypeDefOrRef.CompressMetadataToken(accessor.LookupToken(typeRef.GetElementType())));
+                    int l = len - (accessor.BlobHeap.Position - s);
+                    for (int z = 0; z < l; z++)
+                        accessor.BlobHeap.WriteByte(0);
+
+                    accessor.BlobHeap.Position = s + len - 8;
+                    byte[] b;
+                    if (txt.isNative)
+                        b = BitConverter.GetBytes(ExpressionEvaluator.Evaluate(txt.exp, (int)i.token.RID));
+                    else
+                        b = BitConverter.GetBytes(i.token.RID ^ txt.key);
+                    accessor.BlobHeap.WriteByte((byte)(((byte)Random.Next() & 0x3f) | 0xc0));
+                    accessor.BlobHeap.WriteByte((byte)((uint)i.token.TokenType >> 24));
+                    accessor.BlobHeap.WriteByte(b[0]);
+                    accessor.BlobHeap.WriteByte(b[1]);
+                    accessor.BlobHeap.WriteByte((byte)(((byte)Random.Next() & 0x3f) | 0xc0));
+                    accessor.BlobHeap.WriteByte(b[2]);
+                    accessor.BlobHeap.WriteByte(b[3]);
+                    accessor.BlobHeap.WriteByte(0);
+
+                    System.Diagnostics.Debug.Assert(accessor.BlobHeap.Position - (int)fieldRow.Col3 == len + 1);
+
+                    fieldTbl[(int)i.fld.MetadataToken.RID - 1] = fieldRow;
+                }
+
                 if (!txt.isNative) return;
 
                 var tbl = accessor.TableHeap.GetTable<MethodTable>(Table.Method);
@@ -577,7 +630,7 @@ namespace Confuser.Core.Confusions
             public Expression exp;
             public Expression invExp;
             public x86Visitor visitor;
-            public int key;
+            public uint key;
 
             public List<Context> txts;
             public TypeReference mcd;
@@ -586,7 +639,16 @@ namespace Confuser.Core.Confusions
             public TypeReference ptr;
         }
         Dictionary<ModuleDefinition, _Context> txts = new Dictionary<ModuleDefinition, _Context>();
-        private class Context { public MethodBody bdy; public bool isVirt; public Instruction inst; public FieldDefinition fld; public TypeDefinition dele; public MethodReference mtdRef;}
+        private class Context
+        {
+            public MethodBody bdy;
+            public bool isVirt;
+            public Instruction inst;
+            public FieldDefinition fld;
+            public TypeDefinition dele;
+            public MethodReference mtdRef;
+            public MetadataToken token;
+        }
 
         static ParameterDefinition Clone(string n, ParameterDefinition param)
         {

@@ -195,6 +195,8 @@ namespace Confuser.Core
         internal List<IConfusion> confusions;
         internal List<Packer> packers;
 
+        internal System.Reflection.StrongNameKeyPair sn;
+
         ConfuserAssemblyResolver resolver;
         ObfuscationHelper helper;
         Random random;
@@ -235,8 +237,7 @@ namespace Confuser.Core
                 Log("Started at " + t.ToShortTimeString() + ".");
                 Log("Loading...");
 
-                System.Reflection.StrongNameKeyPair sn;
-                Initialize(out sn);
+                Initialize();
 
                 List<Phase> phases = new List<Phase>();
                 foreach (IConfusion cion in confusions)
@@ -429,7 +430,7 @@ namespace Confuser.Core
             return BitConverter.ToString(arr).Replace("-", "").ToLower();
         }
 
-        void Initialize(out System.Reflection.StrongNameKeyPair sn)
+        void Initialize()
         {
             sn = null;
             if (string.IsNullOrEmpty(param.Project.SNKeyPath))

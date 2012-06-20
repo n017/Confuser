@@ -121,11 +121,15 @@ static class Proxies
     private static void CtorProxy(RuntimeFieldHandle f)
     {
         var fld = FieldInfo.GetFieldFromHandle(f);
-        char[] ch = new char[fld.Name.Length];
-        for (int i = 0; i < ch.Length; i++)
-            ch[i] = (char)((byte)fld.Name[i] ^ i);
-        byte[] dat = Convert.FromBase64String(new string(ch));
-        var mtd = fld.Module.ResolveMethod(PlaceHolder(BitConverter.ToInt32(dat, 0)) | (dat[4] << 24)) as ConstructorInfo;
+        byte[] dat = fld.Module.ResolveSignature(fld.MetadataToken);
+
+        uint x =
+            ((uint)dat[dat.Length - 6] << 0) |
+            ((uint)dat[dat.Length - 5] << 8) |
+            ((uint)dat[dat.Length - 3] << 16) |
+            ((uint)dat[dat.Length - 2] << 24);
+
+        var mtd = fld.Module.ResolveMethod(PlaceHolder((int)x) | ((int)dat[dat.Length - 7] << 24)) as ConstructorInfo;
 
         var args = mtd.GetParameters();
         Type[] arg = new Type[args.Length];
@@ -148,11 +152,15 @@ static class Proxies
     private static void MtdProxy(RuntimeFieldHandle f)
     {
         var fld = FieldInfo.GetFieldFromHandle(f);
-        char[] ch = new char[fld.Name.Length];
-        for (int i = 0; i < ch.Length; i++)
-            ch[i] = (char)((byte)fld.Name[i] ^ i);
-        byte[] dat = Convert.FromBase64String(new string(ch));
-        var mtd = fld.Module.ResolveMethod(PlaceHolder(BitConverter.ToInt32(dat, 1)) | ((dat[0] & 0x7f) << 24)) as MethodInfo;
+        byte[] dat = fld.Module.ResolveSignature(fld.MetadataToken);
+
+        uint x =
+            ((uint)dat[dat.Length - 6] << 0) |
+            ((uint)dat[dat.Length - 5] << 8) |
+            ((uint)dat[dat.Length - 3] << 16) |
+            ((uint)dat[dat.Length - 2] << 24);
+
+        var mtd = fld.Module.ResolveMethod(PlaceHolder((int)x) | ((int)dat[dat.Length - 7] << 24)) as MethodInfo;
 
         if (mtd.IsStatic)
             fld.SetValue(null, Delegate.CreateDelegate(fld.FieldType, mtd));
@@ -175,7 +183,7 @@ static class Proxies
                 gen.Emit(OpCodes.Ldarg, i);
                 if (i == 0) gen.Emit(OpCodes.Castclass, mtd.DeclaringType);
             }
-            gen.Emit((dat[0] & 0x80) != 0 ? OpCodes.Callvirt : OpCodes.Call, mtd);
+            gen.Emit(fld.Name[0] == '\t' ? OpCodes.Callvirt : OpCodes.Call, mtd);
             gen.Emit(OpCodes.Ret);
 
             fld.SetValue(null, dm.CreateDelegate(fld.FieldType));
@@ -191,15 +199,18 @@ static class Encryptions
         if (datAsm == null)
         {
             Stream str = typeof(Exception).Assembly.GetManifestResourceStream("PADDINGPADDINGPADDING");
-            using (BinaryReader rdr = new BinaryReader(new DeflateStream(str, CompressionMode.Decompress)))
+            byte[] dat = new byte[str.Length];
+            str.Read(dat, 0, dat.Length);
+            byte k = 0x11;
+            for (int i = 0; i < dat.Length; i++)
             {
-                byte[] dat = rdr.ReadBytes(rdr.ReadInt32());
-                byte k = 0x11;
-                for (int i = 0; i < dat.Length; i++)
-                {
-                    dat[i] = (byte)(dat[i] ^ k);
-                    k = (byte)((k * 0x22) % 0x100);
-                }
+                dat[i] = (byte)(dat[i] ^ k);
+                k = (byte)((k * 0x22) % 0x100);
+            }
+
+            using (BinaryReader rdr = new BinaryReader(new DeflateStream(new MemoryStream(dat), CompressionMode.Decompress)))
+            {
+                dat = rdr.ReadBytes(rdr.ReadInt32());
                 datAsm = System.Reflection.Assembly.Load(dat);
                 Buffer.BlockCopy(new byte[dat.Length], 0, dat, 0, dat.Length);
             }
@@ -329,188 +340,139 @@ static class Encryptions
     public static int PlaceHolder(int val) { return 0; }
 
     static Dictionary<uint, object> constTbl;
-    static Stream constStream;
+    static byte[] constBuffer;
     static void Initialize()
     {
         constTbl = new Dictionary<uint, object>();
-        constStream = new MemoryStream();
+        var s = new MemoryStream();
         Assembly asm = Assembly.GetExecutingAssembly();
-        DeflateStream str = new DeflateStream(asm.GetManifestResourceStream(Encoding.UTF8.GetString(BitConverter.GetBytes(0x12345678))), CompressionMode.Decompress);
+        var x = asm.GetManifestResourceStream(Encoding.UTF8.GetString(BitConverter.GetBytes(0x12345678)));
+
+        var method = MethodBase.GetCurrentMethod();
+        var key = method.Module.ResolveSignature((int)(0x33684543 ^ method.MetadataToken));
+
+        var str = new DeflateStream(new CryptoStream(x,
+            new RijndaelManaged().CreateDecryptor(key, MD5.Create().ComputeHash(key)), CryptoStreamMode.Read)
+            , CompressionMode.Decompress);
         {
             byte[] dat = new byte[0x1000];
             int read = str.Read(dat, 0, 0x1000);
             do
             {
-                constStream.Write(dat, 0, read);
+                s.Write(dat, 0, read);
                 read = str.Read(dat, 0, 0x1000);
             }
             while (read != 0);
         }
         str.Dispose();
-    }
-    static object Constants(uint a, uint b)
-    {
-        object ret;
-        var method = MethodBase.GetCurrentMethod();
-        uint x = (uint)(method.MetadataToken ^ (method.DeclaringType.MetadataToken * a));
-        uint h = 0x67452301 ^ x;
-        uint h1 = 0x3bd523a0;
-        uint h2 = 0x5f6f36c0;
-        for (uint i = 1; i <= 64; i++)
-        {
-            h = (h & 0x00ffffff) << 8 | ((h & 0xff000000) >> 24);
-            uint n = (h & 0xff) % 64;
-            if (n >= 0 && n < 16)
-            {
-                h1 |= (((h & 0x0000ff00) >> 8) & ((h & 0x00ff0000) >> 16)) ^ (~h & 0x000000ff);
-                h2 ^= (h * i + 1) % 16;
-                h += (h1 | h2) ^ 12345678;
-            }
-            else if (n >= 16 && n < 32)
-            {
-                h1 ^= ((h & 0x00ff00ff) << 8) ^ (((h & 0x00ffff00) >> 8) | (~h & 0x0000ffff));
-                h2 += (h * i) % 32;
-                h |= (h1 + ~h2) & 12345678;
-            }
-            else if (n >= 32 && n < 48)
-            {
-                h1 += ((h & 0x000000ff) | ((h & 0x00ff0000) >> 16)) + (~h & 0x000000ff);
-                h2 -= ~(h + n) % 48;
-                h ^= (h1 % h2) | 12345678;
-            }
-            else if (n >= 48 && n < 64)
-            {
-                h1 ^= (((h & 0x00ff0000) >> 16) | ~(h & 0x0000ff)) * (~h & 0x00ff0000);
-                h2 += (h ^ i - 1) % n;
-                h -= ~(h1 ^ h2) + 12345678;
-            }
-        }
-        uint pos = h ^ b;
-        if (!constTbl.TryGetValue(pos, out ret))
-        {
-            byte type;
-            byte[] bs;
-            lock (constStream)
-            {
-                BinaryReader rdr = new BinaryReader(constStream);
-                rdr.BaseStream.Seek(pos, SeekOrigin.Begin);
-                type = rdr.ReadByte();
-                bs = rdr.ReadBytes(rdr.ReadInt32());
-            }
 
-            byte[] f;
-            int len;
-            var key = Assembly.GetCallingAssembly().GetModule(method.Module.ScopeName).ResolveSignature((int)(0x263013d3 ^ method.MetadataToken));
-            using (BinaryReader r = new BinaryReader(new MemoryStream(bs)))
+        byte[] b = s.ToArray();
+        s = new MemoryStream();
+        using (BinaryWriter wtr = new BinaryWriter(s))
+        {
+            int i = 0;
+            while (i < b.Length)
             {
-                len = r.ReadInt32() ^ 0x57425674;
-                f = new byte[(len + 7) & ~7];
-                for (int i = 0; i < f.Length; i++)
+                int count = 0;
+                int shift = 0;
+                byte c;
+                do
                 {
-                    int count = 0;
-                    int shift = 0;
-                    byte c;
-                    do
-                    {
-                        c = r.ReadByte();
-                        count |= (c & 0x7F) << shift;
-                        shift += 7;
-                    } while ((c & 0x80) != 0);
+                    c = b[i++];
+                    count |= (c & 0x7F) << shift;
+                    shift += 7;
+                } while ((c & 0x80) != 0);
 
-                    count = PlaceHolder(count);
-                    f[i] = (byte)(count ^ key[i % 16]);
-                }
+                count = PlaceHolder(count);
+                wtr.Write((byte)count);
             }
-            if (type == 11)
-                ret = BitConverter.ToDouble(f, 0);
-            else if (type == 22)
-                ret = BitConverter.ToSingle(f, 0);
-            else if (type == 33)
-                ret = BitConverter.ToInt32(f, 0);
-            else if (type == 44)
-                ret = BitConverter.ToInt64(f, 0);
-            else if (type == 55)
-                ret = Encoding.UTF8.GetString(f, 0, len);
-            constTbl[pos] = ret;
         }
-        return ret;
+
+        constBuffer = s.ToArray();
     }
-    static object SafeConstants(uint a, uint b)
+    static void InitializeSafe()
+    {
+        constTbl = new Dictionary<uint, object>();
+        var s = new MemoryStream();
+        Assembly asm = Assembly.GetExecutingAssembly();
+        var x = asm.GetManifestResourceStream(Encoding.UTF8.GetString(BitConverter.GetBytes(0x12345678)));
+        byte[] buff = new byte[x.Length];
+        x.Read(buff, 0, buff.Length);
+
+        var method = MethodBase.GetCurrentMethod();
+        var key = method.Module.ResolveSignature((int)(0x33684543 ^ method.MetadataToken));
+
+        uint seed = BitConverter.ToUInt32(key, 0xc) * 0x12345678;
+        ushort _m = (ushort)(seed >> 16);
+        ushort _c = (ushort)(seed & 0xffff);
+        ushort m = _c; ushort c = _m;
+        for (int i = 0; i < buff.Length; i++)
+        {
+            buff[i] ^= (byte)((seed * m + c) % 0x100);
+            m = (ushort)((seed * m + _m) % 0x10000);
+            c = (ushort)((seed * c + _c) % 0x10000);
+        }
+
+        var str = new DeflateStream(new CryptoStream(new MemoryStream(buff),
+            new RijndaelManaged().CreateDecryptor(key, MD5.Create().ComputeHash(key)), CryptoStreamMode.Read)
+            , CompressionMode.Decompress);
+        {
+            byte[] dat = new byte[0x1000];
+            int read = str.Read(dat, 0, 0x1000);
+            do
+            {
+                s.Write(dat, 0, read);
+                read = str.Read(dat, 0, 0x1000);
+            }
+            while (read != 0);
+        }
+        str.Dispose();
+
+        constBuffer = s.ToArray();
+    }
+    static T Constants<T>(uint a, ulong b)
     {
         object ret;
-        var method = MethodBase.GetCurrentMethod();
-        uint x = (uint)(method.MetadataToken ^ (method.DeclaringType.MetadataToken * a));
-        uint h = 0x67452301 ^ x;
-        uint h1 = 0x3bd523a0;
-        uint h2 = 0x5f6f36c0;
-        for (uint i = 1; i <= 64; i++)
+        uint x = (uint)(typeof(Encryptions).MetadataToken * a);
+        ulong h = 0x67452301 ^ x;
+        ulong h1 = 0x3bd523a0;
+        ulong h2 = 0x5f6f36c0;
+        h1 = h1 * h;
+        h2 = h2 * h;
+        h = h * h;
+
+        ulong hash = 0xCBF29CE484222325;
+        while (h != 0)
         {
-            h = (h & 0x00ffffff) << 8 | ((h & 0xff000000) >> 24);
-            uint n = (h & 0xff) % 64;
-            if (n >= 0 && n < 16)
-            {
-                h1 |= (((h & 0x0000ff00) >> 8) & ((h & 0x00ff0000) >> 16)) ^ (~h & 0x000000ff);
-                h2 ^= (h * i + 1) % 16;
-                h += (h1 | h2) ^ 12345678;
-            }
-            else if (n >= 16 && n < 32)
-            {
-                h1 ^= ((h & 0x00ff00ff) << 8) ^ (((h & 0x00ffff00) >> 8) | (~h & 0x0000ffff));
-                h2 += (h * i) % 32;
-                h |= (h1 + ~h2) & 12345678;
-            }
-            else if (n >= 32 && n < 48)
-            {
-                h1 += ((h & 0x000000ff) | ((h & 0x00ff0000) >> 16)) + (~h & 0x000000ff);
-                h2 -= ~(h + n) % 48;
-                h ^= (h1 % h2) | 12345678;
-            }
-            else if (n >= 48 && n < 64)
-            {
-                h1 ^= (((h & 0x00ff0000) >> 16) | ~(h & 0x0000ff)) * (~h & 0x00ff0000);
-                h2 += (h ^ i - 1) % n;
-                h -= ~(h1 ^ h2) + 12345678;
-            }
+            hash *= 0x100000001B3;
+            hash = (hash ^ h) + (h1 ^ h2) * 12345678;
+            h1 *= 0x811C9DC5;
+            h2 *= 0xA2CEBAB2;
+            h >>= 8;
         }
-        uint pos = h ^ b;
+        ulong dat = hash ^ b;
+        uint pos = (uint)(dat >> 32);
+        uint len = (uint)dat;
         if (!constTbl.TryGetValue(pos, out ret))
         {
-            byte type;
-            byte[] f;
-            lock (constStream)
-            {
-                BinaryReader rdr = new BinaryReader(constStream);
-                rdr.BaseStream.Seek(pos, SeekOrigin.Begin);
-                type = rdr.ReadByte();
-                f = rdr.ReadBytes(rdr.ReadInt32());
-            }
+            byte[] bs = new byte[len];
+            Array.Copy(constBuffer, (int)pos, bs, 0, len);
+            var method = MethodBase.GetCurrentMethod();
+            byte[] key = BitConverter.GetBytes(method.MetadataToken ^ 0x57425674);
+            for (int i = 0; i < bs.Length; i++)
+                bs[i] ^= key[(pos + i) % 4];
 
-            var key = Assembly.GetCallingAssembly().GetModule(method.Module.ScopeName).ResolveSignature(0x263013d3 ^ method.MetadataToken);
-            uint seed = (pos + type) * 0x57425674;
-            ushort _m = (ushort)(seed >> 16);
-            ushort _c = (ushort)(seed & 0xffff);
-            ushort m = _c; ushort c = _m;
-            for (int i = 0; i < f.Length; i++)
+            if (typeof(T) == typeof(string))
+                ret = Encoding.UTF8.GetString(bs);
+            else
             {
-                f[i] ^= (byte)(((seed * m + c) % 0x100) ^ key[i % 16]);
-                m = (ushort)((seed * m + _m) % 0x10000);
-                c = (ushort)((seed * c + _c) % 0x10000);
+                var t = new T[1];
+                Buffer.BlockCopy(bs, 0, t, 0, Marshal.SizeOf(default(T)));
+                ret = t[0];
             }
-
-            if (type == 11)
-                ret = BitConverter.ToDouble(f, 0);
-            else if (type == 22)
-                ret = BitConverter.ToSingle(f, 0);
-            else if (type == 33)
-                ret = BitConverter.ToInt32(f, 0);
-            else if (type == 44)
-                ret = BitConverter.ToInt64(f, 0);
-            else if (type == 55)
-                ret = Encoding.UTF8.GetString(f);
             constTbl[pos] = ret;
         }
-
-        return ret;
+        return (T)ret;
     }
 }
 

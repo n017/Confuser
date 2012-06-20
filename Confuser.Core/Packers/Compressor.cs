@@ -35,12 +35,14 @@ namespace Confuser.Core
         }
 
         uint entryPoint;
+        string modName;
         ModuleKind oKind;
         List<Tuple<string, ManifestResourceAttributes, uint>> res;
         protected internal override void ProcessModulePhase3(ModuleDefinition mod, bool isMain)
         {
             if (isMain)
             {
+                modName = mod.Name;
                 mod.Name = "___.netmodule";
                 entryPoint = mod.Assembly.EntryPoint.MetadataToken.RID;
                 mod.Assembly.EntryPoint = null;
@@ -125,7 +127,7 @@ namespace Confuser.Core
         {
             ModuleDefinition originMain = param.Assemblies.Single(_ => _.IsMain).Assembly.MainModule;
             int originIndex = Array.IndexOf(param.Modules, originMain);
-            var asm = AssemblyDefinition.CreateAssembly(originMain.Assembly.Name, "Stub.exe", new ModuleParameters() { Architecture = originMain.Architecture, Kind = oKind, Runtime = originMain.Runtime });
+            var asm = AssemblyDefinition.CreateAssembly(originMain.Assembly.Name, modName, new ModuleParameters() { Architecture = originMain.Architecture, Kind = oKind, Runtime = originMain.Runtime });
             ModuleDefinition mod = asm.MainModule;
             mod.Attributes |= (originMain.Attributes & ModuleAttributes.Required32Bit); // added -- christallire - to prevent BadImageFormatException, Stub assembly need to set ModuleAttribute.Required32Bit if oringinMain has one.
             hash = new ByteBuffer(SHA1Managed.Create().ComputeHash(param.PEs[originIndex]));
@@ -162,6 +164,7 @@ namespace Confuser.Core
                     mod.Resources.Add(new EmbeddedResource(GetNewName(param.Modules[i].Name, key1), ManifestResourceAttributes.Private, Encrypt(param.PEs[i], key0)));  //TODO: Support for multi-module asssembly
 
             AssemblyDefinition ldrC = AssemblyDefinition.ReadAssembly(typeof(Iid).Assembly.Location);
+            ldrC.MainModule.ReadSymbols();
             TypeDefinition t = CecilHelper.Inject(mod, ldrC.MainModule.GetType("CompressShell"));
             foreach (Instruction inst in t.GetStaticConstructor().Body.Instructions)
             {

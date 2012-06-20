@@ -57,6 +57,7 @@ namespace Confuser.Core.Confusions
             public void Phase1(ModuleDefinition mod)
             {
                 AssemblyDefinition i = AssemblyDefinition.ReadAssembly(typeof(Iid).Assembly.Location);
+                i.MainModule.ReadSymbols();
                 root = CecilHelper.Inject(mod, i.MainModule.GetType("AntiTamperMem"));
                 mod.Types.Add(root);
                 MethodDefinition cctor = mod.GetType("<Module>").GetStaticConstructor();

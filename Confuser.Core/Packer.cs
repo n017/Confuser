@@ -86,7 +86,11 @@ namespace Confuser.Core
                     sect.Data = buff.GetBuffer();
                 };
             }
-            psr.Process(asm.MainModule, tmp + Path.GetFileName(modDef.FullyQualifiedName));
+            psr.Process(asm.MainModule, tmp + Path.GetFileName(modDef.FullyQualifiedName), new WriterParameters()
+            {
+                StrongNameKeyPair = this.cr.sn,
+                WriteSymbols = this.cr.param.Project.Debug
+            });
 
             Confuser cr = new Confuser();
 
@@ -110,6 +114,7 @@ namespace Confuser.Core
 
             ConfuserProject proj = new ConfuserProject();
             proj.Seed = Random.Next().ToString();
+            proj.Debug = this.cr.param.Project.Debug;
             proj.Settings.Add(settings);
             proj.Add(new ProjectAssembly()
             {

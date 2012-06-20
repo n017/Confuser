@@ -330,6 +330,7 @@ namespace Confuser
                 settings.Remove(settings.Single(_ => _.Object == i.Confusion));
             foreach (ConfusionListItem i in e.AddedItems)
                 settings.Add(new PrjConfig<IConfusion>(i.Confusion, settings));
+            RefrSelection();
         }
 
         PrjPreset ActivePreset

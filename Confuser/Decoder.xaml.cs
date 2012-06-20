@@ -105,7 +105,6 @@ Stack Trace : {2}", path.Text, ex.Message, ex.StackTrace), "Confuser", MessageBo
                                 entries.Add(i.Item2, i.Item1);
                         }
 
-            int offset = 0;
             string regex = "(" + string.Join("|", entries.Keys.Select(_ => Regex.Escape(_)).ToArray()) + ")";
             string result = Regex.Replace(stacktrace, regex, m => entries[m.Value]);
 

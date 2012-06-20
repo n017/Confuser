@@ -10,6 +10,7 @@ using System.IO.Compression;
 using Confuser.Core.Poly.Visitors;
 using System.Collections.Specialized;
 using Mono.Cecil.Metadata;
+using System.Security.Cryptography;
 
 namespace Confuser.Core.Confusions
 {
@@ -44,7 +45,7 @@ namespace Confuser.Core.Confusions
                 this.mod = mod;
                 cc.txts[mod] = new _Context();
 
-                cc.txts[mod].dats = new List<Data>();
+                cc.txts[mod].dats = new List<byte[]>();
                 cc.txts[mod].idx = 0;
                 cc.txts[mod].dict = new Dictionary<object, int>();
             }
@@ -65,6 +66,7 @@ namespace Confuser.Core.Confusions
                 }
                 _Context txt = cc.txts[mod];
                 txt.isNative = parameter.GlobalParameters["type"] == "native";
+                txt.isDyn = parameter.GlobalParameters["type"] == "dynamic";
 
                 TypeDefinition modType = mod.GetType("<Module>");
 
@@ -77,15 +79,13 @@ namespace Confuser.Core.Confusions
 
                 Database.AddEntry("Const", "ConstTbl", constTbl.FullName);
 
-                FieldDefinition constStream = new FieldDefinition(
+                FieldDefinition constBuffer = new FieldDefinition(
                     ObfuscationHelper.GetRandomName(),
                     FieldAttributes.Static | FieldAttributes.CompilerControlled,
-                    mod.Import(typeof(Stream)));
-                modType.Fields.Add(constStream);
-                AddHelper(constStream, HelperAttribute.NoInjection);
-                Database.AddEntry("Const", "ConstStream", constStream.FullName);
-
-                txt.consters = CreateConsters(txt, Confuser.Random, "Constants", constTbl, constStream);
+                    mod.Import(typeof(byte[])));
+                modType.Fields.Add(constBuffer);
+                AddHelper(constBuffer, HelperAttribute.NoInjection);
+                Database.AddEntry("Const", "ConstBuffer", constBuffer.FullName);
 
 
                 if (txt.isNative)
@@ -118,6 +118,8 @@ namespace Confuser.Core.Confusions
                 }
                 Database.AddEntry("Const", "Exp", txt.exp);
                 Database.AddEntry("Const", "InvExp", txt.invExp);
+
+                txt.consters = CreateConsters(txt, Confuser.Random, "Initialize", constTbl, constBuffer);
             }
             private void ProcessSafe(ConfusionParameter parameter)
             {
@@ -133,57 +135,76 @@ namespace Confuser.Core.Confusions
                 AddHelper(constTbl, HelperAttribute.NoInjection);
                 Database.AddEntry("Const", "ConstTbl", constTbl.FullName);
 
-                FieldDefinition constStream = new FieldDefinition(
+                FieldDefinition constBuffer = new FieldDefinition(
                     ObfuscationHelper.GetRandomName(),
                     FieldAttributes.Static | FieldAttributes.CompilerControlled,
-                    mod.Import(typeof(Stream)));
-                modType.Fields.Add(constStream);
-                AddHelper(constStream, HelperAttribute.NoInjection);
-                Database.AddEntry("Const", "constStream", constStream.FullName);
+                    mod.Import(typeof(byte[])));
+                modType.Fields.Add(constBuffer);
+                AddHelper(constBuffer, HelperAttribute.NoInjection);
+                Database.AddEntry("Const", "ConstBuffer", constBuffer.FullName);
 
-                txt.consters = CreateConsters(txt, Random, "SafeConstants", constTbl, constStream);
+                txt.consters = CreateConsters(txt, Random, "InitializeSafe", constTbl, constBuffer);
             }
             Conster[] CreateConsters(_Context txt, Random rand, string injectName,
-                                     FieldDefinition constTbl, FieldDefinition constStream)
+                                     FieldDefinition constTbl, FieldDefinition constBuffer)
             {
                 AssemblyDefinition injection = AssemblyDefinition.ReadAssembly(typeof(Iid).Assembly.Location);
-                MethodDefinition method = injection.MainModule.GetType("Encryptions").Methods.FirstOrDefault(mtd => mtd.Name == injectName);
+                injection.MainModule.ReadSymbols();
+                MethodDefinition method = injection.MainModule.GetType("Encryptions").Methods.FirstOrDefault(mtd => mtd.Name == "Constants");
                 List<Conster> ret = new List<Conster>();
 
-                rand.NextBytes(txt.types);
                 rand.NextBytes(txt.keyBuff);
                 for (int i = 0; i < txt.keyBuff.Length; i++)
                     txt.keyBuff[i] &= 0x7f;
                 txt.keyBuff[0] = 7; txt.keyBuff[1] = 0;
-                while (txt.types.Distinct().Count() != 5) rand.NextBytes(txt.types);
                 txt.resKey = rand.Next();
                 txt.resId = Encoding.UTF8.GetString(BitConverter.GetBytes(txt.resKey));
-                txt.key = rand.Next();
+                txt.key = (uint)rand.Next();
 
-                Database.AddEntry("Const", "KeyTypes", txt.types);
                 Database.AddEntry("Const", "KeyBuff", txt.keyBuff);
                 Database.AddEntry("Const", "ResKey", txt.resKey);
                 Database.AddEntry("Const", "ResId", txt.resId);
                 Database.AddEntry("Const", "Key", txt.key);
 
 
-                MethodDefinition init = injection.MainModule.GetType("Encryptions").Methods.FirstOrDefault(mtd => mtd.Name == "Initialize");
+                MethodDefinition init = injection.MainModule.GetType("Encryptions").Methods.FirstOrDefault(mtd => mtd.Name == injectName);
                 {
                     MethodDefinition cctor = mod.GetType("<Module>").GetStaticConstructor();
                     MethodDefinition m = CecilHelper.Inject(mod, init);
                     m.Body.SimplifyMacros();
+                    Instruction placeholder = null;
                     foreach (Instruction inst in m.Body.Instructions)
                     {
                         if (inst.Operand is int && (int)inst.Operand == 0x12345678)
                             inst.Operand = txt.resKey;
+                        else if (inst.Operand is int && (int)inst.Operand == 0x33684543)
+                            txt.keyInst = inst;
                         else if (inst.Operand is FieldReference)
                         {
                             if ((inst.Operand as FieldReference).Name == "constTbl")
                                 inst.Operand = constTbl;
-                            else if ((inst.Operand as FieldReference).Name == "constStream")
-                                inst.Operand = constStream;
+                            else if ((inst.Operand as FieldReference).Name == "constBuffer")
+                                inst.Operand = constBuffer;
                         }
+                        else if (inst.Operand is MethodReference && (inst.Operand as MethodReference).Name == "PlaceHolder")
+                            placeholder = inst;
                     }
+
+                    if (txt.isNative)
+                        CecilHelper.Replace(m.Body, placeholder, new Instruction[]
+                        {
+                            Instruction.Create(OpCodes.Call, txt.nativeDecr)
+                        });
+                    else if (txt.isDyn)
+                    {
+                        Instruction ldloc = placeholder.Previous;
+                        m.Body.Instructions.Remove(placeholder.Previous);   //ldloc
+                        CecilHelper.Replace(m.Body, placeholder, new CecilVisitor(txt.invExp, new Instruction[]
+                        {
+                            ldloc
+                        }).GetInstructions());
+                    }
+
                     ILProcessor psr = cctor.Body.GetILProcessor();
                     Instruction begin = cctor.Body.Instructions[0];
                     for (int i = m.Body.Instructions.Count - 1; i >= 0; i--)
@@ -230,15 +251,17 @@ namespace Confuser.Core.Confusions
                         mtd.Body.SimplifyMacros();
                         foreach (Instruction inst in mtd.Body.Instructions)
                         {
-                            if (inst.Operand is FieldReference)
+                            if (inst.Operand is TypeReference && (inst.Operand as TypeReference).Name == "Encryptions")
+                                inst.Operand = typeDef;
+                            else if (inst.Operand is FieldReference)
                             {
                                 if ((inst.Operand as FieldReference).Name == "constTbl")
                                     inst.Operand = constTbl;
-                                else if ((inst.Operand as FieldReference).Name == "constStream")
-                                    inst.Operand = constStream;
+                                else if ((inst.Operand as FieldReference).Name == "constBuffer")
+                                    inst.Operand = constBuffer;
                             }
                             else if (inst.Operand is int && (int)inst.Operand == 0x57425674)
-                                inst.Operand = txt.key;
+                                conster.keyInst = inst;
                             else if (inst.Operand is int && (int)inst.Operand == 12345678)
                                 inst.Operand = conster.key0;
                             else if (inst.Operand is int && (int)inst.Operand == 0x67452301)
@@ -247,18 +270,6 @@ namespace Confuser.Core.Confusions
                                 inst.Operand = conster.key2;
                             else if (inst.Operand is int && (int)inst.Operand == 0x5f6f36c0)
                                 inst.Operand = conster.key3;
-                            else if (inst.Operand is int && (int)inst.Operand == 0x263013d3)
-                                conster.keyInst = inst;
-                            else if (inst.Operand is int && (int)inst.Operand == 11)
-                                inst.Operand = (int)txt.types[0];
-                            else if (inst.Operand is int && (int)inst.Operand == 22)
-                                inst.Operand = (int)txt.types[1];
-                            else if (inst.Operand is int && (int)inst.Operand == 33)
-                                inst.Operand = (int)txt.types[2];
-                            else if (inst.Operand is int && (int)inst.Operand == 44)
-                                inst.Operand = (int)txt.types[3];
-                            else if (inst.Operand is int && (int)inst.Operand == 55)
-                                inst.Operand = (int)txt.types[4];
                         }
 
                         ret.Add(conster);
@@ -299,17 +310,36 @@ namespace Confuser.Core.Confusions
             public override void DeInitialize()
             {
                 _Context txt = cc.txts[mod];
+                byte[] final;
+
                 MemoryStream str = new MemoryStream();
-                using (BinaryWriter wtr = new BinaryWriter(new DeflateStream(str, CompressionMode.Compress)))
+                using (BinaryWriter wtr = new BinaryWriter(str))
+                    foreach (byte[] dat in txt.dats)
+                        wtr.Write(dat);
+                byte[] buff = XorCrypt(str.ToArray(), txt.key);
+
+                if (txt.isDyn || txt.isNative)
                 {
-                    foreach (Data dat in txt.dats)
-                    {
-                        wtr.Write(dat.Type);
-                        wtr.Write(dat.Dat.Length);
-                        wtr.Write(dat.Dat);
-                    }
+                    byte[] e = Encrypt(buff, txt.exp);
+
+                    MemoryStream output = new MemoryStream();
+                    using (var s = new DeflateStream(new CryptoStream(output,
+                        new RijndaelManaged().CreateEncryptor(txt.keyBuff, MD5.Create().ComputeHash(txt.keyBuff))
+                        , CryptoStreamMode.Write), CompressionMode.Compress))
+                        s.Write(e, 0, e.Length);
+                    final = output.ToArray();
                 }
-                mod.Resources.Add(new EmbeddedResource(txt.resId, ManifestResourceAttributes.Private, str.ToArray()));
+                else
+                {
+                    MemoryStream output = new MemoryStream();
+                    using (var s = new DeflateStream(new CryptoStream(output,
+                        new RijndaelManaged().CreateEncryptor(txt.keyBuff, MD5.Create().ComputeHash(txt.keyBuff))
+                        , CryptoStreamMode.Write), CompressionMode.Compress))
+                        s.Write(buff, 0, buff.Length);
+
+                    final = EncryptSafe(output.ToArray(), BitConverter.ToUInt32(txt.keyBuff, 0xc) * (uint)txt.resKey);
+                }
+                mod.Resources.Add(new EmbeddedResource(txt.resId, ManifestResourceAttributes.Private, final));
             }
 
             class Context
@@ -318,7 +348,7 @@ namespace Confuser.Core.Confusions
                 public ILProcessor psr;
                 public Instruction str;
                 public uint a;
-                public uint b;
+                public ulong b;
                 public Conster conster;
             }
             ModuleDefinition mod;
@@ -367,35 +397,28 @@ namespace Confuser.Core.Confusions
                     }
                 }
             }
-            byte[] GetOperand(object operand, out byte type)
+            byte[] GetOperand(object operand)
             {
                 byte[] ret;
                 if (operand is double)
-                {
                     ret = BitConverter.GetBytes((double)operand);
-                    type = cc.txts[mod].types[0];
-                }
                 else if (operand is float)
-                {
                     ret = BitConverter.GetBytes((float)operand);
-                    type = cc.txts[mod].types[1];
-                }
                 else if (operand is int)
-                {
                     ret = BitConverter.GetBytes((int)operand);
-                    type = cc.txts[mod].types[2];
-                }
                 else if (operand is long)
-                {
                     ret = BitConverter.GetBytes((long)operand);
-                    type = cc.txts[mod].types[3];
-                }
                 else
-                {
                     ret = Encoding.UTF8.GetBytes((string)operand);
-                    type = cc.txts[mod].types[4];
-                }
                 return ret;
+            }
+            uint GetOperandLen(object operand)
+            {
+                if (operand is double) return 8;
+                else if (operand is float) return 4;
+                else if (operand is int) return 4;
+                else if (operand is long) return 8;
+                else return (uint)Encoding.UTF8.GetByteCount(operand as string);
             }
             bool IsEqual(byte[] a, byte[] b)
             {
@@ -417,22 +440,26 @@ namespace Confuser.Core.Confusions
                     Instruction now = txts[i].str;
                     if (IsNull(now.Operand)) continue;
 
-                    Instruction call = Instruction.Create(OpCodes.Call, txts[i].conster.conster);
+                    TypeReference typeRef;
+                    if (now.Operand is int)
+                        typeRef = txts[i].mtd.Module.TypeSystem.Int32;
+                    else if (now.Operand is long)
+                        typeRef = txts[i].mtd.Module.TypeSystem.Int64;
+                    else if (now.Operand is float)
+                        typeRef = txts[i].mtd.Module.TypeSystem.Single;
+                    else if (now.Operand is double)
+                        typeRef = txts[i].mtd.Module.TypeSystem.Double;
+                    else
+                        typeRef = txts[i].mtd.Module.TypeSystem.String;
+                    Instruction call = Instruction.Create(OpCodes.Call, new GenericInstanceMethod(txts[i].conster.conster)
+                    {
+                        GenericArguments = { typeRef }
+                    });
                     call.SequencePoint = now.SequencePoint;
 
                     txts[i].psr.InsertAfter(idx, call);
-                    if (now.Operand is int)
-                        txts[i].psr.InsertAfter(call, Instruction.Create(OpCodes.Unbox_Any, txts[i].mtd.Module.TypeSystem.Int32));
-                    else if (now.Operand is long)
-                        txts[i].psr.InsertAfter(call, Instruction.Create(OpCodes.Unbox_Any, txts[i].mtd.Module.TypeSystem.Int64));
-                    else if (now.Operand is float)
-                        txts[i].psr.InsertAfter(call, Instruction.Create(OpCodes.Unbox_Any, txts[i].mtd.Module.TypeSystem.Single));
-                    else if (now.Operand is double)
-                        txts[i].psr.InsertAfter(call, Instruction.Create(OpCodes.Unbox_Any, txts[i].mtd.Module.TypeSystem.Double));
-                    else
-                        txts[i].psr.InsertAfter(call, Instruction.Create(OpCodes.Castclass, txts[i].mtd.Module.TypeSystem.String));
                     txts[i].psr.Replace(idx, Instruction.Create(OpCodes.Ldc_I4, (int)txts[i].a));
-                    txts[i].psr.InsertAfter(idx, Instruction.Create(OpCodes.Ldc_I4, (int)txts[i].b));
+                    txts[i].psr.InsertAfter(idx, Instruction.Create(OpCodes.Ldc_I8, (long)txts[i].b));
 
                     if (i % interval == 0 || i == txts.Count - 1)
                         progresser.SetProgress(i + 1, txts.Count);
@@ -451,12 +478,10 @@ namespace Confuser.Core.Confusions
 
             public override void Process(ConfusionParameter parameter)
             {
-                if (parameter.GlobalParameters["type"] != "dynamic" &&
-                    parameter.GlobalParameters["type"] != "native")
-                {
-                    ProcessSafe(parameter); return;
-                }
                 _Context txt = cc.txts[mod];
+
+                foreach (var i in txt.consters)
+                    i.keyInst.Operand = (int)(txt.key ^ i.conster.MetadataToken.ToUInt32());
 
                 List<Context> txts = new List<Context>();
                 ExtractData(
@@ -470,109 +495,26 @@ namespace Confuser.Core.Confusions
                     object val = txts[i].str.Operand as object;
                     if (IsNull(val)) continue;
 
-                    uint x = txts[i].conster.conster.MetadataToken.ToUInt32() ^
-                                    (txts[i].conster.conster.DeclaringType.MetadataToken.ToUInt32() * txts[i].a);
+                    uint x = txts[i].conster.conster.DeclaringType.MetadataToken.ToUInt32() * txts[i].a;
+                    ulong hash = ComputeHash(x,
+                                (uint)txts[i].conster.key0,
+                                (uint)txts[i].conster.key1,
+                                (uint)txts[i].conster.key2,
+                                (uint)txts[i].conster.key3);
+                    uint idx, len;
                     if (txt.dict.ContainsKey(val))
-                        txts[i].b = (uint)txt.dict[val] ^
-                                ComputeHash(x,
-                                (uint)txts[i].conster.key0,
-                                (uint)txts[i].conster.key1,
-                                (uint)txts[i].conster.key2,
-                                (uint)txts[i].conster.key3);
+                        txts[i].b = Combine(idx = (uint)txt.dict[val], len = GetOperandLen(val)) ^ hash;
                     else
                     {
-                        txts[i].b = (uint)txt.idx ^
-                                ComputeHash(x,
-                                (uint)txts[i].conster.key0,
-                                (uint)txts[i].conster.key1,
-                                (uint)txts[i].conster.key2,
-                                (uint)txts[i].conster.key3);
-                        byte t;
-                        byte[] ori = GetOperand(val, out t);
+                        byte[] dat = GetOperand(val);
+                        txts[i].b = Combine(idx = (uint)txt.idx, len = (uint)dat.Length) ^ hash;
 
-                        int len;
-                        byte[] dat = Encrypt(ori, txt.exp, txt.keyBuff, out len);
-                        byte[] final = new byte[dat.Length + 4];
-                        Buffer.BlockCopy(dat, 0, final, 4, dat.Length);
-                        Buffer.BlockCopy(BitConverter.GetBytes(len ^ txt.key), 0, final, 0, 4);
-                        txt.dats.Add(new Data() { Dat = final, Type = t });
+                        txt.dats.Add(dat);
                         txt.dict[val] = txt.idx;
-                        Database.AddEntry("Const", val.ToString(), string.Format("{0:X}, {1:X}, {2:X}", txts[i].a, txts[i].b, txt.idx));
 
-
-                        txt.idx += final.Length + 5;
+                        txt.idx += dat.Length;
                     }
-                }
-
-
-                foreach (var i in txt.consters)
-                {
-                    Instruction placeholder = null;
-                    foreach (Instruction inst in i.conster.Body.Instructions)
-                        if (inst.Operand is MethodReference && (inst.Operand as MethodReference).Name == "PlaceHolder")
-                        {
-                            placeholder = inst;
-                            break;
-                        }
-                    if (txt.isNative)
-                        CecilHelper.Replace(i.conster.Body, placeholder, new Instruction[]
-                        {
-                            Instruction.Create(OpCodes.Call, txt.nativeDecr)
-                        });
-                    else
-                    {
-                        Instruction ldloc = placeholder.Previous;
-                        i.conster.Body.Instructions.Remove(placeholder.Previous);   //ldloc
-                        CecilHelper.Replace(i.conster.Body, placeholder, new CecilVisitor(txt.invExp, new Instruction[]
-                        {
-                            ldloc
-                        }).GetInstructions());
-                    }
-                }
-
-                FinalizeBodies(txts);
-            }
-            void ProcessSafe(ConfusionParameter parameter)
-            {
-                _Context txt = cc.txts[mod];
-
-                List<Context> txts = new List<Context>();
-                ExtractData(
-                    parameter.Target as IList<Tuple<IAnnotationProvider, NameValueCollection>>, txts,
-                    Array.IndexOf(parameter.GlobalParameters.AllKeys, "numeric") != -1, txt);
-
-                for (int i = 0; i < txts.Count; i++)
-                {
-                    int idx = txts[i].mtd.Body.Instructions.IndexOf(txts[i].str);
-                    object val = txts[i].str.Operand;
-                    if (IsNull(val)) continue;
-
-                    uint x = txts[i].conster.conster.MetadataToken.ToUInt32() ^
-                                    (txts[i].conster.conster.DeclaringType.MetadataToken.ToUInt32() * txts[i].a);
-                    if (txt.dict.ContainsKey(val))
-                        txts[i].b = (uint)txt.dict[val] ^
-                                ComputeHash(x,
-                                (uint)txts[i].conster.key0,
-                                (uint)txts[i].conster.key1,
-                                (uint)txts[i].conster.key2,
-                                (uint)txts[i].conster.key3);
-                    else
-                    {
-                        byte t;
-                        byte[] ori = GetOperand(val, out t);
-                        byte[] dat = EncryptSafe(ori, (txt.idx + t) * txt.key, txt.keyBuff);
-                        txts[i].b = (uint)txt.idx ^
-                                ComputeHash(x,
-                                (uint)txts[i].conster.key0,
-                                (uint)txts[i].conster.key1,
-                                (uint)txts[i].conster.key2,
-                                (uint)txts[i].conster.key3);
-
-                        txt.dats.Add(new Data() { Dat = dat, Type = t });
-                        txt.dict[val] = txt.idx;
-                        Database.AddEntry("Const", val.ToString(), string.Format("{0:X}, {1:X}, {2:X}", txts[i].a, txts[i].b, txt.idx));
-                        txt.idx += dat.Length + 5;
-                    }
+                    Database.AddEntry("Const", val.ToString(), string.Format("{0:X}, {1:X}, {2:X}, {3:X}", txts[i].a, txts[i].b, idx, len));
                 }
 
                 FinalizeBodies(txts);
@@ -611,10 +553,7 @@ namespace Confuser.Core.Confusions
                     accessor.BlobHeap.GetBlobIndex(new Mono.Cecil.PE.ByteBuffer(txt.keyBuff)));
 
                 int token = 0x11000000 | rid;
-                foreach (var i in txt.consters)
-                {
-                    i.keyInst.Operand = (int)(token ^ i.conster.MetadataToken.ToInt32());
-                }
+                txt.keyInst.Operand = (int)(token ^ 0x06000001);   //... -_-
                 Database.AddEntry("Const", "KeyBuffToken", token);
 
                 if (!txt.isNative) return;
@@ -703,11 +642,6 @@ namespace Confuser.Core.Confusions
         }
 
 
-        struct Data
-        {
-            public byte[] Dat;
-            public byte Type;
-        }
         struct Conster
         {
             public MethodDefinition conster;
@@ -719,18 +653,20 @@ namespace Confuser.Core.Confusions
         }
         class _Context
         {
-            public List<Data> dats;
+            public List<byte[]> dats;
             public Dictionary<object, int> dict;
             public int idx = 0;
-            public int key;
-            public byte[] keyBuff = new byte[16];
+            public uint key;
+            public byte[] keyBuff = new byte[32];
 
             public int resKey;
             public string resId;
-            public byte[] types = new byte[5];
             public Conster[] consters;
             public MethodDefinition nativeDecr;
 
+            public Instruction keyInst;
+
+            public bool isDyn;
             public bool isNative;
             public Expression exp;
             public Expression invExp;
@@ -814,25 +750,21 @@ namespace Confuser.Core.Confusions
             return count;
         }
 
-        private static byte[] Encrypt(byte[] bytes, Expression exp, byte[] keyBuff, out int len)
+        private static byte[] Encrypt(byte[] bytes, Expression exp)
         {
-            byte[] tmp = new byte[(bytes.Length + 7) & ~7];
-            Buffer.BlockCopy(bytes, 0, tmp, 0, bytes.Length);
-            len = bytes.Length;
-
             MemoryStream ret = new MemoryStream();
             using (BinaryWriter wtr = new BinaryWriter(ret))
             {
-                for (int i = 0; i < tmp.Length; i++)
+                for (int i = 0; i < bytes.Length; i++)
                 {
-                    int en = (int)ExpressionEvaluator.Evaluate(exp, tmp[i] ^ keyBuff[i % 16]);
+                    int en = (int)ExpressionEvaluator.Evaluate(exp, bytes[i]);
                     Write7BitEncodedInt(wtr, en);
                 }
             }
 
             return ret.ToArray();
         }
-        private static byte[] EncryptSafe(byte[] bytes, int key, byte[] keyBuff)
+        private static byte[] EncryptSafe(byte[] bytes, uint key)
         {
             ushort _m = (ushort)(key >> 16);
             ushort _c = (ushort)(key & 0xffff);
@@ -840,49 +772,44 @@ namespace Confuser.Core.Confusions
             byte[] ret = (byte[])bytes.Clone();
             for (int i = 0; i < ret.Length; i++)
             {
-                ret[i] ^= (byte)(((key * m + c) % 0x100) ^ keyBuff[i % 16]);
+                ret[i] ^= (byte)((key * m + c) % 0x100);
                 m = (ushort)((key * m + _m) % 0x10000);
                 c = (ushort)((key * c + _c) % 0x10000);
             }
             return ret;
         }
-
-
-        static uint ComputeHash(uint x, uint key, uint init0, uint init1, uint init2)
+        private static byte[] XorCrypt(byte[] bytes, uint key)
         {
-            uint h = init0 ^ x;
-            uint h1 = init1;
-            uint h2 = init2;
-            for (uint i = 1; i <= 64; i++)
+            byte[] ret = new byte[bytes.Length];
+            byte[] keyBuff = BitConverter.GetBytes(key);
+            for (int i = 0; i < ret.Length; i++)
+                ret[i] = (byte)(bytes[i] ^ keyBuff[i % 4]);
+            return ret;
+        }
+
+        static ulong Combine(uint high, uint low)
+        {
+            return (((ulong)high) << 32) | (ulong)low;
+        }
+        static ulong ComputeHash(uint x, uint key, ulong init0, ulong init1, ulong init2)
+        {
+            ulong h = init0 ^ x;
+            ulong h1 = init1;
+            ulong h2 = init2;
+            h1 = h1 * h;
+            h2 = h2 * h;
+            h = h * h;
+
+            ulong hash = 0xCBF29CE484222325;
+            while (h != 0)
             {
-                h = (h & 0x00ffffff) << 8 | ((h & 0xff000000) >> 24);
-                uint n = (h & 0xff) % 64;
-                if (n >= 0 && n < 16)
-                {
-                    h1 |= (((h & 0x0000ff00) >> 8) & ((h & 0x00ff0000) >> 16)) ^ (~h & 0x000000ff);
-                    h2 ^= (h * i + 1) % 16;
-                    h += (h1 | h2) ^ key;
-                }
-                else if (n >= 16 && n < 32)
-                {
-                    h1 ^= ((h & 0x00ff00ff) << 8) ^ (((h & 0x00ffff00) >> 8) | (~h & 0x0000ffff));
-                    h2 += (h * i) % 32;
-                    h |= (h1 + ~h2) & key;
-                }
-                else if (n >= 32 && n < 48)
-                {
-                    h1 += ((h & 0x000000ff) | ((h & 0x00ff0000) >> 16)) + (~h & 0x000000ff);
-                    h2 -= ~(h + n) % 48;
-                    h ^= (h1 % h2) | key;
-                }
-                else if (n >= 48 && n < 64)
-                {
-                    h1 ^= (((h & 0x00ff0000) >> 16) | ~(h & 0x0000ff)) * (~h & 0x00ff0000);
-                    h2 += (h ^ i - 1) % n;
-                    h -= ~(h1 ^ h2) + key;
-                }
+                hash *= 0x100000001B3;
+                hash = (hash ^ h) + (h1 ^ h2) * key;
+                h1 *= 0x811C9DC5;
+                h2 *= 0xA2CEBAB2;
+                h >>= 8;
             }
-            return h;
+            return hash;
         }
     }
 }

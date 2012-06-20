@@ -49,7 +49,7 @@ namespace Confuser.Core
         public string GetRandomString()
         {
             if (cr == null) // Hey! Should not use GetRandomString on static instance
-                            // because it make output vary!
+                // because it make output vary!
                 return Guid.NewGuid().ToString();
 
             byte[] ret = new byte[8];
@@ -59,6 +59,10 @@ namespace Confuser.Core
         public string GetRandomName()
         {
             return GetNewName(GetRandomString());
+        }
+        public string GetRandomName(NameMode mode)
+        {
+            return GetNewName(GetRandomString(), mode);
         }
 
         string RenameUnreadable(string originalName)
@@ -125,7 +129,7 @@ namespace Confuser.Core
         public RijndaelManaged CreateRijndael()
         {
             if (cr == null) // Hey again! Should not use CreateRijndaelManaged on static
-                            // instance because it make output vary!
+                // instance because it make output vary!
                 return null;
             RijndaelManaged ret = new RijndaelManaged();
             byte[] key = new byte[ret.KeySize / 8];
