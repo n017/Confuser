@@ -649,7 +649,7 @@ static class CompressShell
     {
         byte[] b = Encoding.UTF8.GetBytes(e.Name);
         for (int i = 0; i < b.Length; i++)
-            b[i] = (byte)(b[i] ^ 0x12345678 ^ i);
+            b[i] = (byte)(b[i] ^ Mutation.Key2I ^ i);
         string resName = Encoding.UTF8.GetString(b);
         Stream str = typeof(CompressShell).Assembly.GetManifestResourceStream(resName);
         if (str != null)
@@ -672,7 +672,7 @@ static class CompressShell
     {
         byte[] b = Encoding.UTF8.GetBytes(e.Name);
         for (int i = 0; i < b.Length; i++)
-            b[i] = (byte)(b[i] ^ 0x12345678 ^ i);
+            b[i] = (byte)(b[i] ^ Mutation.Key1I ^ i);
         string resName = Encoding.UTF8.GetString(b);
         Stream str = typeof(CompressShell).Assembly.GetManifestResourceStream(resName);
         if (str != null)
@@ -703,7 +703,7 @@ static class CompressShell
             iv = rdr.ReadBytes(rdr.ReadInt32());
             key = rdr.ReadBytes(rdr.ReadInt32());
         }
-        int key0 = 0x12345678;
+        int key0 = Mutation.Key0I;
         for (int j = 0; j < key.Length; j += 4)
         {
             key[j + 0] ^= (byte)((key0 & 0x000000ff) >> 0);
@@ -738,8 +738,8 @@ static class CompressShell
         }
     }
 
-    static string Res = "fcc78551-8e82-4fd6-98dd-7ce4fcb0a59f";
-    static ulong Rid = 0x1234567812345678;
+    static string Res = Mutation.Key0S;
+    static ulong Rid = (ulong)Mutation.Key0L;
     static Module Mod;
 
     static ulong modPow(ulong bas, ulong pow, ulong mod)
@@ -769,7 +769,7 @@ static class CompressShell
         Buffer.BlockCopy(over, 0, asmDat, 0, asmDat.Length);
 
         AppDomain.CurrentDomain.AssemblyResolve += DecryptAsm;
-        MethodBase m = Mod.ResolveMethod(0x06000000 | (int)modPow(Rid, 0x47, 0x1234567812345678UL));
+        MethodBase m = Mod.ResolveMethod(0x06000000 | (int)modPow(Rid, 0x47, (ulong)Mutation.Key1L));
         object ret;
         if (m.GetParameters().Length == 1)
             ret = m.Invoke(null, new object[] { args });

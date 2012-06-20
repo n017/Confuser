@@ -4,12 +4,11 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
-using System.Security.Cryptography;
-using System.Runtime.CompilerServices;
-using System.Reflection.Emit;
 
 static class AntiDebugger
 {
@@ -117,7 +116,6 @@ static class AntiDebugger
 
 static class Proxies
 {
-    public static int PlaceHolder(int val) { return 0; }
     private static void CtorProxy(RuntimeFieldHandle f)
     {
         var fld = FieldInfo.GetFieldFromHandle(f);
@@ -129,7 +127,7 @@ static class Proxies
             ((uint)dat[dat.Length - 3] << 16) |
             ((uint)dat[dat.Length - 2] << 24);
 
-        var mtd = fld.Module.ResolveMethod(PlaceHolder((int)x) | ((int)dat[dat.Length - 7] << 24)) as ConstructorInfo;
+        var mtd = fld.Module.ResolveMethod(Mutation.Placeholder((int)x) | ((int)dat[dat.Length - 7] << 24)) as ConstructorInfo;
 
         var args = mtd.GetParameters();
         Type[] arg = new Type[args.Length];
@@ -160,7 +158,7 @@ static class Proxies
             ((uint)dat[dat.Length - 3] << 16) |
             ((uint)dat[dat.Length - 2] << 24);
 
-        var mtd = fld.Module.ResolveMethod(PlaceHolder((int)x) | ((int)dat[dat.Length - 7] << 24)) as MethodInfo;
+        var mtd = fld.Module.ResolveMethod(Mutation.Placeholder((int)x) | ((int)dat[dat.Length - 7] << 24)) as MethodInfo;
 
         if (mtd.IsStatic)
             fld.SetValue(null, Delegate.CreateDelegate(fld.FieldType, mtd));
@@ -183,7 +181,7 @@ static class Proxies
                 gen.Emit(OpCodes.Ldarg, i);
                 if (i == 0) gen.Emit(OpCodes.Castclass, mtd.DeclaringType);
             }
-            gen.Emit(fld.Name[0] == '\t' ? OpCodes.Callvirt : OpCodes.Call, mtd);
+            gen.Emit(fld.Name[0] == Mutation.Key0I ? OpCodes.Callvirt : OpCodes.Call, mtd);
             gen.Emit(OpCodes.Ret);
 
             fld.SetValue(null, dm.CreateDelegate(fld.FieldType));
@@ -198,14 +196,14 @@ static class Encryptions
     {
         if (datAsm == null)
         {
-            Stream str = typeof(Exception).Assembly.GetManifestResourceStream("PADDINGPADDINGPADDING");
+            Stream str = typeof(Exception).Assembly.GetManifestResourceStream(Mutation.Key0S);
             byte[] dat = new byte[str.Length];
             str.Read(dat, 0, dat.Length);
-            byte k = 0x11;
+            byte k = (byte)Mutation.Key0I;
             for (int i = 0; i < dat.Length; i++)
             {
                 dat[i] = (byte)(dat[i] ^ k);
-                k = (byte)((k * 0x22) % 0x100);
+                k = (byte)((k * Mutation.Key1I) % 0x100);
             }
 
             using (BinaryReader rdr = new BinaryReader(new DeflateStream(new MemoryStream(dat), CompressionMode.Decompress)))
@@ -346,10 +344,10 @@ static class Encryptions
         constTbl = new Dictionary<uint, object>();
         var s = new MemoryStream();
         Assembly asm = Assembly.GetExecutingAssembly();
-        var x = asm.GetManifestResourceStream(Encoding.UTF8.GetString(BitConverter.GetBytes(0x12345678)));
+        var x = asm.GetManifestResourceStream(Encoding.UTF8.GetString(BitConverter.GetBytes(Mutation.Key0I)));
 
         var method = MethodBase.GetCurrentMethod();
-        var key = method.Module.ResolveSignature((int)(0x33684543 ^ method.MetadataToken));
+        var key = method.Module.ResolveSignature((int)(Mutation.Key0Delayed ^ method.MetadataToken));
 
         var str = new DeflateStream(new CryptoStream(x,
             new RijndaelManaged().CreateDecryptor(key, MD5.Create().ComputeHash(key)), CryptoStreamMode.Read)
@@ -383,7 +381,7 @@ static class Encryptions
                     shift += 7;
                 } while ((c & 0x80) != 0);
 
-                count = PlaceHolder(count);
+                count = Mutation.Placeholder(count);
                 wtr.Write((byte)count);
             }
         }
@@ -395,14 +393,14 @@ static class Encryptions
         constTbl = new Dictionary<uint, object>();
         var s = new MemoryStream();
         Assembly asm = Assembly.GetExecutingAssembly();
-        var x = asm.GetManifestResourceStream(Encoding.UTF8.GetString(BitConverter.GetBytes(0x12345678)));
+        var x = asm.GetManifestResourceStream(Encoding.UTF8.GetString(BitConverter.GetBytes(Mutation.Key0I)));
         byte[] buff = new byte[x.Length];
         x.Read(buff, 0, buff.Length);
 
         var method = MethodBase.GetCurrentMethod();
-        var key = method.Module.ResolveSignature((int)(0x33684543 ^ method.MetadataToken));
+        var key = method.Module.ResolveSignature((int)(Mutation.Key0Delayed ^ method.MetadataToken));
 
-        uint seed = BitConverter.ToUInt32(key, 0xc) * 0x12345678;
+        uint seed = BitConverter.ToUInt32(key, 0xc) * (uint)Mutation.Key0I;
         ushort _m = (ushort)(seed >> 16);
         ushort _c = (ushort)(seed & 0xffff);
         ushort m = _c; ushort c = _m;
@@ -433,10 +431,10 @@ static class Encryptions
     static T Constants<T>(uint a, ulong b)
     {
         object ret;
-        uint x = (uint)(typeof(Encryptions).MetadataToken * a);
-        ulong h = 0x67452301 ^ x;
-        ulong h1 = 0x3bd523a0;
-        ulong h2 = 0x5f6f36c0;
+        uint x = (uint)(Type.GetTypeFromHandle(Mutation.DeclaringType()).MetadataToken * a);
+        ulong h = (ulong)Mutation.Key0L * x;
+        ulong h1 = (ulong)Mutation.Key1L;
+        ulong h2 = (ulong)Mutation.Key2L;
         h1 = h1 * h;
         h2 = h2 * h;
         h = h * h;
@@ -445,7 +443,7 @@ static class Encryptions
         while (h != 0)
         {
             hash *= 0x100000001B3;
-            hash = (hash ^ h) + (h1 ^ h2) * 12345678;
+            hash = (hash ^ h) + (h1 ^ h2) * (uint)Mutation.Key0I;
             h1 *= 0x811C9DC5;
             h2 *= 0xA2CEBAB2;
             h >>= 8;
@@ -458,7 +456,7 @@ static class Encryptions
             byte[] bs = new byte[len];
             Array.Copy(constBuffer, (int)pos, bs, 0, len);
             var method = MethodBase.GetCurrentMethod();
-            byte[] key = BitConverter.GetBytes(method.MetadataToken ^ 0x57425674);
+            byte[] key = BitConverter.GetBytes(method.MetadataToken ^ Mutation.Key0Delayed);
             for (int i = 0; i < bs.Length; i++)
                 bs[i] ^= key[(pos + i) % 4];
 

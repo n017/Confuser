@@ -134,8 +134,10 @@ namespace Confuser.Core
 
             int key0 = Random.Next(0, 0xff);
             int key1 = Random.Next(0, 0xff);
+            int key2 = Random.Next(0, 0xff);
             Database.AddEntry("Compressor", "Key0", key0);
             Database.AddEntry("Compressor", "Key1", key1);
+            Database.AddEntry("Compressor", "Key2", key2);
 
 
             ulong e = 0x47;
@@ -153,35 +155,34 @@ namespace Confuser.Core
             Database.AddEntry("Compressor", "d", d);
 
 
-
-
             EmbeddedResource res = new EmbeddedResource(ObfuscationHelper.GetRandomName(), ManifestResourceAttributes.Private, Encrypt(param.PEs[originIndex], key0));
             mod.Resources.Add(res);
             for (int i = 1; i < param.Modules.Length; i++)
                 if (param.Modules[i].IsMain)
-                    mod.Resources.Add(new EmbeddedResource(GetNewName(param.Modules[i].Assembly.Name.FullName, key1), ManifestResourceAttributes.Private, Encrypt(param.PEs[i], key0)));
+                    mod.Resources.Add(new EmbeddedResource(GetNewName(param.Modules[i].Assembly.Name.FullName, key2), ManifestResourceAttributes.Private, Encrypt(param.PEs[i], key0)));
                 else
-                    mod.Resources.Add(new EmbeddedResource(GetNewName(param.Modules[i].Name, key1), ManifestResourceAttributes.Private, Encrypt(param.PEs[i], key0)));  //TODO: Support for multi-module asssembly
+                    mod.Resources.Add(new EmbeddedResource(GetNewName(param.Modules[i].Name, key2), ManifestResourceAttributes.Private, Encrypt(param.PEs[i], key1)));  //TODO: Support for multi-module asssembly
 
             AssemblyDefinition ldrC = AssemblyDefinition.ReadAssembly(typeof(Iid).Assembly.Location);
             ldrC.MainModule.ReadSymbols();
             TypeDefinition t = CecilHelper.Inject(mod, ldrC.MainModule.GetType("CompressShell"));
-            foreach (Instruction inst in t.GetStaticConstructor().Body.Instructions)
+
+            Mutator mutator = new Mutator();
+            mutator.IntKeys = new int[]
             {
-                if (inst.Operand is string)
-                    inst.Operand = res.Name;
-                else if (inst.Operand is long && (long)inst.Operand == 0x1234567812345678)
-                    inst.Operand = (long)modPow(entryPoint, d, n);
-            }
-            foreach (Instruction inst in t.Methods.FirstOrDefault(mtd => mtd.Name == "Decrypt").Body.Instructions)
-                if (inst.Operand is int && (int)inst.Operand == 0x12345678)
-                    inst.Operand = key0;
-            foreach (Instruction inst in t.Methods.FirstOrDefault(mtd => mtd.Name == "DecryptAsm").Body.Instructions)
-                if (inst.Operand is int && (int)inst.Operand == 0x12345678)
-                    inst.Operand = key1;
-            foreach (Instruction inst in t.Methods.FirstOrDefault(mtd => mtd.Name == "Main").Body.Instructions)
-                if (inst.Operand is long && (long)inst.Operand == 0x1234567812345678)
-                    inst.Operand = (long)n;
+                key0,
+                key1,
+                key2
+            };
+            mutator.LongKeys = new long[]
+            {
+                (long)modPow(entryPoint, d, n),
+                (long)n
+            };
+            mutator.StringKeys = new string[] { res.Name };
+            mutator.Mutate(t);
+
+
             t.Namespace = "";
             t.DeclaringType = null;
             t.IsNestedPrivate = false;

@@ -76,12 +76,9 @@ namespace Confuser.Core.Confusions
                 Instruction placeholder = null;
                 txt.key = (uint)Random.Next();
                 Database.AddEntry("CtorProxy", "Key", txt.key);
-                foreach (Instruction inst in txt.proxy.Body.Instructions)
-                    if (inst.Operand is MethodReference && (inst.Operand as MethodReference).Name == "PlaceHolder")
-                    {
-                        placeholder = inst;
-                        break;
-                    }
+                Mutator mutator = new Mutator();
+                mutator.Mutate(txt.proxy.Body);
+                placeholder = mutator.Placeholder;
                 if (txt.isNative)
                 {
                     txt.nativeDecr = new MethodDefinition(

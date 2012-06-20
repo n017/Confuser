@@ -166,29 +166,25 @@ namespace Confuser.Core.Confusions
                 Database.AddEntry("Const", "ResId", txt.resId);
                 Database.AddEntry("Const", "Key", txt.key);
 
-
+                
+                    Mutator mutator = new Mutator();
                 MethodDefinition init = injection.MainModule.GetType("Encryptions").Methods.FirstOrDefault(mtd => mtd.Name == injectName);
                 {
                     MethodDefinition cctor = mod.GetType("<Module>").GetStaticConstructor();
                     MethodDefinition m = CecilHelper.Inject(mod, init);
-                    m.Body.SimplifyMacros();
                     Instruction placeholder = null;
+                    mutator.IntKeys = new int[] { txt.resKey };
+                    mutator.Mutate(m.Body);
+                    txt.keyInst = mutator.Delayed0;
+                    placeholder = mutator.Placeholder;
                     foreach (Instruction inst in m.Body.Instructions)
-                    {
-                        if (inst.Operand is int && (int)inst.Operand == 0x12345678)
-                            inst.Operand = txt.resKey;
-                        else if (inst.Operand is int && (int)inst.Operand == 0x33684543)
-                            txt.keyInst = inst;
-                        else if (inst.Operand is FieldReference)
+                        if (inst.Operand is FieldReference)
                         {
                             if ((inst.Operand as FieldReference).Name == "constTbl")
                                 inst.Operand = constTbl;
                             else if ((inst.Operand as FieldReference).Name == "constBuffer")
                                 inst.Operand = constBuffer;
                         }
-                        else if (inst.Operand is MethodReference && (inst.Operand as MethodReference).Name == "PlaceHolder")
-                            placeholder = inst;
-                    }
 
                     if (txt.isNative)
                         CecilHelper.Replace(m.Body, placeholder, new Instruction[]
@@ -241,37 +237,31 @@ namespace Confuser.Core.Confusions
                         Database.AddEntry("Const", "ConsterMethods", mtd.FullName);
 
                         Conster conster = new Conster();
-                        conster.key0 = rand.Next();
-                        conster.key1 = rand.Next();
-                        conster.key2 = rand.Next();
+                        conster.key0 = (long)rand.Next() * rand.Next();
+                        conster.key1 = (long)rand.Next() * rand.Next();
+                        conster.key2 = (long)rand.Next() * rand.Next();
                         conster.key3 = rand.Next();
                         conster.conster = mtd;
                         Database.AddEntry("Const", mtd.FullName, string.Format("{0:X}, {1:X}, {2:X}, {3:X}", conster.key0, conster.key1, conster.key2, conster.key3));
 
-                        mtd.Body.SimplifyMacros();
-                        foreach (Instruction inst in mtd.Body.Instructions)
+                        mutator = new Mutator();
+                        mutator.LongKeys = new long[]
                         {
-                            if (inst.Operand is TypeReference && (inst.Operand as TypeReference).Name == "Encryptions")
-                                inst.Operand = typeDef;
-                            else if (inst.Operand is FieldReference)
+                            conster.key0,
+                            conster.key1,
+                            conster.key2
+                        };
+                        mutator.IntKeys = new int[] { conster.key3 };
+                        mutator.Mutate(mtd.Body);
+                        foreach (Instruction inst in mtd.Body.Instructions)
+                            if (inst.Operand is FieldReference)
                             {
                                 if ((inst.Operand as FieldReference).Name == "constTbl")
                                     inst.Operand = constTbl;
                                 else if ((inst.Operand as FieldReference).Name == "constBuffer")
                                     inst.Operand = constBuffer;
                             }
-                            else if (inst.Operand is int && (int)inst.Operand == 0x57425674)
-                                conster.keyInst = inst;
-                            else if (inst.Operand is int && (int)inst.Operand == 12345678)
-                                inst.Operand = conster.key0;
-                            else if (inst.Operand is int && (int)inst.Operand == 0x67452301)
-                                inst.Operand = conster.key1;
-                            else if (inst.Operand is int && (int)inst.Operand == 0x3bd523a0)
-                                inst.Operand = conster.key2;
-                            else if (inst.Operand is int && (int)inst.Operand == 0x5f6f36c0)
-                                inst.Operand = conster.key3;
-                        }
-
+                        conster.keyInst = mutator.Delayed0;
                         ret.Add(conster);
                     }
                 }
@@ -481,7 +471,10 @@ namespace Confuser.Core.Confusions
                 _Context txt = cc.txts[mod];
 
                 foreach (var i in txt.consters)
+                {
+                    i.keyInst.OpCode = OpCodes.Ldc_I4;
                     i.keyInst.Operand = (int)(txt.key ^ i.conster.MetadataToken.ToUInt32());
+                }
 
                 List<Context> txts = new List<Context>();
                 ExtractData(
@@ -497,10 +490,10 @@ namespace Confuser.Core.Confusions
 
                     uint x = txts[i].conster.conster.DeclaringType.MetadataToken.ToUInt32() * txts[i].a;
                     ulong hash = ComputeHash(x,
-                                (uint)txts[i].conster.key0,
-                                (uint)txts[i].conster.key1,
-                                (uint)txts[i].conster.key2,
-                                (uint)txts[i].conster.key3);
+                                (uint)txts[i].conster.key3,
+                                (ulong)txts[i].conster.key0,
+                                (ulong)txts[i].conster.key1,
+                                (ulong)txts[i].conster.key2);
                     uint idx, len;
                     if (txt.dict.ContainsKey(val))
                         txts[i].b = Combine(idx = (uint)txt.dict[val], len = GetOperandLen(val)) ^ hash;
@@ -553,6 +546,7 @@ namespace Confuser.Core.Confusions
                     accessor.BlobHeap.GetBlobIndex(new Mono.Cecil.PE.ByteBuffer(txt.keyBuff)));
 
                 int token = 0x11000000 | rid;
+                txt.keyInst.OpCode = OpCodes.Ldc_I4;
                 txt.keyInst.Operand = (int)(token ^ 0x06000001);   //... -_-
                 Database.AddEntry("Const", "KeyBuffToken", token);
 
@@ -645,9 +639,9 @@ namespace Confuser.Core.Confusions
         struct Conster
         {
             public MethodDefinition conster;
-            public int key0;
-            public int key1;
-            public int key2;
+            public long key0;
+            public long key1;
+            public long key2;
             public int key3;
             public Instruction keyInst;
         }
@@ -793,7 +787,7 @@ namespace Confuser.Core.Confusions
         }
         static ulong ComputeHash(uint x, uint key, ulong init0, ulong init1, ulong init2)
         {
-            ulong h = init0 ^ x;
+            ulong h = init0 * x;
             ulong h1 = init1;
             ulong h2 = init2;
             h1 = h1 * h;

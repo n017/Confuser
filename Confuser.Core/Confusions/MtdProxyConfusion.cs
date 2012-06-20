@@ -75,13 +75,20 @@ namespace Confuser.Core.Confusions
 
                 Instruction placeholder = null;
                 txt.key = (uint)Random.Next();
+                txt.keyChar1 = (char)Random.Next(1, 32);
+                do
+                {
+                    txt.keyChar2 = (char)Random.Next(1, 32);
+                } while (txt.keyChar2 == txt.keyChar1);
                 Database.AddEntry("MtdProxy", "Key", txt.key);
-                foreach (Instruction inst in txt.proxy.Body.Instructions)
-                    if (inst.Operand is MethodReference && (inst.Operand as MethodReference).Name == "PlaceHolder")
-                    {
-                        placeholder = inst;
-                        break;
-                    }
+                Database.AddEntry("MtdProxy", "KeyChar1", (int)txt.keyChar1);
+                Database.AddEntry("MtdProxy", "KeyChar2", (int)txt.keyChar2);
+
+                Mutator mutator = new Mutator();
+                mutator.IntKeys = new int[] { txt.keyChar1 };
+                mutator.Mutate(txt.proxy.Body);
+                placeholder = mutator.Placeholder;
+
                 if (txt.isNative)
                 {
                     txt.nativeDecr = new MethodDefinition(
@@ -427,7 +434,7 @@ namespace Confuser.Core.Confusions
                 {
                     txt.token = accessor.LookupToken(txt.mtdRef);
                     if (txt.fld.Name[0] != '\0') continue;
-                    txt.fld.Name = (txt.isVirt ? "\t" : " ") + "\n" + ObfuscationHelper.GetRandomName();
+                    txt.fld.Name = (txt.isVirt ? _txt.keyChar1 : _txt.keyChar2) + "\n" + ObfuscationHelper.GetRandomName();
 
                     //Hack into cecil to generate diff sig for diff field -_-
                     int pos = txt.fld.DeclaringType.Fields.IndexOf(txt.fld) + 1;
@@ -631,6 +638,8 @@ namespace Confuser.Core.Confusions
             public Expression invExp;
             public x86Visitor visitor;
             public uint key;
+            public char keyChar1;
+            public char keyChar2;
 
             public List<Context> txts;
             public TypeReference mcd;

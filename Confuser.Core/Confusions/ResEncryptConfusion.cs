@@ -73,29 +73,25 @@ namespace Confuser.Core.Confusions
                 txt.key0 = (byte)Random.Next(0, 0x100);
                 do
                 {
-                    txt.key1 = (byte)Random.Next(0, 0x100);
-                } while (txt.key1 != 0);
+                    txt.key1 = (byte)Random.Next(1, 0x100);
+                } while (txt.key1 == txt.key0);
                 Database.AddEntry("ResEncrypt", "Key0", txt.key0);
                 Database.AddEntry("ResEncrypt", "Key1", txt.key1);
 
                 txt.resId = ObfuscationHelper.GetRandomName();
                 Database.AddEntry("ResEncrypt", "ResID", txt.resId);
-                txt.reso.Body.SimplifyMacros();
+
+                Mutator mutator = new Mutator();
+                mutator.StringKeys = new string[] { txt.resId };
+                mutator.IntKeys = new int[] { txt.key0, txt.key1 };
+                mutator.Mutate(txt.reso.Body);
                 foreach (Instruction inst in txt.reso.Body.Instructions)
                 {
-                    if ((inst.Operand as string) == "PADDINGPADDINGPADDING")
-                        inst.Operand = txt.resId;
-                    else if (inst.Operand is FieldReference && (inst.Operand as FieldReference).Name == "datAsm")
+                    if (inst.Operand is FieldReference && (inst.Operand as FieldReference).Name == "datAsm")
                         inst.Operand = datAsm;
-                    else if (inst.Operand is int && (int)inst.Operand == 0x11)
-                        inst.Operand = (int)txt.key0;
-                    else if (inst.Operand is int && (int)inst.Operand == 0x22)
-                        inst.Operand = (int)txt.key1;
                     else if (inst.Operand is TypeReference && (inst.Operand as TypeReference).FullName == "System.Exception")
                         inst.Operand = modType;
                 }
-                txt.reso.Body.OptimizeMacros();
-                txt.reso.Body.ComputeOffsets();
 
                 MethodDefinition cctor = mod.GetType("<Module>").GetStaticConstructor();
                 MethodBody bdy = cctor.Body as MethodBody;
