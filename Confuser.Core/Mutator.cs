@@ -12,21 +12,23 @@ namespace Confuser.Core
         public int[] IntKeys { get; set; }
         public long[] LongKeys { get; set; }
         public string[] StringKeys { get; set; }
+        public int[] DelayedKeys { get; set; }
         public Instruction Placeholder { get; private set; }
         public Instruction Delayed0 { get; private set; }
         public Instruction Delayed1 { get; private set; }
         public bool IsDelayed { get; set; }
 
-        public void Mutate(TypeDefinition typeDef)
+        public void Mutate(Random rand, TypeDefinition typeDef)
         {
             foreach (var i in typeDef.NestedTypes)
-                Mutate(i);
+                Mutate(rand, i);
             foreach (var i in typeDef.Methods)
                 if (i.HasBody)
-                    Mutate(i.Body);
+                    Mutate(rand, i.Body);
         }
-        public void Mutate(MethodBody body)
+        public void Mutate(Random rand, MethodBody body)
         {
+            body.SimplifyMacros();
             foreach (var i in body.Instructions)
             {
                 FieldReference field = i.Operand as FieldReference;
@@ -80,7 +82,7 @@ namespace Confuser.Core
                         case "Key0Delayed":
                             if (IsDelayed)
                             {
-                                i.Operand = IntKeys[0];
+                                i.Operand = DelayedKeys[0];
                                 goto case "I";
                             }
                             else
@@ -89,7 +91,7 @@ namespace Confuser.Core
                         case "Key1Delayed":
                             if (IsDelayed)
                             {
-                                i.Operand = IntKeys[1]; 
+                                i.Operand = DelayedKeys[1];
                                 goto case "I";
                             }
                             else
@@ -116,6 +118,150 @@ namespace Confuser.Core
                     }
                 }
             }
+
+            for (int i = 0; i < body.Variables.Count; i++)
+            {
+                int x = rand.Next(0, body.Variables.Count);
+                var tmp = body.Variables[i];
+                body.Variables[i] = body.Variables[x];
+                body.Variables[x] = tmp;
+            }
+
+            int iteration = rand.Next(20, 35);
+            while (iteration > 0)
+            {
+                MutateCode(rand, body);
+                iteration--;
+            }
+        }
+        public void MutateCode(Random rand, MethodBody body)
+        {
+            bool modified = false;
+            int i = 10;
+            do
+            {
+                int idx = rand.Next(0, body.Instructions.Count);
+                Instruction inst = body.Instructions[idx];
+                switch (inst.OpCode.Code)
+                {
+                    case Code.Beq:
+                        CecilHelper.Replace(body, inst, new Instruction[]
+                        {
+                            Instruction.Create(OpCodes.Ceq),
+                            Instruction.Create(OpCodes.Brtrue, (Instruction)inst.Operand)
+                        });
+                        modified = true; break;
+                    case Code.Bgt:
+                        CecilHelper.Replace(body, inst, new Instruction[]
+                        {
+                            Instruction.Create(OpCodes.Cgt),
+                            Instruction.Create(OpCodes.Brtrue, (Instruction)inst.Operand)
+                        });
+                        modified = true; break;
+                    case Code.Bgt_Un:
+                        CecilHelper.Replace(body, inst, new Instruction[]
+                        {
+                            Instruction.Create(OpCodes.Cgt_Un),
+                            Instruction.Create(OpCodes.Brtrue, (Instruction)inst.Operand)
+                        });
+                        modified = true; break;
+                    case Code.Blt:
+                        CecilHelper.Replace(body, inst, new Instruction[]
+                        {
+                            Instruction.Create(OpCodes.Clt),
+                            Instruction.Create(OpCodes.Brtrue, (Instruction)inst.Operand)
+                        });
+                        modified = true; break;
+                    case Code.Blt_Un:
+                        CecilHelper.Replace(body, inst, new Instruction[]
+                        {
+                            Instruction.Create(OpCodes.Clt_Un),
+                            Instruction.Create(OpCodes.Brtrue, (Instruction)inst.Operand)
+                        });
+                        modified = true; break;
+                    case Code.Bne_Un:
+                        CecilHelper.Replace(body, inst, new Instruction[]
+                        {
+                            Instruction.Create(OpCodes.Ceq),
+                            Instruction.Create(OpCodes.Not),
+                            Instruction.Create(OpCodes.Brtrue, (Instruction)inst.Operand)
+                        });
+                        modified = true; break;
+                    case Code.Ldc_I4:
+                        {
+                            int x = (int)inst.Operand;
+                            if (x > 0x10)
+                            {
+                                int y = rand.Next();
+                                switch (rand.Next(0, 3))
+                                {
+                                    case 0:
+                                        x = x - y;
+                                        CecilHelper.Replace(body, inst, new Instruction[]
+                                        {
+                                            Instruction.Create(OpCodes.Ldc_I4, x),
+                                            Instruction.Create(OpCodes.Ldc_I4, y),
+                                            Instruction.Create(OpCodes.Add)
+                                        }); break;
+                                    case 1:
+                                        x = x + y;
+                                        CecilHelper.Replace(body, inst, new Instruction[]
+                                        {
+                                            Instruction.Create(OpCodes.Ldc_I4, x),
+                                            Instruction.Create(OpCodes.Ldc_I4, y),
+                                            Instruction.Create(OpCodes.Sub)
+                                        }); break;
+                                    case 2:
+                                        x = x ^ y;
+                                        CecilHelper.Replace(body, inst, new Instruction[]
+                                        {
+                                            Instruction.Create(OpCodes.Ldc_I4, x),
+                                            Instruction.Create(OpCodes.Ldc_I4, y),
+                                            Instruction.Create(OpCodes.Xor)
+                                        }); break;
+                                }
+                                modified = true;
+                            }
+                        } break;
+                    case Code.Ldc_I8:
+                        {
+                            long x = (long)inst.Operand;
+                            if (x > 0x10)
+                            {
+                                long y = rand.Next() * rand.Next();
+                                switch (rand.Next(0, 3))
+                                {
+                                    case 0:
+                                        x = x - y;
+                                        CecilHelper.Replace(body, inst, new Instruction[]
+                                        {
+                                            Instruction.Create(OpCodes.Ldc_I8, x),
+                                            Instruction.Create(OpCodes.Ldc_I8, y),
+                                            Instruction.Create(OpCodes.Add)
+                                        }); break;
+                                    case 1:
+                                        x = x + y;
+                                        CecilHelper.Replace(body, inst, new Instruction[]
+                                        {
+                                            Instruction.Create(OpCodes.Ldc_I8, x),
+                                            Instruction.Create(OpCodes.Ldc_I8, y),
+                                            Instruction.Create(OpCodes.Sub)
+                                        }); break;
+                                    case 2:
+                                        x = x ^ y;
+                                        CecilHelper.Replace(body, inst, new Instruction[]
+                                        {
+                                            Instruction.Create(OpCodes.Ldc_I8, x),
+                                            Instruction.Create(OpCodes.Ldc_I8, y),
+                                            Instruction.Create(OpCodes.Xor)
+                                        }); break;
+                                }
+                                modified = true;
+                            }
+                        } break;
+                }
+                i--;
+            } while (!modified && i > 0);
         }
     }
 }

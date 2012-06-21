@@ -843,6 +843,13 @@ namespace Confuser.Core
             CustomAttribute ca = new CustomAttribute(ctor);
             ca.ConstructorArguments.Add(new CustomAttributeArgument(mod.TypeSystem.String, string.Format("Confuser v" + typeof(Confuser).Assembly.GetName().Version.ToString())));
             mod.CustomAttributes.Add(ca);
+
+            foreach (var i in mod.AssemblyReferences)
+                if (i.Name == "Confuser.Core.Injections")
+                {
+                    mod.AssemblyReferences.Remove(i);
+                    break;
+                }
         }
 
         List<MemberSetting> newAdded = new List<MemberSetting>();

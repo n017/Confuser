@@ -86,7 +86,7 @@ namespace Confuser.Core.Confusions
 
                 Mutator mutator = new Mutator();
                 mutator.IntKeys = new int[] { txt.keyChar1 };
-                mutator.Mutate(txt.proxy.Body);
+                mutator.Mutate(Random, txt.proxy.Body);
                 placeholder = mutator.Placeholder;
 
                 if (txt.isNative)

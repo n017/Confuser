@@ -84,7 +84,7 @@ namespace Confuser.Core.Confusions
                 Mutator mutator = new Mutator();
                 mutator.StringKeys = new string[] { txt.resId };
                 mutator.IntKeys = new int[] { txt.key0, txt.key1 };
-                mutator.Mutate(txt.reso.Body);
+                mutator.Mutate(Random, txt.reso.Body);
                 foreach (Instruction inst in txt.reso.Body.Instructions)
                 {
                     if (inst.Operand is FieldReference && (inst.Operand as FieldReference).Name == "datAsm")

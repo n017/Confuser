@@ -180,7 +180,7 @@ namespace Confuser.Core
                 (long)n
             };
             mutator.StringKeys = new string[] { res.Name };
-            mutator.Mutate(t);
+            mutator.Mutate(Random, t);
 
 
             t.Namespace = "";

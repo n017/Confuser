@@ -166,15 +166,15 @@ namespace Confuser.Core.Confusions
                 Database.AddEntry("Const", "ResId", txt.resId);
                 Database.AddEntry("Const", "Key", txt.key);
 
-                
-                    Mutator mutator = new Mutator();
+
+                Mutator mutator = new Mutator();
                 MethodDefinition init = injection.MainModule.GetType("Encryptions").Methods.FirstOrDefault(mtd => mtd.Name == injectName);
                 {
                     MethodDefinition cctor = mod.GetType("<Module>").GetStaticConstructor();
                     MethodDefinition m = CecilHelper.Inject(mod, init);
                     Instruction placeholder = null;
                     mutator.IntKeys = new int[] { txt.resKey };
-                    mutator.Mutate(m.Body);
+                    mutator.Mutate(Random, m.Body);
                     txt.keyInst = mutator.Delayed0;
                     placeholder = mutator.Placeholder;
                     foreach (Instruction inst in m.Body.Instructions)
@@ -252,7 +252,7 @@ namespace Confuser.Core.Confusions
                             conster.key2
                         };
                         mutator.IntKeys = new int[] { conster.key3 };
-                        mutator.Mutate(mtd.Body);
+                        mutator.Mutate(Random, mtd.Body);
                         foreach (Instruction inst in mtd.Body.Instructions)
                             if (inst.Operand is FieldReference)
                             {

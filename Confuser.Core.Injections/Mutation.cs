@@ -1,5 +1,6 @@
 ﻿using System;
 
+#pragma warning disable 0649
 class Mutation
 {
     public static readonly int Key0I;

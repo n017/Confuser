@@ -21,7 +21,8 @@ namespace Confuser.Core.Confusions
             int key2;
             int key3;
             int key4;
-            byte key5;
+            int key5;
+            byte key6;
             List<int> excludes;
             uint[] rvas;
             uint[] ptrs;
@@ -35,14 +36,15 @@ namespace Confuser.Core.Confusions
 
             public void InitPhase1(ModuleDefinition mod)
             {
-                byte[] dat = new byte[25];
+                byte[] dat = new byte[29];
                 Confuser.Random.NextBytes(dat);
                 key0 = BitConverter.ToInt32(dat, 0);
                 key1 = BitConverter.ToInt64(dat, 4);
                 key2 = BitConverter.ToInt32(dat, 12);
                 key3 = BitConverter.ToInt32(dat, 16);
                 key4 = BitConverter.ToInt32(dat, 20);
-                key5 = dat[24];
+                key5 = BitConverter.ToInt32(dat, 24);
+                key6 = dat[28];
                 sectName = Convert.ToBase64String(MD5.Create().ComputeHash(dat)).Substring(0, 8);
 
                 Confuser.Database.AddEntry("AntiTamper", "Key0", key0);
@@ -51,6 +53,7 @@ namespace Confuser.Core.Confusions
                 Confuser.Database.AddEntry("AntiTamper", "Key3", key3);
                 Confuser.Database.AddEntry("AntiTamper", "Key4", key4);
                 Confuser.Database.AddEntry("AntiTamper", "Key5", key5);
+                Confuser.Database.AddEntry("AntiTamper", "Key6", key6);
                 Confuser.Database.AddEntry("AntiTamper", "SectName", sectName);
             }
 
@@ -63,32 +66,19 @@ namespace Confuser.Core.Confusions
                 MethodDefinition cctor = mod.GetType("<Module>").GetStaticConstructor();
                 cctor.Body.GetILProcessor().InsertBefore(0, Instruction.Create(OpCodes.Call, root.Methods.FirstOrDefault(mtd => mtd.Name == "Initalize")));
 
-                MethodDefinition init = root.Methods.FirstOrDefault(mtd => mtd.Name == "Initalize");
-                foreach (Instruction inst in init.Body.Instructions)
+                Mutator mutator = new Mutator();
+                mutator.IntKeys = new int[]
                 {
-                    if (inst.Operand is int)
-                    {
-                        switch ((int)inst.Operand)
-                        {
-                            case 0x11111111:
-                                inst.Operand = key0; break;
-                            case 0x33333333:
-                                inst.Operand = key2; break;
-                            case 0x44444444:
-                                inst.Operand = key3; break;
-                            case 0x55555555:
-                                inst.Operand = key4; break;
-                            case 0x66666666:
-                                inst.Operand = (int)sectName.ToCharArray().Sum(_ => (int)_); break;
-                        }
-                    }
-                    else if (inst.Operand is long && (long)inst.Operand == 0x2222222222222222)
-                        inst.Operand = key1;
-                }
-                MethodDefinition dec = root.Methods.FirstOrDefault(mtd => mtd.Name == "Decrypt");
-                foreach (Instruction inst in dec.Body.Instructions)
-                    if (inst.Operand is int && (int)inst.Operand == 0x11111111)
-                        inst.Operand = (int)key5;
+                    key0,
+                    (int)sectName.ToCharArray().Sum(_ => (int)_),
+                    key2,
+                    key3,
+                    key4,
+                    key5,
+                    key6
+                };
+                mutator.LongKeys = new long[] { key1 };
+                mutator.Mutate(Confuser.Random, root);
 
                 root.Name = Confuser.ObfuscationHelper.GetRandomName();
                 root.Namespace = "";
@@ -280,7 +270,7 @@ namespace Confuser.Core.Confusions
                     wtr.Write((int)(ptrs[i] ^ key4));
                     if (ptrs[i] == 0) continue;
                     Confuser.Database.AddEntry("AntiTamper", rvas[i].ToString("X8"), ms.Position);
-                    wtr.Write((int)(rvas[i] ^ key4));
+                    wtr.Write((int)(rvas[i] ^ key5));
                     wtr.Write(codes[i].Length);
                     wtr.Write(codes[i]);
                 }
@@ -314,7 +304,7 @@ namespace Confuser.Core.Confusions
                 }
 
                 byte[] iv;
-                byte[] dat = Encrypt(Confuser.ObfuscationHelper, buff, ms.ToArray(), out iv, key5);
+                byte[] dat = Encrypt(Confuser.ObfuscationHelper, buff, ms.ToArray(), out iv, key6);
 
                 byte[] md5 = MD5.Create().ComputeHash(buff);
                 long checkSum = BitConverter.ToInt64(md5, 0) ^ BitConverter.ToInt64(md5, 8);

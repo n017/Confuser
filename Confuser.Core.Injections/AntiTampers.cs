@@ -45,8 +45,8 @@ static class AntiTamperJIT
             bool pe32 = (rdr.ReadUInt16() == 0x010b);
             stream.Seek(0x3e, SeekOrigin.Current);
             checkSumOffset = (int)stream.Position;
-            uint md = rdr.ReadUInt32() ^ 0x11111111;
-            if (md == 0x11111111)
+            uint md = rdr.ReadUInt32() ^ (uint)Mutation.Key0I;
+            if (md == (uint)Mutation.Key0I)
                 return;
 
             stream.Seek(offset = offset + optSize, SeekOrigin.Begin);  //sect hdr
@@ -63,8 +63,9 @@ static class AntiTamperJIT
                 uint vLoc = rdr.ReadUInt32();
                 uint rSize = rdr.ReadUInt32();
                 uint rLoc = rdr.ReadUInt32();
-                if (h == 0x55555555)
+                if (h == Mutation.Key1I)
                     datLoc = mapped ? vLoc : rLoc;
+
                 if (!mapped && md > vLoc && md < vLoc + vSize)
                     md = md - vLoc + rLoc;
 
@@ -101,11 +102,11 @@ static class AntiTamperJIT
             }
 
             stream.Seek(datLoc, SeekOrigin.Begin);
-            checkSum = rdr.ReadUInt64() ^ 0x2222222222222222;
+            checkSum = rdr.ReadUInt64() ^ (ulong)Mutation.Key0L;
             sn = rdr.ReadInt32();
             snLen = rdr.ReadInt32();
-            iv = rdr.ReadBytes(rdr.ReadInt32() ^ 0x33333333);
-            dats = rdr.ReadBytes(rdr.ReadInt32() ^ 0x44444444);
+            iv = rdr.ReadBytes(rdr.ReadInt32() ^ Mutation.Key2I);
+            dats = rdr.ReadBytes(rdr.ReadInt32() ^ Mutation.Key3I);
         }
 
         byte[] md5 = MD5.Create().ComputeHash(buff);
@@ -142,7 +143,7 @@ static class AntiTamperJIT
         {
             int len = ret.Length <= i + 64 ? ret.Length : i + 64;
             for (int j = i; j < len; j++)
-                ret[j] ^= (byte)(c[j - i] ^ 0x11111111);
+                ret[j] ^= (byte)(c[j - i] ^ Mutation.Key6I);
             c = sha.ComputeHash(ret, i, len - i);
         }
         return ret;
@@ -255,42 +256,6 @@ static class AntiTamperJIT
         public IntPtr* vfptr;
     }
 
-    enum CorInfoOptions
-    {
-        OPT_INIT_LOCALS = 0x00000010,
-        GENERICS_CTXT_FROM_THIS = 0x00000020,
-        GENERICS_CTXT_FROM_PARAMTYPEARG = 0x00000040,
-        GENERICS_CTXT_MASK = (GENERICS_CTXT_FROM_THIS | GENERICS_CTXT_FROM_PARAMTYPEARG),
-        GENERICS_CTXT_KEEP_ALIVE = 0x00000080
-    }
-    enum CorInfoType : byte
-    {
-        UNDEF = 0x0,
-        VOID = 0x1,
-        BOOL = 0x2,
-        CHAR = 0x3,
-        BYTE = 0x4,
-        UBYTE = 0x5,
-        SHORT = 0x6,
-        USHORT = 0x7,
-        INT = 0x8,
-        UINT = 0x9,
-        LONG = 0xa,
-        ULONG = 0xb,
-        NATIVEINT = 0xc,
-        NATIVEUINT = 0xd,
-        FLOAT = 0xe,
-        DOUBLE = 0xf,
-        STRING = 0x10,
-        PTR = 0x11,
-        BYREF = 0x12,
-        VALUECLASS = 0x13,
-        CLASS = 0x14,
-        REFANY = 0x15,
-        VAR = 0x16,
-        COUNT
-    }
-
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     unsafe struct CORINFO_METHOD_INFO
     {
@@ -299,25 +264,6 @@ static class AntiTamperJIT
         public byte* ILCode;
         public uint ILCodeSize;
     }
-    enum CorInfoCallConv
-    {
-        DEFAULT = 0x0,
-        C = 0x1,
-        STDCALL = 0x2,
-        THISCALL = 0x3,
-        FASTCALL = 0x4,
-        VARARG = 0x5,
-        FIELD = 0x6,
-        LOCAL_SIG = 0x7,
-        PROPERTY = 0x8,
-        NATIVEVARARG = 0xb,
-        MASK = 0x0f,
-        GENERIC = 0x10,
-        HASTHIS = 0x20,
-        EXPLICITTHIS = 0x40,
-        PARAMTYPE = 0x80,
-    }
-
 
     [StructLayout(LayoutKind.Sequential)]
     unsafe struct CORINFO_SIG_INST_x86
@@ -341,10 +287,10 @@ static class AntiTamperJIT
     [StructLayout(LayoutKind.Sequential)]
     unsafe struct CORINFO_SIG_INFO_x86
     {
-        public CorInfoCallConv callConv;
+        public uint callConv;
         public IntPtr retTypeClass;
         public IntPtr retTypeSigClass;
-        public CorInfoType retType;
+        public byte retType;
         public byte flags;
         public ushort numArgs;
         public CORINFO_SIG_INST_x86 sigInst;
@@ -356,11 +302,11 @@ static class AntiTamperJIT
     [StructLayout(LayoutKind.Sequential)]
     unsafe struct CORINFO_SIG_INFO_x64
     {
-        public CorInfoCallConv callConv;
+        public uint callConv;
         uint pad1;
         public IntPtr retTypeClass;
         public IntPtr retTypeSigClass;
-        public CorInfoType retType;
+        public byte retType;
         public byte flags;
         public ushort numArgs;
         uint pad2;
@@ -372,76 +318,15 @@ static class AntiTamperJIT
         uint pad3;
     }
 
-    enum CORINFO_EH_CLAUSE_FLAGS
-    {
-        NONE = 0,
-        FILTER = 0x0001,
-        FINALLY = 0x0002,
-        FAULT = 0x0004,
-    }
+    [StructLayout(LayoutKind.Sequential, Size = 0x18)]
     struct CORINFO_EH_CLAUSE
     {
-        public CORINFO_EH_CLAUSE_FLAGS Flags;
-        public uint TryOffset;
-        public uint TryLength;
-        public uint HandlerOffset;
-        public uint HandlerLength;
-        public uint ClassTokenOrFilterOffset;
-    }
-    enum CorInfoTokenKind
-    {
-        Default,
-        Ldtoken,
-        Casting
-    }
-    enum CORINFO_RUNTIME_LOOKUP_KIND
-    {
-        THISOBJ,
-        METHODPARAM,
-        CLASSPARAM,
     }
     enum InfoAccessType
     {
         VALUE,
         PVALUE,
         PPVALUE
-    }
-    enum InfoAccessModule
-    {
-        UNKNOWN_MODULE,
-        CURRENT_MODULE,
-        EXTERNAL_MODULE,
-    }
-    struct CORINFO_GENERICHANDLE_RESULT
-    {
-        public CORINFO_LOOKUP lookup;
-        public IntPtr compileTimeHandle;
-    }
-    struct CORINFO_LOOKUP
-    {
-        public CORINFO_LOOKUP_KIND lookupKind;
-        public CORINFO_RUNTIME_LOOKUP runtimeLookup;
-        public CORINFO_CONST_LOOKUP constLookup;
-    }
-    struct CORINFO_LOOKUP_KIND
-    {
-        public bool needsRuntimeLookup;
-        public CORINFO_RUNTIME_LOOKUP_KIND runtimeLookupKind;
-    }
-    unsafe struct CORINFO_RUNTIME_LOOKUP
-    {
-        public uint token1;
-        public uint token2;
-        public IntPtr helper;
-        public ushort indirections;
-        public ushort testForNull;
-        public fixed ushort offsets[4];
-    }
-    struct CORINFO_CONST_LOOKUP
-    {
-        public IntPtr handleOrAddr;
-        public InfoAccessType accessType;
-        public InfoAccessModule accessModule;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -706,7 +591,7 @@ static class AntiTamperJIT
                     var chars = new char[length / 2];
 
                     for (uint i = offset + 4, j = 0; i < offset + 4 + length; i += 2)
-                        chars[j++] = (char)(data[i] | (data[i + 1] << 8));
+                        chars[j++] = (char)((data[i] | (data[i + 1] << 8)) ^ Mutation.Key5I);
 
                     string c = new string(chars);
                     pins.Add(GCHandle.Alloc(c, GCHandleType.Pinned));
@@ -816,8 +701,8 @@ static class AntiTamperJIT
         if (IntPtr.Size == 8)
         {
             CORINFO_SIG_INFO_x64* sigInfox64 = (CORINFO_SIG_INFO_x64*)sigInfo;
-            sigInfox64->callConv = CorInfoCallConv.DEFAULT;
-            sigInfox64->retType = CorInfoType.VOID;
+            sigInfox64->callConv = 0;
+            sigInfox64->retType = 1;
             sigInfox64->flags = 1;
             sigInfox64->numArgs = numArgs;
             sigInfox64->args = args;
@@ -825,8 +710,8 @@ static class AntiTamperJIT
         else
         {
             CORINFO_SIG_INFO_x86* sigInfox86 = (CORINFO_SIG_INFO_x86*)sigInfo;
-            sigInfox86->callConv = CorInfoCallConv.DEFAULT;
-            sigInfox86->retType = CorInfoType.VOID;
+            sigInfox86->callConv = 0;
+            sigInfox86->retType = 1;
             sigInfox86->flags = 1;
             sigInfox86->numArgs = numArgs;
             sigInfox86->args = args;
@@ -961,7 +846,7 @@ static class AntiTamperJIT
             {
                 Marshal.Copy(data, (int)ptr, (IntPtr)arr, (int)len);
 
-                uint k = key;
+                uint k = key * (uint)Mutation.Key4I;
                 for (uint i = 0; i < buff.Length; i++)
                 {
                     arr[i] ^= (byte)(k & 0xff);
@@ -1064,8 +949,8 @@ static class AntiTamperMem
             bool pe32 = (rdr.ReadUInt16() == 0x010b);
             stream.Seek(0x3e, SeekOrigin.Current);
             checkSumOffset = (int)stream.Position;
-            uint md = rdr.ReadUInt32() ^ 0x11111111;
-            if (md == 0x11111111)
+            uint md = rdr.ReadUInt32() ^ (uint)Mutation.Key0I;
+            if (md == (uint)Mutation.Key0I)
                 Environment.FailFast("Broken file");
 
             stream.Seek(offset = offset + optSize, SeekOrigin.Begin);  //sect hdr
@@ -1082,7 +967,7 @@ static class AntiTamperMem
                 uint vLoc = rdr.ReadUInt32();
                 uint rSize = rdr.ReadUInt32();
                 uint rLoc = rdr.ReadUInt32();
-                if (h == 0x66666666)
+                if (h == Mutation.Key1I)
                     datLoc = mapped ? vLoc : rLoc;
                 if (!mapped && md > vLoc && md < vLoc + vSize)
                     md = md - vLoc + rLoc;
@@ -1116,11 +1001,11 @@ static class AntiTamperMem
             }
 
             stream.Seek(datLoc, SeekOrigin.Begin);
-            checkSum = rdr.ReadUInt64() ^ 0x2222222222222222;
+            checkSum = rdr.ReadUInt64() ^ (ulong)Mutation.Key0L;
             sn = rdr.ReadInt32();
             snLen = rdr.ReadInt32();
-            iv = rdr.ReadBytes(rdr.ReadInt32() ^ 0x33333333);
-            dats = rdr.ReadBytes(rdr.ReadInt32() ^ 0x44444444);
+            iv = rdr.ReadBytes(rdr.ReadInt32() ^ Mutation.Key2I);
+            dats = rdr.ReadBytes(rdr.ReadInt32() ^ Mutation.Key3I);
         }
 
         byte[] md5 = MD5.Create().ComputeHash(buff);
@@ -1141,9 +1026,9 @@ static class AntiTamperMem
             IntPtr[] ptrs = new IntPtr[len];
             for (int i = 0; i < len; i++)
             {
-                uint pos = rdr.ReadUInt32() ^ 0x55555555;
+                uint pos = rdr.ReadUInt32() ^ (uint)Mutation.Key4I;
                 if (pos == 0) continue;
-                uint rva = rdr.ReadUInt32() ^ 0x55555555;
+                uint rva = rdr.ReadUInt32() ^ (uint)Mutation.Key5I;
                 byte[] cDat = rdr.ReadBytes(rdr.ReadInt32());
                 uint old;
                 IntPtr ptr = (IntPtr)((uint)modPtr + (mapped ? rva : pos));
@@ -1183,7 +1068,7 @@ static class AntiTamperMem
         {
             int len = ret.Length <= i + 64 ? ret.Length : i + 64;
             for (int j = i; j < len; j++)
-                ret[j] ^= (byte)(c[j - i] ^ 0x11111111);
+                ret[j] ^= (byte)(c[j - i] ^ Mutation.Key6I);
             c = sha.ComputeHash(ret, i, len - i);
         }
         return ret;

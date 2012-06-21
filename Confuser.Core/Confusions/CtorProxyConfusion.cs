@@ -77,7 +77,7 @@ namespace Confuser.Core.Confusions
                 txt.key = (uint)Random.Next();
                 Database.AddEntry("CtorProxy", "Key", txt.key);
                 Mutator mutator = new Mutator();
-                mutator.Mutate(txt.proxy.Body);
+                mutator.Mutate(Random, txt.proxy.Body);
                 placeholder = mutator.Placeholder;
                 if (txt.isNative)
                 {
