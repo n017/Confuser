@@ -42,9 +42,6 @@ namespace Confuser.Core
         static TypeReference ImportType(TypeReference typeRef, ModuleDefinition mod,
             MethodReference context, Dictionary<MetadataToken, IMemberDefinition> mems)
         {
-            if (typeRef.Scope.Name == "Confuser.Core.Injections")
-                return typeRef;
-
             TypeReference ret = typeRef;
             if (typeRef is TypeSpecification)
             {
@@ -93,16 +90,13 @@ namespace Confuser.Core
             {
                 if (mems != null && mems.ContainsKey(typeRef.MetadataToken))
                     ret = mems[typeRef.MetadataToken] as TypeReference;
-                else if (!(ret is TypeDefinition))
+                else if (!(ret is TypeDefinition) && typeRef.Scope.Name != "Confuser.Core.Injections.dll")
                     ret = mod.Import(ret);
             }
             return ret;
         }
         static MethodReference ImportMethod(MethodReference mtdRef, ModuleDefinition mod, MethodReference context, Dictionary<MetadataToken, IMemberDefinition> mems)
         {
-            if (mtdRef.DeclaringType.Scope.Name == "Confuser.Core.Injections")
-                return mtdRef;
-
             MethodReference ret = mtdRef;
             if (mtdRef is GenericInstanceMethod)
             {
@@ -118,7 +112,7 @@ namespace Confuser.Core
             {
                 if (mems != null && mems.ContainsKey(mtdRef.MetadataToken))
                     ret = mems[mtdRef.MetadataToken] as MethodReference;
-                else
+                else if (mtdRef.DeclaringType.Scope.Name != "Confuser.Core.Injections.dll")
                 {
                     ret = mod.Import(ret);
                     ret.ReturnType = ImportType(ret.ReturnType, mod, ret, mems);
@@ -132,12 +126,12 @@ namespace Confuser.Core
         }
         static FieldReference ImportField(FieldReference fldRef, ModuleDefinition mod, Dictionary<MetadataToken, IMemberDefinition> mems)
         {
-            if (fldRef.DeclaringType.Scope.Name == "Confuser.Core.Injections")
-                return fldRef;
             if (mems != null && mems.ContainsKey(fldRef.MetadataToken))
                 return mems[fldRef.MetadataToken] as FieldReference;
-            else
+            else if (fldRef.DeclaringType.Scope.Name != "Confuser.Core.Injections.dll")
                 return mod.Import(fldRef);
+            else
+                return fldRef;
         }
 
         public static TypeDefinition Inject(ModuleDefinition mod, TypeDefinition type)
