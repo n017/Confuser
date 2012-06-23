@@ -551,7 +551,7 @@ namespace Confuser.Core.Confusions
                 Instruction[] stHdrs = new Instruction[sts.Count];
                 for (int i = 0; i < sts.Count; i++)
                 {
-                    sts[i].Key = i - 1;
+                    sts[i].Key = i;
                     if (sts[i].Instructions.Length > 0)
                         stHdrs[i] = sts[i].Instructions[0];
                 }
@@ -564,7 +564,7 @@ namespace Confuser.Core.Confusions
 
                 exp = generator.Generate(level);
                 invExp = ExpressionInverser.InverseExpression(exp);
-                Instruction[] ldloc = new CecilVisitor(invExp, new Instruction[] { Instruction.Create(OpCodes.Ldloc, stateVar) }).GetInstructions();
+                Instruction[] ldloc = new Instruction[] { Instruction.Create(OpCodes.Ldloc, stateVar) };// new CecilVisitor(invExp, new Instruction[] { Instruction.Create(OpCodes.Ldloc, stateVar) }).GetInstructions();
                 Instruction begin = ldloc[0];
                 Instruction swit = Instruction.Create(OpCodes.Switch, Empty<Instruction>.Array);
                 Instruction end = Instruction.Create(OpCodes.Nop);
@@ -654,6 +654,7 @@ namespace Confuser.Core.Confusions
                         insts.AddRange(stInsts.ToArray());
                         insts.AddRange(ldloc);
                         insts.Add(swit);
+                        targets.Add(stInsts[0]);
                         firstSt = false;
                     }
                 }
@@ -837,7 +838,8 @@ namespace Confuser.Core.Confusions
             //}
             //insts.Add(Instruction.Create(OpCodes.Ldloc, varDef));
             //insts.Add(Instruction.Create(OpCodes.Xor));
-            insts.Add(ret = Instruction.Create(OpCodes.Ldc_I4, ExpressionEvaluator.Evaluate(exp, num)));
+            //insts.Add(ret = Instruction.Create(OpCodes.Ldc_I4, ExpressionEvaluator.Evaluate(exp, num)));
+            insts.Add(ret = Instruction.Create(OpCodes.Ldc_I4, num));
             insts.Add(Instruction.Create(OpCodes.Stloc, varDef));
             return ret;
         }
@@ -1035,13 +1037,13 @@ namespace Confuser.Core.Confusions
                                                     0x19fe, 0x1bfe, 0x1ffe};
         IEnumerable<Instruction> GetJunk_(VariableDefinition stateVar)
         {
-            TypeDefinition randType = method.Module.Types[Random.Next(0, method.Module.Types.Count)];
-            if (randType.Methods.Count > 0 && Random.Next() % 2 == 0)
-                yield return Instruction.Create(OpCodes.Ldtoken, randType.Methods[Random.Next(0, randType.Methods.Count)]);
-            else if (randType.Fields.Count > 0)
-                yield return Instruction.Create(OpCodes.Ldtoken, randType.Fields[Random.Next(0, randType.Fields.Count)]);
+            TypeDefinition type = method.DeclaringType;
+            if (type.Methods.Count > 0 && Random.Next() % 2 == 0)
+                yield return Instruction.Create(OpCodes.Ldtoken, type.Methods[Random.Next(0, type.Methods.Count)]);
+            else if (type.Fields.Count > 0)
+                yield return Instruction.Create(OpCodes.Ldtoken, type.Fields[Random.Next(0, type.Fields.Count)]);
             else
-                yield return Instruction.Create(OpCodes.Ldtoken, randType);
+                yield return Instruction.Create(OpCodes.Ldtoken, type);
             if (genJunk)
             {
                 switch (Random.Next(0, 5))

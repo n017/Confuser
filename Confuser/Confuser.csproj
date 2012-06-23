@@ -134,6 +134,7 @@
     <None Include="Application.ico">
       <Visible>false</Visible>
     </None>
+    <None Include="Themes\crproj.design" />
     <None Include="Themes\icon.design" />
   </ItemGroup>
   <ItemGroup>
@@ -260,6 +261,9 @@
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Themes\new.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="crProj.ico" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

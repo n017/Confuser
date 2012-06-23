@@ -102,6 +102,25 @@ namespace Confuser.Core.Confusions
                         foreach (Row<ParameterAttributes, ushort, uint> r in accessor.TableHeap.GetTable<ParamTable>(Table.Param))
                             if (r != null)
                                 r.Col3 = 0x7fffffff;
+
+                        int[] types = new int[Random.Next(5, 10)];
+                        for (int i = 0; i < types.Length; i++)
+                            types[i] = accessor.TableHeap.GetTable<TypeDefTable>(Table.TypeDef).AddRow(
+                                new Row<TypeAttributes, uint, uint, uint, uint, uint>(0, accessor.StringHeap.GetStringIndex(ObfuscationHelper.GetRandomName()), 0, 0, fldLen, mtdLen));
+
+                        int genCount = Random.Next(10, 20);
+                        int genParamCount = accessor.TableHeap.GetTable<GenericParamTable>(Table.GenericParam).Length;
+                        for (int i = 0; i < genCount; i++)
+                            accessor.TableHeap.GetTable<GenericParamTable>(Table.GenericParam).AddRow(new Row<ushort, GenericParameterAttributes, uint, uint>(
+                                (ushort)Random.Next(5, 10),
+                                GenericParameterAttributes.Contravariant,
+                                CodedIndex.TypeOrMethodDef.CompressMetadataToken(new MetadataToken(TokenType.TypeDef, types[Random.Next(0, types.Length)])),
+                                42));
+
+                        genCount = Random.Next(10, 20);
+                        for (int i = 0; i < genCount; i++)
+                            accessor.TableHeap.GetTable<GenericParamConstraintTable>(Table.GenericParamConstraint).AddRow(
+                                new Row<uint, uint>((uint)Random.Next(genParamCount, genParamCount + 10), 0xffff));
                     }
                 }
                 accessor.TableHeap.GetTable<ModuleTable>(Table.Module).AddRow(accessor.StringHeap.GetStringIndex(ObfuscationHelper.GetRandomName()));
@@ -118,27 +137,6 @@ namespace Confuser.Core.Confusions
                 accessor.TableHeap.GetTable<AssemblyRefTable>(Table.AssemblyRef).AddRow(new Row<ushort, ushort, ushort, ushort, AssemblyAttributes, uint, uint, uint, uint>(
                     0, 0, 0, 0, AssemblyAttributes.SideBySideCompatible, 0,
                     0xffff, 0, 0xffff));
-
-                {
-                    int[] types = new int[Random.Next(5, 10)];
-                    for (int i = 0; i < types.Length; i++)
-                        types[i] = accessor.TableHeap.GetTable<TypeDefTable>(Table.TypeDef).AddRow(
-                            new Row<TypeAttributes, uint, uint, uint, uint, uint>(0, accessor.StringHeap.GetStringIndex(ObfuscationHelper.GetRandomName()), 0, 0x3FFFD, fldLen, mtdLen));
-
-                    int genCount = Random.Next(10, 20);
-                    int genParamCount = accessor.TableHeap.GetTable<GenericParamTable>(Table.GenericParam).Length;
-                    for (int i = 0; i < genCount; i++)
-                        accessor.TableHeap.GetTable<GenericParamTable>(Table.GenericParam).AddRow(new Row<ushort, GenericParameterAttributes, uint, uint>(
-                            (ushort)Random.Next(5, 10),
-                            GenericParameterAttributes.Contravariant,
-                            CodedIndex.TypeOrMethodDef.CompressMetadataToken(new MetadataToken(TokenType.TypeDef, types[Random.Next(0, types.Length)])),
-                            42));
-
-                    genCount = Random.Next(10, 20);
-                    for (int i = 0; i < genCount; i++)
-                        accessor.TableHeap.GetTable<GenericParamConstraintTable>(Table.GenericParamConstraint).AddRow(
-                            new Row<uint, uint>((uint)Random.Next(genParamCount, genParamCount + 10), 0xffff));
-                }
 
 
                 Randomize(accessor.TableHeap.GetTable<NestedClassTable>(Table.NestedClass));

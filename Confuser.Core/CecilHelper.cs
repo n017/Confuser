@@ -40,8 +40,11 @@ namespace Confuser.Core
         }
 
         static TypeReference ImportType(TypeReference typeRef, ModuleDefinition mod,
-            MethodDefinition context, Dictionary<MetadataToken, IMemberDefinition> mems)
+            MethodReference context, Dictionary<MetadataToken, IMemberDefinition> mems)
         {
+            if (typeRef.Scope.Name == "Confuser.Core.Injections")
+                return typeRef;
+
             TypeReference ret = typeRef;
             if (typeRef is TypeSpecification)
             {
@@ -81,7 +84,8 @@ namespace Confuser.Core
             }
             else if (typeRef is GenericParameter)
             {
-                if (context == null || (typeRef as GenericParameter).Owner is TypeReference)
+                if (context == null || (typeRef as GenericParameter).Owner is TypeReference ||
+                    (typeRef as GenericParameter).Position >= context.GenericParameters.Count)
                     return typeRef;
                 return context.GenericParameters[(typeRef as GenericParameter).Position];
             }
@@ -94,8 +98,11 @@ namespace Confuser.Core
             }
             return ret;
         }
-        static MethodReference ImportMethod(MethodReference mtdRef, ModuleDefinition mod, MethodDefinition context, Dictionary<MetadataToken, IMemberDefinition> mems)
+        static MethodReference ImportMethod(MethodReference mtdRef, ModuleDefinition mod, MethodReference context, Dictionary<MetadataToken, IMemberDefinition> mems)
         {
+            if (mtdRef.DeclaringType.Scope.Name == "Confuser.Core.Injections")
+                return mtdRef;
+
             MethodReference ret = mtdRef;
             if (mtdRef is GenericInstanceMethod)
             {
@@ -103,25 +110,34 @@ namespace Confuser.Core
                 ret = new GenericInstanceMethod(ImportMethod(_spec.ElementMethod, mod, context, mems));
                 foreach (var i in _spec.GenericArguments) (ret as GenericInstanceMethod).GenericArguments.Add(ImportType(i, mod, context, mems));
 
-                ret.ReturnType = ImportType(ret.ReturnType, mod, context, mems);
+                ret.ReturnType = ImportType(ret.ReturnType, mod, ret, mems);
                 foreach (var i in ret.Parameters)
-                    i.ParameterType = ImportType(i.ParameterType, mod, context, mems);
+                    i.ParameterType = ImportType(i.ParameterType, mod, ret, mems);
             }
             else
             {
-                if (mems.ContainsKey(mtdRef.MetadataToken))
+                if (mems != null && mems.ContainsKey(mtdRef.MetadataToken))
                     ret = mems[mtdRef.MetadataToken] as MethodReference;
                 else
                 {
                     ret = mod.Import(ret);
-                    ret.ReturnType = ImportType(ret.ReturnType, mod, context, mems);
+                    ret.ReturnType = ImportType(ret.ReturnType, mod, ret, mems);
                     foreach (var i in ret.Parameters)
-                        i.ParameterType = ImportType(i.ParameterType, mod, context, mems);
+                        i.ParameterType = ImportType(i.ParameterType, mod, ret, mems);
                 }
             }
-            if (!(mtdRef is MethodDefinition))
+            if (!(mtdRef is MethodDefinition) && !(mtdRef is MethodSpecification))
                 ret.DeclaringType = ImportType(mtdRef.DeclaringType, mod, context, mems);
             return ret;
+        }
+        static FieldReference ImportField(FieldReference fldRef, ModuleDefinition mod, Dictionary<MetadataToken, IMemberDefinition> mems)
+        {
+            if (fldRef.DeclaringType.Scope.Name == "Confuser.Core.Injections")
+                return fldRef;
+            if (mems != null && mems.ContainsKey(fldRef.MetadataToken))
+                return mems[fldRef.MetadataToken] as FieldReference;
+            else
+                return mod.Import(fldRef);
         }
 
         public static TypeDefinition Inject(ModuleDefinition mod, TypeDefinition type)
@@ -276,10 +292,7 @@ namespace Confuser.Core
                             psr.Emit(inst.OpCode, bdy.Variables[var]);
                             break;
                         case OperandType.InlineField:
-                            if (mems.ContainsKey((inst.Operand as FieldReference).MetadataToken))
-                                psr.Emit(inst.OpCode, mems[(inst.Operand as FieldReference).MetadataToken] as FieldReference);
-                            else
-                                psr.Emit(inst.OpCode, mod.Import(inst.Operand as FieldReference));
+                            psr.Emit(inst.OpCode, ImportField(inst.Operand as FieldReference, mod, mems));
                             break;
                         case OperandType.InlineMethod:
                             psr.Emit(inst.OpCode, ImportMethod(inst.Operand as MethodReference, mod, newMtd, mems));
@@ -288,24 +301,12 @@ namespace Confuser.Core
                             psr.Emit(inst.OpCode, ImportType(inst.Operand as TypeReference, mod, newMtd, mems));
                             break;
                         case OperandType.InlineTok:
-                            if (mems.ContainsKey((inst.Operand as TypeReference).MetadataToken))
-                            {
-                                if (inst.Operand is FieldReference)
-                                    psr.Emit(inst.OpCode, mems[(inst.Operand as FieldReference).MetadataToken] as FieldReference);
-                                else if (inst.Operand is MethodReference)
-                                    psr.Emit(inst.OpCode, ImportMethod(inst.Operand as MethodReference, mod, newMtd, mems));
-                                else if (inst.Operand is TypeReference)
-                                    psr.Emit(inst.OpCode, ImportType(inst.Operand as TypeReference, mod, newMtd, mems));
-                            }
-                            else
-                            {
-                                if (inst.Operand is FieldReference)
-                                    psr.Emit(inst.OpCode, mod.Import(inst.Operand as FieldReference));
-                                else if (inst.Operand is MethodReference)
-                                    psr.Emit(inst.OpCode, ImportMethod(inst.Operand as MethodReference, mod, newMtd, mems));
-                                else if (inst.Operand is TypeReference)
-                                    psr.Emit(inst.OpCode, ImportType(inst.Operand as TypeReference, mod, newMtd, mems));
-                            }
+                            if (inst.Operand is FieldReference)
+                                psr.Emit(inst.OpCode, ImportField(inst.Operand as FieldReference, mod, mems));
+                            else if (inst.Operand is MethodReference)
+                                psr.Emit(inst.OpCode, ImportMethod(inst.Operand as MethodReference, mod, newMtd, mems));
+                            else if (inst.Operand is TypeReference)
+                                psr.Emit(inst.OpCode, ImportType(inst.Operand as TypeReference, mod, newMtd, mems));
                             break;
                         default:
                             psr.Append(inst);
@@ -386,7 +387,7 @@ namespace Confuser.Core
             {
                 foreach (CustomAttribute attr in mtd.CustomAttributes)
                 {
-                    CustomAttribute nAttr = new CustomAttribute(mod.Import(attr.Constructor), attr.GetBlob());
+                    CustomAttribute nAttr = new CustomAttribute(ImportMethod(attr.Constructor, mod, ret, null), attr.GetBlob());
                     ret.CustomAttributes.Add(nAttr);
                 }
             }
@@ -398,7 +399,7 @@ namespace Confuser.Core
                 {
                     foreach (CustomAttribute attr in param.CustomAttributes)
                     {
-                        CustomAttribute nAttr = new CustomAttribute(mod.Import(attr.Constructor), attr.GetBlob());
+                        CustomAttribute nAttr = new CustomAttribute(ImportMethod(attr.Constructor, mod, ret, null), attr.GetBlob());
                         p.CustomAttributes.Add(nAttr);
                     }
                 }
@@ -414,7 +415,7 @@ namespace Confuser.Core
                 {
                     foreach (CustomAttribute attr in param.CustomAttributes)
                     {
-                        CustomAttribute nAttr = new CustomAttribute(mod.Import(attr.Constructor), attr.GetBlob());
+                        CustomAttribute nAttr = new CustomAttribute(ImportMethod(attr.Constructor, mod, ret, null), attr.GetBlob());
                         p.CustomAttributes.Add(nAttr);
                     }
                 }
@@ -453,44 +454,24 @@ namespace Confuser.Core
                             psr.Emit(inst.OpCode, bdy.Variables[var]);
                             break;
                         case OperandType.InlineField:
-                            if (((FieldReference)inst.Operand).DeclaringType != mtd.DeclaringType)
-                                psr.Emit(inst.OpCode, mod.Import(inst.Operand as FieldReference));
-                            else
-                                psr.Emit(inst.OpCode, (FieldReference)inst.Operand);
+                            psr.Emit(inst.OpCode, ImportField(inst.Operand as FieldReference, mod, null));
                             break;
                         case OperandType.InlineMethod:
                             if (inst.Operand == mtd)
                                 psr.Emit(inst.OpCode, ret);
-                            else if (((MethodReference)inst.Operand).DeclaringType != mtd.DeclaringType)
-                                psr.Emit(inst.OpCode, mod.Import(inst.Operand as MethodReference));
                             else
-                                psr.Emit(inst.OpCode, (MethodReference)inst.Operand);
+                                psr.Emit(inst.OpCode, ImportMethod(inst.Operand as MethodReference, mod, ret, null));
                             break;
                         case OperandType.InlineType:
                             psr.Emit(inst.OpCode, ImportType(inst.Operand as TypeReference, mod, ret, null));
                             break;
                         case OperandType.InlineTok:
-                            if (((MemberReference)inst.Operand).DeclaringType != mtd.DeclaringType &&
-                                ((MemberReference)inst.Operand) != mtd.DeclaringType)
-                            {
-                                if (inst.Operand is TypeReference)
-                                {
-                                    psr.Emit(inst.OpCode, ImportType(inst.Operand as TypeReference, mod, ret, null));
-                                }
-                                else if (inst.Operand is FieldReference)
-                                    psr.Emit(inst.OpCode, mod.Import(inst.Operand as FieldReference));
-                                else if (inst.Operand is MethodReference)
-                                    psr.Emit(inst.OpCode, mod.Import(inst.Operand as MethodReference));
-                            }
-                            else
-                            {
-                                if (inst.Operand is TypeReference)
-                                    psr.Emit(inst.OpCode, inst.Operand as TypeReference);
-                                else if (inst.Operand is FieldReference)
-                                    psr.Emit(inst.OpCode, inst.Operand as FieldReference);
-                                else if (inst.Operand is MethodReference)
-                                    psr.Emit(inst.OpCode, inst.Operand as MethodReference);
-                            }
+                            if (inst.Operand is TypeReference)
+                                psr.Emit(inst.OpCode, ImportType(inst.Operand as TypeReference, mod, ret, null));
+                            else if (inst.Operand is FieldReference)
+                                psr.Emit(inst.OpCode, ImportField(inst.Operand as FieldReference, mod, null));
+                            else if (inst.Operand is MethodReference)
+                                psr.Emit(inst.OpCode, ImportMethod(inst.Operand as MethodReference, mod, ret, null));
                             break;
                         default:
                             psr.Append(inst.Clone());
@@ -532,7 +513,7 @@ namespace Confuser.Core
                     switch (eh.HandlerType)
                     {
                         case ExceptionHandlerType.Catch:
-                            neh.CatchType = mod.Import(eh.CatchType);
+                            neh.CatchType = ImportType(eh.CatchType, mod, ret, null);
                             break;
                         case ExceptionHandlerType.Filter:
                             neh.FilterStart = bdy.Instructions[old.Instructions.IndexOf(eh.FilterStart)];

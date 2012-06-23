@@ -10,7 +10,8 @@
                 <!--<ResourceDictionary Source="ExpressionDark.xaml"/>
                 <ResourceDictionary Source="Scroller.xaml"/>-->
             </ResourceDictionary.MergedDictionaries>
-            <ImageSource x:Key="icon">Application.ico</ImageSource>
+            <BitmapSource x:Key="icon">Application.ico</BitmapSource>
+            <BitmapSource x:Key="crProj">crProj.ico</BitmapSource>
             <BitmapSource x:Key="ok">Themes\ok.png</BitmapSource>
             <BitmapSource x:Key="error">Themes\error.png</BitmapSource>
             <BitmapSource x:Key="loading">Themes\loading.png</BitmapSource>

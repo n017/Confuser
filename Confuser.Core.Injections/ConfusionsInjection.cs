@@ -366,7 +366,7 @@ static class Encryptions
 
         byte[] b = s.ToArray();
         s = new MemoryStream();
-        using (BinaryWriter wtr = new BinaryWriter(s))
+        BinaryWriter wtr = new BinaryWriter(s);
         {
             int i = 0;
             while (i < b.Length)
@@ -385,6 +385,7 @@ static class Encryptions
                 wtr.Write((byte)count);
             }
         }
+        s.Dispose();
 
         constBuffer = s.ToArray();
     }

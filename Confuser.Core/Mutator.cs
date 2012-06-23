@@ -179,14 +179,6 @@ namespace Confuser.Core
                             Instruction.Create(OpCodes.Brtrue, (Instruction)inst.Operand)
                         });
                         modified = true; break;
-                    case Code.Bne_Un:
-                        CecilHelper.Replace(body, inst, new Instruction[]
-                        {
-                            Instruction.Create(OpCodes.Ceq),
-                            Instruction.Create(OpCodes.Not),
-                            Instruction.Create(OpCodes.Brtrue, (Instruction)inst.Operand)
-                        });
-                        modified = true; break;
                     case Code.Ldc_I4:
                         {
                             int x = (int)inst.Operand;
