@@ -11,6 +11,91 @@ namespace Confuser.Console
 {
     class Program
     {
+        static int ParseCommandLine(string[] args, out ConfuserProject proj)
+        {
+            proj = new ConfuserProject();
+            for (int i = 0; i < args.Length; i++)
+            {
+                string action = args[i].ToLower();
+                if (!action.StartsWith("-") || i + 1 >= args.Length)
+                {
+                    WriteLineWithColor(ConsoleColor.Red, string.Format("Error: Invalid argument {0}!", action));
+                    return 3;
+                }
+                action = action.Substring(1).ToLower();
+                switch (action)
+                {
+                    case "project":
+                        {
+                            if (!File.Exists(args[i + 1]))
+                            {
+                                WriteLineWithColor(ConsoleColor.Red, string.Format("Error: File '{0}' not exist!", args[i + 1]));
+                                return 2;
+                            }
+                            XmlDocument xmlDoc = new XmlDocument();
+                            xmlDoc.Load(args[i + 1]);
+                            proj.Load(xmlDoc);
+                            i += 1;
+                        } break;
+                    case "preset":
+                        {
+                            try
+                            {
+                                proj.DefaultPreset = (Preset)Enum.Parse(typeof(Preset), args[i + 1], true);
+                                i += 1;
+                            }
+                            catch
+                            {
+                                WriteLineWithColor(ConsoleColor.Red, string.Format("Error: Invalid preset '{0}'!", args[i + 1]));
+                                return 3;
+                            }
+                        } break;
+                    case "input":
+                        {
+                            for (int j = i + 1; j < args.Length && !args[j].StartsWith("-"); j++)
+                            {
+                                if (!File.Exists(args[j]))
+                                {
+                                    WriteLineWithColor(ConsoleColor.Red, string.Format("Error: File '{0}' not exist!", args[j]));
+                                    return 2;
+                                }
+                                proj.Add(new ProjectAssembly() { Path = args[j], IsMain = j == i + 1 });
+                            }
+                            i += proj.Count;
+                        } break;
+                    case "output":
+                        {
+                            if (!Directory.Exists(args[i + 1]))
+                            {
+                                WriteLineWithColor(ConsoleColor.Red, string.Format("Error: Directory '{0}' not exist!", args[i + 1]));
+                                return 2;
+                            }
+                            proj.OutputPath = args[i + 1];
+                            i += 1;
+                        } break;
+                    case "snkey":
+                        {
+                            if (!File.Exists(args[i + 1]))
+                            {
+                                WriteLineWithColor(ConsoleColor.Red, string.Format("Error: File '{0}' not exist!", args[i + 1]));
+                                return 2;
+                            }
+                            proj.SNKeyPath = args[i + 1];
+                            i += 1;
+                        } break;
+                }
+            }
+
+            if (proj.Count == 0 || string.IsNullOrEmpty(proj.OutputPath))
+            {
+                WriteLineWithColor(ConsoleColor.Red, "Error: Missing required arguments!");
+                return 4;
+            }
+
+
+            return 0;
+        }
+
         static int Main(string[] args)
         {
             ConsoleColor color = System.Console.ForegroundColor;
@@ -31,28 +116,24 @@ namespace Confuser.Console
 
             try
             {
-                if (args.Length != 1)
+                if (args.Length < 2 || args[0] == "-help")
                 {
                     PrintUsage();
-                    return 1;
+                    return 0;
                 }
 
-                if (!File.Exists(args[0]))
+                ConfuserProject proj;
+                int error = ParseCommandLine(args, out proj);
+                if (error != 0)
                 {
-                    WriteLineWithColor(ConsoleColor.Red, "ERROR: FILE NOT EXIST!");
-                    return 2;
+                    return error;
                 }
-
-                var proj = new ConfuserProject();
-                XmlDocument xmlDoc = new XmlDocument();
-                xmlDoc.Load(args[0]);
-                proj.Load(xmlDoc);
 
                 Core.Confuser cr = new Core.Confuser();
                 ConfuserParameter param = new ConfuserParameter();
                 param.Project = proj;
                 ConsoleLogger.Initalize(param.Logger);
-                WriteLine("START WORKING.");
+                WriteLine("Start working.");
                 WriteLine(new string('*', 15));
                 cr.Confuse(param);
 
@@ -67,7 +148,7 @@ namespace Confuser.Console
         static void PrintUsage()
         {
             WriteLine("Usage:");
-            WriteLine("Confuser.Console.exe [configuration file]");
+            WriteLine("Confuser.Console.exe [-project <configuration file> | -preset <preset> -snkey <strong name key> -output <output directory> -input <input files>]");
         }
 
         static void WriteLineWithColor(ConsoleColor color, string txt)
