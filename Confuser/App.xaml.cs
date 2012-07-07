@@ -25,6 +25,17 @@ namespace Confuser
                 BindingFlags.Static | BindingFlags.NonPublic);
             Color[] _colorCache = (Color[])colorCacheField.GetValue(typeof(SystemColors));
             _colorCache[14] = Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF);
+
+            AppDomain.CurrentDomain.UnhandledException += UnhandledException;
+        }
+
+        static void UnhandledException(object sender, UnhandledExceptionEventArgs e)
+        {
+            Exception ex = e.ExceptionObject as Exception;
+            var result = MessageBox.Show(string.Format(
+@"Unhandled exception!
+Message : {0}
+Stack Trace : {1}", ex.Message, ex.StackTrace), "Confuser", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 }
