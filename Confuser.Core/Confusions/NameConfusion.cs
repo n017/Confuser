@@ -195,7 +195,6 @@ namespace Confuser.Core.Confusions
             get { return Behaviour.AlterStructure; }
         }
 
-        Phase[] ps;
         public Phase[] Phases
         {
             get { return new Phase[] { this }; }

@@ -7,6 +7,8 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 
+#pragma warning disable 0649
+
 namespace Microsoft.Cci.Pdb {
   internal class PdbFunction {
     static internal readonly Guid msilMetaData = new Guid(0xc6ea3fc9, 0x59b3, 0x49d6, 0xbc, 0x25,

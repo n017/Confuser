@@ -16,6 +16,7 @@ namespace Confuser.Core.Poly.Visitors
         {
             dm = new DynamicMethod("", typeof(int), new Type[] { typeof(int) });
             ILGenerator gen = dm.GetILGenerator();
+            insts = new List<Tuple<OpCode, int?>>();
             exp.VisitPostOrder(this);
             insts.Reverse();
             foreach (var i in insts)

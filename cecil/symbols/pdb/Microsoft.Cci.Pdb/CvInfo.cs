@@ -24,6 +24,8 @@
 //
 using System;
 
+#pragma warning disable 0649
+
 namespace Microsoft.Cci.Pdb {
   internal struct FLOAT10 {
     internal byte Data_0;

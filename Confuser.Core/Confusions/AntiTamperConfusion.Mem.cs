@@ -28,7 +28,6 @@ namespace Confuser.Core.Confusions
             uint[] ptrs;
             byte[][] codes;
             uint codeLen;
-            uint sectRaw;
             string sectName;
 
             public Action<IMemberDefinition, HelperAttribute> AddHelper { get; set; }
