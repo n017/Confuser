@@ -494,7 +494,7 @@ static class AntiDumping
         ptr = ptr2 = ptr + 0x4 + optSize;
 
         byte* @new = stackalloc byte[11];// (byte*)Marshal.AllocHGlobal(11);
-        if (typeof(AntiDumping).Module.FullyQualifiedName != "<Unknown>")   //Mapped
+        if (typeof(AntiDumping).Module.FullyQualifiedName[0] != '<')   //Mapped
         {
             //VirtualProtect(ptr - 16, 8, 0x40, out old);
             //*(uint*)(ptr - 12) = 0;

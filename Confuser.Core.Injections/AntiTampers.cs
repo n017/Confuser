@@ -21,7 +21,7 @@ static class AntiTamperJIT
         s = (ulong)modPtr.ToInt64();
         if (modPtr == (IntPtr)(-1)) Environment.FailFast(null);
         string fq = mod.FullyQualifiedName;
-        bool mapped = fq.Length != 9 || fq[0] != '<' || fq[8] != '>'; //<Unknown>
+        bool mapped = fq[0] != '<'; //<Unknown>
         Stream stream;
         stream = new UnmanagedMemoryStream((byte*)modPtr.ToPointer(), 0xfffffff, 0xfffffff, FileAccess.ReadWrite);
 
@@ -925,7 +925,7 @@ static class AntiTamperMem
         Module mod = typeof(AntiTamperMem).Module;
         IntPtr modPtr = Marshal.GetHINSTANCE(mod);
         if (modPtr == (IntPtr)(-1)) Environment.FailFast("Module error");
-        bool mapped = mod.FullyQualifiedName != "<Unknown>";
+        bool mapped = mod.FullyQualifiedName[0] != '<'; //<Unknown>
         Stream stream;
         stream = new UnmanagedMemoryStream((byte*)modPtr.ToPointer(), 0xfffffff, 0xfffffff, FileAccess.ReadWrite);
 
