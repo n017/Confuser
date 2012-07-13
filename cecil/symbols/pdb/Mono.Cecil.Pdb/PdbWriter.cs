@@ -178,7 +178,7 @@ namespace Mono.Cecil.Pdb {
 
 		void DefineSequencePoints (MethodSymbols symbols)
 		{
-            var instructions = symbols.instructions;
+            var instructions = symbols.Instructions;
 
 			for (int i = 0; i < instructions.Count; i++) {
 				var instruction = instructions [i];
