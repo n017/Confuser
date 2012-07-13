@@ -132,73 +132,120 @@ namespace Confuser
             if (ret == null) throw new InvalidOperationException(); //...what? should already existed! or how can the user select it?
             return ret;
         }
-        PrjModule GetModule(ModuleDefinition modDef)
+        PrjModule GetModule(ModuleDefinition modDef, bool create)
         {
             var asm = GetAssembly(modDef.Assembly);
             var ret = asm.SingleOrDefault(_ => _.Name == modDef.Name);
-            if (ret == null)
+            if (ret == null && create)
                 asm.Add(ret = new PrjModule(asm) { Name = modDef.Name });
             return ret;
         }
-        PrjMember GetMember(IMemberDefinition member)
+        PrjNamespace GetNamespace(Namespace ns, bool create)
         {
-            var mod = GetModule(member.Module);
+            return GetNamespace(ns.Name, ns.Module, create);
+        }
+        PrjNamespace GetNamespace(string name, ModuleDefinition mod, bool create)
+        {
+            PrjModule parent = GetModule(mod, create);
+            if (parent == null) return null;
+            var ret = parent.SingleOrDefault(_ => _.Name == name);
+            if (ret == null && create)
+                parent.Add(ret = new PrjNamespace(parent) { Name = name });
+            return ret;
+        }
+        PrjMember GetType(TypeDefinition type, bool create)
+        {
+            if (type.DeclaringType != null)
+            {
+                PrjMember parent = GetType(type.DeclaringType, create);
+                if (parent == null) return null;
+                var ret = parent.SingleOrDefault(_ => _.Member == type);
+                if (ret == null && create)
+                    parent.Add(ret = new PrjMember(parent) { Member = type });
+                return ret;
+            }
+            else
+            {
+                PrjNamespace parent = GetNamespace(type.Namespace, type.Module, create);
+                if (parent == null) return null;
+                var ret = parent.SingleOrDefault(_ => _.Member == type);
+                if (ret == null)
+                    parent.Add(ret = new PrjMember(parent) { Member = type });
+                return ret;
+            }
+        }
+        PrjMember GetMember(IMemberDefinition member, bool create)
+        {
+            var mod = GetType(member.DeclaringType, create);
+            if (mod == null) return null;
             var ret = mod.SingleOrDefault(_ => _.Member == member);
-            if (ret == null)
+            if (ret == null && create)
                 mod.Add(ret = new PrjMember(mod) { Member = member });
             return ret;
         }
-        PrjSettings CreateSettings(object obj, INotifyChildrenChanged self)
+        PrjSettings CreateSettings(object obj, IProjObject self)
         {
-            PrjSettings parentSettings;
-            INotifyChildrenChanged x;
+            object parent;
             if (obj is AssemblyDefinition)
-                parentSettings = null;
+                return new PrjSettings(self);
             else if (obj is ModuleDefinition)
-                parentSettings = GetSettings((obj as ModuleDefinition).Assembly, out x);
+                parent = (obj as ModuleDefinition).Assembly;
             else if (obj is TypeDefinition)
-                parentSettings = GetSettings((obj as TypeDefinition).Module, out x);
+            {
+                TypeDefinition typeDef = obj as TypeDefinition;
+                if (typeDef.DeclaringType == null)
+                    parent = Childer.GetNamespace(typeDef.Module, typeDef.Namespace);
+                else
+                    parent = typeDef.DeclaringType;
+            }
+            else if (obj is Namespace)
+                parent = (obj as Namespace).Module;
             else if (obj is IMemberDefinition)
-                parentSettings = GetSettings((obj as IMemberDefinition).DeclaringType, out x);
+                parent = (obj as IMemberDefinition).DeclaringType;
             else
                 throw new InvalidOperationException();
-            if (parentSettings != null && parentSettings.ApplyToMembers)
-                return parentSettings.Clone(self);
+
+
+            IProjObject parentObj = GetObj(parent, false);
+
+            if (parentObj != null && parentObj.Settings != null && parentObj.Settings.ApplyToMembers)
+                return parentObj.Settings.Clone(self);
             else
-                return new PrjSettings(self);
+                return CreateSettings(parent, self);
         }
-        PrjSettings GetSettings(object obj, out INotifyChildrenChanged model)
+        IProjObject GetObj(object obj, bool create)
         {
             if (obj is AssemblyDefinition)
             {
                 var asm = GetAssembly(obj as AssemblyDefinition);
-                model = asm;
-                if (asm.Settings == null)
-                    asm.Settings = CreateSettings(obj, asm);
-                return asm.Settings;
+                return asm;
             }
             else if (obj is ModuleDefinition)
             {
-                var mod = GetModule(obj as ModuleDefinition);
-                model = mod;
-                if (mod.Settings == null)
-                    mod.Settings = CreateSettings(obj, mod);
-                return mod.Settings;
+                var mod = GetModule(obj as ModuleDefinition, create);
+                return mod;
+            }
+            else if (obj is Namespace)
+            {
+                var ns = GetNamespace(obj as Namespace, create);
+                return ns;
+            }
+            else if (obj is TypeDefinition)
+            {
+                var type = GetType(obj as TypeDefinition, create);
+                return type;
             }
             else if (obj is IMemberDefinition)
             {
-                var mem = GetMember(obj as IMemberDefinition);
-                model = mem;
-                if (mem.Settings == null)
-                    mem.Settings = CreateSettings(obj, mem);
-                return mem.Settings;
+                var mem = GetMember(obj as IMemberDefinition, create);
+                return mem;
             }
             else
                 throw new InvalidOperationException();
         }
 
         PrjSettings settings;
-        INotifyChildrenChanged obj;
+        IProjObject obj;
 
         class ConfusionListItem : INotifyPropertyChanged
         {
@@ -225,6 +272,7 @@ namespace Confuser
 
         void RefrSelection()
         {
+            inChanging = true;
             IAnnotationProvider obj = asmSel.SelectedItem;
             if (obj == null)
             {
@@ -236,26 +284,22 @@ namespace Confuser
             }
             else
             {
-                if (obj is Namespace)
-                {
-                    if (!obj.Annotations.Contains(ADVSEL))
-                        obj.Annotations[ADVSEL] = settings = new PrjSettings(null);
-                    else
-                        settings = obj.Annotations[ADVSEL] as PrjSettings;
-                }
+                this.obj = GetObj(obj, false);
+                if (this.obj == null)
+                    settings = CreateSettings(obj, null);
                 else
-                {
-                    object r = asmSel.SelectedItem;
-                    settings = GetSettings(r, out this.obj);
-                }
+                    settings = this.obj.Settings ?? CreateSettings(obj, null);
 
-                inChanging = true;
+
+                @override.IsChecked = this.obj != null && this.obj.Settings != null;
+                apply.IsChecked = settings.ApplyToMembers;
+                inherit.IsChecked = settings.Inherit;
+
                 foreach (ConfusionListItem i in cnList.Items)
                     i.IsSelected = settings.Any(_ => _.Object == i.Confusion);
                 Preset p = Preset.None;
                 foreach (ConfusionListItem i in cnList.SelectedItems)
                     if (i.Confusion.Preset > p) p = i.Confusion.Preset;
-                inChanging = false;
 
                 PrjPreset active = (PrjPreset)p;
                 foreach (ConfusionListItem i in cnList.Items)
@@ -268,6 +312,7 @@ namespace Confuser
 
                 panel.IsEnabled = true;
             }
+            inChanging = false;
         }
         void asmSel_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
         {
@@ -290,35 +335,6 @@ namespace Confuser
                     }
                 ActivePreset = active;
             }
-        }
-
-        private void ApplyToMembers_Click(object sender, RoutedEventArgs e)
-        {
-            Action<IAnnotationProvider> apply = null;
-            apply = _ =>
-            {
-                foreach (var i in Childer.GetChildren(_))
-                {
-                    if (i is Namespace)
-                    {
-                        if (!i.Annotations.Contains(ADVSEL))
-                            i.Annotations[ADVSEL] = new PrjSettings(null);
-                        var settings = i.Annotations[ADVSEL] as PrjSettings;
-                        settings.Clear();
-                        foreach (var j in this.settings) settings.Add(j);
-                    }
-                    else
-                    {
-                        object r = i;
-                        INotifyChildrenChanged x;
-                        var settings = GetSettings(r, out x);
-                        settings.Clear();
-                        foreach (var j in this.settings) settings.Add(j);
-                    }
-                    apply(i);
-                }
-            };
-            apply(asmSel.SelectedItem);
         }
 
         bool inChanging = false;
@@ -345,9 +361,57 @@ namespace Confuser
             if ((PrjPreset)e.NewValue != PrjPreset.Undefined)
             {
                 Preset p = (Preset)e.NewValue;
-                foreach (ConfusionListItem i in (d as AdvSelection).cnList.Items)
+                AdvSelection self = d as AdvSelection;
+                foreach (ConfusionListItem i in self.cnList.Items)
                     i.IsSelected = i.Confusion.Preset <= p;
+                self.RefrSelection();
             }
+        }
+
+        private void ApplyChecked(object sender, RoutedEventArgs e)
+        {
+            if (inChanging) return;
+            obj.Settings.ApplyToMembers = true;
+            RefrSelection();
+        }
+        private void ApplyUnchecked(object sender, RoutedEventArgs e)
+        {
+            if (inChanging) return;
+            obj.Settings.ApplyToMembers = false;
+            RefrSelection();
+        }
+        private void InheritChecked(object sender, RoutedEventArgs e)
+        {
+            if (inChanging) return;
+            obj.Settings.Inherit = true;
+            RefrSelection();
+        }
+        private void InheritUnchecked(object sender, RoutedEventArgs e)
+        {
+            if (inChanging) return;
+            obj.Settings.Inherit = false;
+            RefrSelection();
+        }
+
+        private void OverrideChecked(object sender, RoutedEventArgs e)
+        {
+            if (inChanging) return;
+
+            var obj = GetObj(asmSel.SelectedItem, true);
+            if (obj.Settings == null)
+                obj.Settings = CreateSettings(asmSel.SelectedItem, this.obj);
+
+            RefrSelection();
+        }
+        private void OverrideUnchecked(object sender, RoutedEventArgs e)
+        {
+            if (inChanging) return;
+
+            var obj = GetObj(asmSel.SelectedItem, false);
+            if (obj != null)
+                obj.Settings = null;
+
+            RefrSelection();
         }
     }
 }

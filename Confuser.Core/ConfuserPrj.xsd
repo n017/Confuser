@@ -69,15 +69,24 @@
   <xs:complexType name="type">
     <xs:sequence>
       <xs:element name="config" type="config" minOccurs="0" maxOccurs="1"/>
+      <xs:element name="nestedTypes" type="type" minOccurs="0" maxOccurs="unbounded"/>
       <xs:element name="member" type="member" minOccurs="0" maxOccurs="unbounded"/>
     </xs:sequence>
-    <xs:attribute name="fullname" type="xs:string" use="required" />
+    <xs:attribute name="name" type="xs:string" use="required" />
+  </xs:complexType>
+
+  <xs:complexType name="ns">
+    <xs:sequence>
+      <xs:element name="config" type="config" minOccurs="0" maxOccurs="1"/>
+      <xs:element name="type" type="type" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="name" type="xs:string" use="required" />
   </xs:complexType>
 
   <xs:complexType name="module">
     <xs:sequence>
       <xs:element name="config" type="config" minOccurs="0" maxOccurs="1"/>
-      <xs:element name="type" type="type" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="ns" type="ns" minOccurs="0" maxOccurs="unbounded"/>
     </xs:sequence>
     <xs:attribute name="name" type="xs:string" use="required" />
   </xs:complexType>

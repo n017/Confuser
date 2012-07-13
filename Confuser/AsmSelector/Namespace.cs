@@ -9,6 +9,7 @@ namespace Confuser.AsmSelector
 {
     class Namespace : Collection<TypeDefinition>, IAnnotationProvider
     {
+        public ModuleDefinition Module { get; set; }
         public string Name { get; set; }
 
         Dictionary<object, object> annotations = new Dictionary<object, object>();

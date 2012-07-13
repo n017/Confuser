@@ -53,7 +53,7 @@ namespace Confuser.AsmSelector
                 {
                     Namespace n;
                     if (!ns.TryGetValue(i.Namespace, out n))
-                        ns.Add(i.Namespace, n = new Namespace() { Name = i.Namespace });
+                        ns.Add(i.Namespace, n = new Namespace() { Module = mod, Name = i.Namespace });
                     n.Add(i);
                 }
                 return ((mod as IAnnotationProvider).Annotations[NS] = ns.Values.ToArray()) as IEnumerable<Namespace>;

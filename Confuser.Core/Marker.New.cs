@@ -52,11 +52,28 @@ namespace Confuser.Core
         {
             this.Module = mod;
             Parameters = null;
+            Namespaces = Mono.Empty<NamespaceSetting>.Array;
+            ApplyToMember = false;
+        }
+
+        public ModuleDefinition Module;
+        public ObfuscationSettings Parameters;
+        public NamespaceSetting[] Namespaces;
+        public bool ApplyToMember;
+    }
+    public struct NamespaceSetting
+    {
+        public NamespaceSetting(ModuleDefinition mod, string name)
+        {
+            this.Module = mod;
+            this.Name = name;
+            Parameters = null;
             Members = Mono.Empty<MemberSetting>.Array;
             ApplyToMember = false;
         }
 
         public ModuleDefinition Module;
+        public string Name;
         public ObfuscationSettings Parameters;
         public MemberSetting[] Members;
         public bool ApplyToMember;
@@ -265,15 +282,15 @@ namespace Confuser.Core
 
             using (mark.Level())
             {
-                List<MemberSetting> memSettings = new List<MemberSetting>();
-                foreach (var t in ret.Module.GetAllTypes())
+                List<NamespaceSetting> nsSettings = new List<NamespaceSetting>();
+                foreach (var t in ret.Module.Types.Select(_ => _.Namespace).Distinct())
                     using (mark.Level())
                     {
-                        ProjectType type = mod.SingleOrDefault(_ => _.FullName == t.FullName) ??
-                                            new ProjectType() { FullName = t.FullName };
-                        MarkType(ret, type, mark, memSettings);
+                        ProjectNamespace ns = mod.SingleOrDefault(_ => _.Name == t) ??
+                                            new ProjectNamespace() { Name = t };
+                        MarkNamespace(ret, ns, mark, nsSettings);
                     }
-                ret.Members = memSettings.ToArray();
+                ret.Namespaces = nsSettings.ToArray();
             }
             settings.Add(ret);
         }
@@ -299,10 +316,53 @@ namespace Confuser.Core
             return ret;
         }
 
-        private void MarkType(ModuleSetting parent, ProjectType type, Marking mark, List<MemberSetting> settings)
+        private void MarkNamespace(ModuleSetting parent, ProjectNamespace ns, Marking mark, List<NamespaceSetting> settings)
         {
             bool applyToMember;
-            MemberSetting ret = MarkType(parent, type, mark, out applyToMember);
+            NamespaceSetting ret = MarkNamespace(parent, ns, mark, out applyToMember);
+            ret.Parameters = mark.CurrentConfusions;
+            mark.ApplyToMember = applyToMember;
+
+            using (mark.Level())
+            {
+                List<MemberSetting> memSettings = new List<MemberSetting>();
+                foreach (var t in ret.Module.Types.Where(_ => _.Namespace == ns.Name))
+                    using (mark.Level())
+                    {
+                        ProjectType type = ns.SingleOrDefault(_ => _.Name == t.Name) ??
+                                           ns.Import(t);
+                        MarkType(ret.Module, type, mark, memSettings);
+                    }
+                ret.Members = memSettings.ToArray();
+            }
+            settings.Add(ret);
+        }
+        protected virtual NamespaceSetting MarkNamespace(ModuleSetting parent, ProjectNamespace ns, Marking mark, out bool applyToMember)
+        {
+            NamespaceSetting ret = new NamespaceSetting(parent.Module, ns.Name);
+            ret.ApplyToMember = applyToMember = false;
+            if (ns.Config != null)
+            {
+                ret.ApplyToMember = applyToMember = ns.Config.ApplyToMembers;
+                if (!ns.Config.Inherit)
+                    mark.CurrentConfusions.Clear();
+                var settings = proj.Settings.Single(_ => _.Name == ns.Config.Id);
+                FillPreset(settings.Preset, mark.CurrentConfusions);
+                foreach (var i in settings)
+                {
+                    if (i.Action == SettingItemAction.Add)
+                        mark.CurrentConfusions[Confusions[i.Id]] = Clone(i);
+                    else
+                        mark.CurrentConfusions.Remove(Confusions[i.Id]);
+                }
+            }
+            return ret;
+        }
+
+        private void MarkType(ModuleDefinition mod, ProjectType type, Marking mark, List<MemberSetting> settings)
+        {
+            bool applyToMember;
+            MemberSetting ret = MarkType(mod, type, mark, out applyToMember);
             ret.Parameters = mark.CurrentConfusions;
             mark.ApplyToMember = applyToMember;
 
@@ -326,13 +386,22 @@ namespace Confuser.Core
                         mem.Import(i);
                         MarkMember(ret, mem, mark, memSettings);
                     }
+
+                foreach (var i in typeDef.NestedTypes)
+                    using (mark.Level())
+                    {
+                        ProjectType t = type.NestedTypes.SingleOrDefault(_ => _.Name == i.Name) ??
+                                           type.Import(i);
+                        MarkType(mod, t, mark, memSettings);
+                    }
+
                 ret.Members = memSettings.ToArray();
             }
             settings.Add(ret);
         }
-        protected virtual MemberSetting MarkType(ModuleSetting parent, ProjectType type, Marking mark, out bool applyToMember)
+        protected virtual MemberSetting MarkType(ModuleDefinition mod, ProjectType type, Marking mark, out bool applyToMember)
         {
-            MemberSetting ret = new MemberSetting(type.Resolve(parent.Module));
+            MemberSetting ret = new MemberSetting(type.Resolve(mod));
             ret.ApplyToMember = applyToMember = false;
             if (type.Config != null)
             {

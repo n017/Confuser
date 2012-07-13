@@ -452,10 +452,10 @@
                             <Grid Width="16" Height="16" SnapsToDevicePixels="True">
                                 <Rectangle x:Name="Bg" IsHitTestVisible="false" Margin="1" Fill="{TemplateBinding Background}"/>
                                 <Rectangle x:Name="Bullet" IsHitTestVisible="false" Margin="5" Fill="{TemplateBinding Foreground}" Opacity="0"/>
-                                <Rectangle x:Name="Border" IsHitTestVisible="false" Margin="2" Stroke="{TemplateBinding BorderBrush}" StrokeThickness="{TemplateBinding BorderThickness}"/>
+                                <Rectangle x:Name="Border" IsHitTestVisible="false" Margin="2" Stroke="{TemplateBinding Foreground}" StrokeThickness="{TemplateBinding BorderThickness}"/>
                             </Grid>
                         </BulletDecorator.Bullet>
-                        <ContentPresenter RecognizesAccessKey="True" Margin="5,0,0,0" VerticalAlignment="Top" HorizontalAlignment="Left" />
+                        <ContentPresenter RecognizesAccessKey="True" Margin="5,0,0,0" VerticalAlignment="Center" HorizontalAlignment="Left" />
                     </BulletDecorator>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsChecked" Value="True">

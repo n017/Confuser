@@ -70,8 +70,13 @@ namespace Confuser.Core.Project
                 }
             }
         }
+
+        public override string ToString()
+        {
+            return Path;
+        }
     }
-    public class ProjectModule : List<ProjectType>, IProjectObject
+    public class ProjectModule : List<ProjectNamespace>, IProjectObject
     {
         public ObfConfig Config { get; set; }
         public string Name { get; set; }
@@ -111,39 +116,31 @@ namespace Confuser.Core.Project
                     Config = new ObfConfig();
                     Config.Load(i);
                 }
-                else
+                else if (i.Name == "ns")
                 {
-                    ProjectType type = new ProjectType();
-                    type.Load(i);
-                    this.Add(type);
+                    ProjectNamespace ns = new ProjectNamespace();
+                    ns.Load(i);
+                    this.Add(ns);
                 }
             }
         }
+
+        public override string ToString()
+        {
+            return Name;
+        }
     }
-    public class ProjectType : List<ProjectMember>, IProjectObject
+    public class ProjectNamespace : List<ProjectType>, IProjectObject
     {
         public ObfConfig Config { get; set; }
-        public string FullName { get; set; }
-
-        public void Import(TypeDefinition type)
-        {
-            this.FullName = type.FullName;
-        }
-        public TypeDefinition Resolve(ModuleDefinition module)
-        {
-            TypeDefinition ret = module.GetType(FullName);
-            if (ret == null)
-                throw new Exception("Failed to resolve " + FullName + "!!!");
-            else
-                return ret;
-        }
+        public string Name { get; set; }
 
         public XmlElement Save(XmlDocument xmlDoc)
         {
-            XmlElement elem = xmlDoc.CreateElement("type", ConfuserProject.Namespace);
+            XmlElement elem = xmlDoc.CreateElement("ns", ConfuserProject.Namespace);
 
-            XmlAttribute fnAttr = xmlDoc.CreateAttribute("fullname");
-            fnAttr.Value = FullName;
+            XmlAttribute fnAttr = xmlDoc.CreateAttribute("name");
+            fnAttr.Value = Name;
             elem.Attributes.Append(fnAttr);
 
             if (Config != null)
@@ -156,7 +153,7 @@ namespace Confuser.Core.Project
         }
         public void Load(XmlElement elem)
         {
-            this.FullName = elem.Attributes["fullname"].Value;
+            this.Name = elem.Attributes["name"].Value;
             foreach (XmlElement i in elem.ChildNodes.OfType<XmlElement>())
             {
                 if (i.Name == "config")
@@ -166,11 +163,113 @@ namespace Confuser.Core.Project
                 }
                 else
                 {
+                    ProjectType type = new ProjectType(this);
+                    type.Load(i);
+                    this.Add(type);
+                }
+            }
+        }
+
+        public ProjectType Import(TypeDefinition type)
+        {
+            return new ProjectType(this)
+            {
+                Name = type.Name
+            };
+        }
+
+        public override string ToString()
+        {
+            return Name;
+        }
+    }
+    public class ProjectType : List<ProjectMember>, IProjectObject
+    {
+        internal ProjectType(IProjectObject parent)
+        {
+            this.Parent = parent;
+            this.NestedTypes = new List<ProjectType>();
+        }
+        public ObfConfig Config { get; set; }
+        public IProjectObject Parent { get; private set; }
+        public string Name { get; set; }
+        public List<ProjectType> NestedTypes { get; private set; }
+
+        public ProjectType Import(TypeDefinition type)
+        {
+            return new ProjectType(this)
+            {
+                Name = type.Name
+            };
+        }
+
+        public TypeDefinition Resolve(ModuleDefinition module)
+        {
+            TypeDefinition ret = null;
+            if (Parent is ProjectNamespace)
+                ret = module.GetType((Parent as ProjectNamespace).Name, Name);
+            else if (Parent is ProjectType)
+                ret = (Parent as ProjectType).Resolve(module).NestedTypes.Single(_ => _.Name == Name);
+            if (ret == null)
+                throw new Exception("Failed to resolve " + this.ToString() + "!!!");
+            else
+                return ret;
+        }
+
+        public XmlElement Save(XmlDocument xmlDoc)
+        {
+            XmlElement elem = xmlDoc.CreateElement("type", ConfuserProject.Namespace);
+
+            XmlAttribute fnAttr = xmlDoc.CreateAttribute("name");
+            fnAttr.Value = Name;
+            elem.Attributes.Append(fnAttr);
+
+            if (Config != null)
+                elem.AppendChild(Config.Save(xmlDoc));
+
+            foreach (var i in NestedTypes)
+                elem.AppendChild(i.Save(xmlDoc));
+
+            foreach (var i in this)
+                elem.AppendChild(i.Save(xmlDoc));
+
+            return elem;
+        }
+        public void Load(XmlElement elem)
+        {
+            this.Name = elem.Attributes["name"].Value;
+            foreach (XmlElement i in elem.ChildNodes.OfType<XmlElement>())
+            {
+                if (i.Name == "config")
+                {
+                    Config = new ObfConfig();
+                    Config.Load(i);
+                }
+                else if (i.Name == "type")
+                {
+                    ProjectType type = new ProjectType(this);
+                    type.Load(i);
+                    NestedTypes.Add(type);
+                }
+                else
+                {
                     ProjectMember member = new ProjectMember();
                     member.Load(i);
                     this.Add(member);
                 }
             }
+        }
+
+        public override string ToString()
+        {
+            if (Parent is ProjectNamespace)
+            {
+                if (string.IsNullOrEmpty((Parent as ProjectNamespace).Name))
+                    return Name;
+                else
+                    return Parent.ToString() + "::" + Name;
+            }
+            else return Parent.ToString() + "." + Name;
         }
     }
     public enum ProjectMemberType
@@ -479,6 +578,11 @@ namespace Confuser.Core.Project
                     Config.Load(i);
                 }
             }
+        }
+
+        public override string ToString()
+        {
+            return Signature;
         }
     }
 }
