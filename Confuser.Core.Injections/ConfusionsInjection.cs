@@ -118,8 +118,9 @@ static class Proxies
 {
     private static void CtorProxy(RuntimeFieldHandle f)
     {
-        var fld = FieldInfo.GetFieldFromHandle(f);
-        byte[] dat = fld.Module.ResolveSignature(fld.MetadataToken);
+        FieldInfo fld = FieldInfo.GetFieldFromHandle(f);
+        var m = fld.Module;
+        byte[] dat = m.ResolveSignature(fld.MetadataToken);
 
         uint x =
             ((uint)dat[dat.Length - 6] << 0) |
@@ -127,7 +128,7 @@ static class Proxies
             ((uint)dat[dat.Length - 3] << 16) |
             ((uint)dat[dat.Length - 2] << 24);
 
-        var mtd = fld.Module.ResolveMethod(Mutation.Placeholder((int)x) | ((int)dat[dat.Length - 7] << 24)) as ConstructorInfo;
+        ConstructorInfo mtd = m.ResolveMethod(Mutation.Placeholder((int)x) | ((int)dat[dat.Length - 7] << 24)) as ConstructorInfo;
 
         var args = mtd.GetParameters();
         Type[] arg = new Type[args.Length];
@@ -150,7 +151,8 @@ static class Proxies
     private static void MtdProxy(RuntimeFieldHandle f)
     {
         var fld = FieldInfo.GetFieldFromHandle(f);
-        byte[] dat = fld.Module.ResolveSignature(fld.MetadataToken);
+        var m = fld.Module;
+        byte[] dat = m.ResolveSignature(fld.MetadataToken);
 
         uint x =
             ((uint)dat[dat.Length - 6] << 0) |
@@ -158,12 +160,14 @@ static class Proxies
             ((uint)dat[dat.Length - 3] << 16) |
             ((uint)dat[dat.Length - 2] << 24);
 
-        var mtd = fld.Module.ResolveMethod(Mutation.Placeholder((int)x) | ((int)dat[dat.Length - 7] << 24)) as MethodInfo;
+        var mtd = m.ResolveMethod(Mutation.Placeholder((int)x) | ((int)dat[dat.Length - 7] << 24)) as MethodInfo;
 
         if (mtd.IsStatic)
             fld.SetValue(null, Delegate.CreateDelegate(fld.FieldType, mtd));
         else
         {
+            string n = fld.Name;
+
             var tmp = mtd.GetParameters();
             Type[] arg = new Type[tmp.Length + 1];
             arg[0] = typeof(object);
@@ -171,17 +175,22 @@ static class Proxies
                 arg[i + 1] = tmp[i].ParameterType;
 
             DynamicMethod dm;
-            if (mtd.DeclaringType.IsInterface || mtd.DeclaringType.IsArray)
-                dm = new DynamicMethod("", mtd.ReturnType, arg, fld.DeclaringType, true);
+            var decl = mtd.DeclaringType;
+            var decl2 = fld.DeclaringType;
+            if (decl.IsInterface || decl.IsArray)
+                dm = new DynamicMethod("", mtd.ReturnType, arg, decl2, true);
             else
-                dm = new DynamicMethod("", mtd.ReturnType, arg, mtd.DeclaringType, true);
+                dm = new DynamicMethod("", mtd.ReturnType, arg, decl, true);
             var gen = dm.GetILGenerator();
             for (int i = 0; i < arg.Length; i++)
             {
                 gen.Emit(OpCodes.Ldarg, i);
-                if (i == 0) gen.Emit(OpCodes.Castclass, mtd.DeclaringType);
+                if (i == 0) gen.Emit(OpCodes.Castclass, decl);
             }
-            gen.Emit(fld.Name[0] == Mutation.Key0I ? OpCodes.Callvirt : OpCodes.Call, mtd);
+            if (n[0] == Mutation.Key0I)
+                gen.Emit(OpCodes.Callvirt, mtd);
+            else
+                gen.Emit(OpCodes.Call, mtd);
             gen.Emit(OpCodes.Ret);
 
             fld.SetValue(null, dm.CreateDelegate(fld.FieldType));
