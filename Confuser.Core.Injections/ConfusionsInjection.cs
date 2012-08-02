@@ -83,8 +83,9 @@ static class AntiDebugger
 
     public static void InitializeSafe()
     {
-        if (Environment.GetEnvironmentVariable("COR_ENABLE_PROFILING") != null ||
-            Environment.GetEnvironmentVariable("COR_PROFILER") != null)
+        string x = "COR_";
+        if (Environment.GetEnvironmentVariable(x + "PROFILER") != null ||
+            Environment.GetEnvironmentVariable(x + "ENABLE_PROFILING") != null)
             Environment.FailFast("Profiler detected");
 
         Thread thread = new Thread(AntiDebugSafe);
@@ -104,7 +105,7 @@ static class AntiDebugger
         while (true)
         {
             if (Debugger.IsAttached || Debugger.IsLogging())
-                Environment.FailFast("Debugger detected (Managed)");
+                Environment.FailFast("Debugger is detected (Managed)");
 
             if (!th.IsAlive)
                 Environment.FailFast("Loop broken");
