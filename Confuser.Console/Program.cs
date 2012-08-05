@@ -52,16 +52,45 @@ namespace Confuser.Console
                         } break;
                     case "input":
                         {
+                            int parameterCounter = i + 1;
+
                             for (int j = i + 1; j < args.Length && !args[j].StartsWith("-"); j++)
                             {
-                                if (!File.Exists(args[j]))
+                                parameterCounter = j;
+                                string inputParameter = args[j];
+
+                                int lastBackslashPosition = inputParameter.LastIndexOf('\\') + 1;
+                                string filename = inputParameter.Substring(lastBackslashPosition, inputParameter.Length - lastBackslashPosition);
+                                string path = inputParameter.Substring(0, lastBackslashPosition);
+
+                                try
                                 {
-                                    WriteLineWithColor(ConsoleColor.Red, string.Format("Error: File '{0}' not exist!", args[j]));
+                                    string[] fileList = Directory.GetFiles(path, filename);
+                                    if (fileList.Length == 0)
+                                    {
+                                        WriteLineWithColor(ConsoleColor.Red, string.Format("Error: No files matching '{0}' in directory '{1}'!", filename));
+                                        return 2;
+                                    }
+                                    else if (fileList.Length == 1)
+                                    {
+                                        proj.Add(new ProjectAssembly() { Path = fileList[0],
+                                                                         IsMain = j == i + 1 && filename.Contains('?') == false && filename.Contains('*') == false});
+                                    }
+                                    else
+                                    {
+                                        foreach (string expandedFilename in fileList)
+                                        {
+                                            proj.Add(new ProjectAssembly() { Path = expandedFilename, IsMain = false });
+                                        }
+                                    }
+                                }
+                                catch (DirectoryNotFoundException)
+                                {
+                                    WriteLineWithColor(ConsoleColor.Red, string.Format("Error: Directory '{0}' does not exist!", path));
                                     return 2;
                                 }
-                                proj.Add(new ProjectAssembly() { Path = args[j], IsMain = j == i + 1 });
                             }
-                            i += proj.Count;
+                            i = parameterCounter;
                         } break;
                     case "output":
                         {
