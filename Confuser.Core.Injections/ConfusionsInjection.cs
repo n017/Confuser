@@ -562,9 +562,9 @@ static class AntiDumping
             for (int i = 0; i < numOfStream; i++)
             {
                 VirtualProtect(mdHdr, 8, 0x40, out old);
-                *(uint*)mdHdr = 0;
+                //*(uint*)mdHdr = 0;
                 mdHdr += 4;
-                *(uint*)mdHdr = 0;
+                //*(uint*)mdHdr = 0;
                 mdHdr += 4;
                 for (int ii = 0; ii < 8; ii++)
                 {
@@ -699,9 +699,9 @@ static class AntiDumping
             for (int i = 0; i < numOfStream; i++)
             {
                 VirtualProtect(mdHdrPtr, 8, 0x40, out old);
-                *(uint*)mdHdrPtr = 0;
+                //*(uint*)mdHdrPtr = 0;
                 mdHdrPtr += 4;
-                *(uint*)mdHdrPtr = 0;
+                //*(uint*)mdHdrPtr = 0;
                 mdHdrPtr += 4;
                 for (int ii = 0; ii < 8; ii++)
                 {
