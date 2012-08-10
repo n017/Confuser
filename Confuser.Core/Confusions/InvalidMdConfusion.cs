@@ -33,17 +33,19 @@ namespace Confuser.Core.Confusions
             public override void Process(NameValueCollection parameters, MetadataProcessor.MetadataAccessor accessor)
             {
                 accessor.TableHeap.GetTable<DeclSecurityTable>(Table.DeclSecurity).AddRow(new Row<SecurityAction, uint, uint>((SecurityAction)0xffff, 0xffffffff, 0xffffffff));
-                char[] pad = new char[0x10000];
-                int len = 0;
-                while (accessor.StringHeap.Length + len < 0x10000)
+                if (Array.IndexOf(parameters.AllKeys, "hasreflection") == -1)
                 {
-                    for (int i = 0; i < 0x1000; i++)
-                        while ((pad[len + i] = (char)Random.Next(0, 0x100)) == '\0') ;
-                    len += 0x1000;
-                }
-                uint idx = accessor.StringHeap.GetStringIndex(new string(pad, 0, len));
-                if (Array.IndexOf(parameters.AllKeys, "hasReflection") == -1)
+                    char[] pad = new char[0x10000];
+                    int len = 0;
+                    while (accessor.StringHeap.Length + len < 0x10000)
+                    {
+                        for (int i = 0; i < 0x1000; i++)
+                            while ((pad[len + i] = (char)Random.Next(0, 0x100)) == '\0') ;
+                        len += 0x1000;
+                    }
+                    uint idx = accessor.StringHeap.GetStringIndex(new string(pad, 0, len));
                     accessor.TableHeap.GetTable<ManifestResourceTable>(Table.ManifestResource).AddRow(new Row<uint, ManifestResourceAttributes, uint, uint>(0xffffffff, ManifestResourceAttributes.Private, idx, 2));
+                }
             }
         }
         class Phase2 : MetadataPhase
@@ -102,25 +104,6 @@ namespace Confuser.Core.Confusions
                         foreach (Row<ParameterAttributes, ushort, uint> r in accessor.TableHeap.GetTable<ParamTable>(Table.Param))
                             if (r != null)
                                 r.Col3 = 0x7fffffff;
-
-                        int[] types = new int[Random.Next(5, 10)];
-                        for (int i = 0; i < types.Length; i++)
-                            types[i] = accessor.TableHeap.GetTable<TypeDefTable>(Table.TypeDef).AddRow(
-                                new Row<TypeAttributes, uint, uint, uint, uint, uint>(0, accessor.StringHeap.GetStringIndex(ObfuscationHelper.GetRandomName()), 0, 0, fldLen, mtdLen));
-
-                        int genCount = Random.Next(10, 20);
-                        int genParamCount = accessor.TableHeap.GetTable<GenericParamTable>(Table.GenericParam).Length;
-                        for (int i = 0; i < genCount; i++)
-                            accessor.TableHeap.GetTable<GenericParamTable>(Table.GenericParam).AddRow(new Row<ushort, GenericParameterAttributes, uint, uint>(
-                                (ushort)Random.Next(5, 10),
-                                GenericParameterAttributes.Contravariant,
-                                CodedIndex.TypeOrMethodDef.CompressMetadataToken(new MetadataToken(TokenType.TypeDef, types[Random.Next(0, types.Length)])),
-                                42));
-
-                        genCount = Random.Next(10, 20);
-                        for (int i = 0; i < genCount; i++)
-                            accessor.TableHeap.GetTable<GenericParamConstraintTable>(Table.GenericParamConstraint).AddRow(
-                                new Row<uint, uint>((uint)Random.Next(genParamCount, genParamCount + 10), 0xffff));
                     }
                 }
                 accessor.TableHeap.GetTable<ModuleTable>(Table.Module).AddRow(accessor.StringHeap.GetStringIndex(ObfuscationHelper.GetRandomName()));
