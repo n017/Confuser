@@ -213,19 +213,25 @@ namespace Confuser.Core.Analyzers
             TypeDefinition baseType = null;
             if (typeDef.BaseType != null)
             {
-                ret.Table = new List<VTableSlot>(GetVTable(analyzer, baseType = typeDef.BaseType.Resolve(), tbls).Table);
-                if (typeDef.BaseType is GenericInstanceType)
+                baseType = typeDef.BaseType.Resolve();
+                if (baseType != null)
                 {
-                    GenericInstanceType genInst = typeDef.BaseType as GenericInstanceType;
-                    for (int i = 0; i < ret.Table.Count; i++)
+                    ret.Table = new List<VTableSlot>(GetVTable(analyzer, baseType, tbls).Table);
+                    if (typeDef.BaseType is GenericInstanceType)
                     {
-                        ret.Table[i] = ret.Table[i].Clone();
-                        ret.Table[i].OpenCurrent = ret.Table[i].Current;
-                        ret.Table[i].Current = Resolve(ret.Table[i].OpenCurrent, genInst);
-                        ret.Table[i].OpenRoot = ret.Table[i].Root;
-                        ret.Table[i].Root = Resolve(ret.Table[i].OpenRoot, genInst);
+                        GenericInstanceType genInst = typeDef.BaseType as GenericInstanceType;
+                        for (int i = 0; i < ret.Table.Count; i++)
+                        {
+                            ret.Table[i] = ret.Table[i].Clone();
+                            ret.Table[i].OpenCurrent = ret.Table[i].Current;
+                            ret.Table[i].Current = Resolve(ret.Table[i].OpenCurrent, genInst);
+                            ret.Table[i].OpenRoot = ret.Table[i].Root;
+                            ret.Table[i].Root = Resolve(ret.Table[i].OpenRoot, genInst);
+                        }
                     }
                 }
+                else
+                    ret.Table = new List<VTableSlot>();
             }
             else
                 ret.Table = new List<VTableSlot>();
@@ -237,6 +243,7 @@ namespace Confuser.Core.Analyzers
                     if (baseType != null && baseType.Interfaces.Contains(i)) continue;
 
                     TypeDefinition iface = i.Resolve();
+                    if (iface == null) continue;
                     GenericInstanceType genInst = i as GenericInstanceType;
                     foreach (var j in iface.Methods)
                     {

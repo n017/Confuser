@@ -266,7 +266,7 @@ namespace Confuser.Core.Analyzers
                 {
                     FieldDefinition field;
                     if (i.AttributeType is TypeDefinition &&
-                       (field = (i.AttributeType as TypeDefinition).Fields.Single(_ => _.Name == arg.Name)) != null)
+                       (field = (i.AttributeType as TypeDefinition).Fields.SingleOrDefault(_ => _.Name == arg.Name)) != null)
                         ((field as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(
                             new CustomAttributeMemberReference(i, idx, true));
 
@@ -279,7 +279,7 @@ namespace Confuser.Core.Analyzers
                 {
                     PropertyDefinition prop;
                     if (i.AttributeType is TypeDefinition &&
-                       (prop = (i.AttributeType as TypeDefinition).Properties.Single(_ => _.Name == arg.Name)) != null)
+                       (prop = (i.AttributeType as TypeDefinition).Properties.SingleOrDefault(_ => _.Name == arg.Name)) != null)
                         ((prop as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(
                             new CustomAttributeMemberReference(i, idx, false));
 
