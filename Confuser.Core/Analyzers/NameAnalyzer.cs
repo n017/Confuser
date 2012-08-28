@@ -241,6 +241,24 @@ namespace Confuser.Core.Analyzers
                 (prop as IAnnotationProvider).Annotations[RenOk] = false;
                 Confuser.Database.AddEntry(DB_SRC, prop.FullName, "Pub prop => Not renamed");
             }
+            TypeReference baseType = prop.DeclaringType.BaseType;
+            while (baseType != null)
+            {
+                TypeDefinition def = baseType.Resolve();
+                if (def != null)
+                {
+                    foreach (var i in def.Interfaces)
+                        if (i.Name == "INotifyPropertyChanged")
+                        {
+                            (prop as IAnnotationProvider).Annotations[RenOk] = false;
+                            Confuser.Database.AddEntry(DB_SRC, prop.FullName, "INotifyPropertyChanged => Not renamed");
+                            return;
+                        }
+                    baseType = def.BaseType;
+                }
+                else
+                    baseType = null;
+            } 
         }
         void Analyze(EventDefinition evt)
         {
