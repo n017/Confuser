@@ -506,6 +506,9 @@ namespace Confuser.Core
             foreach (var asm in settings)
                 foreach (var mod in asm.Assembly.Modules)
                 {
+                    if (mod.GetType("ConfusedByAttribute") != null)
+                        throw new Exception("'" + mod.Name + "' is already obfuscated by Confuser!");
+                    
                     //global cctor which used in many confusion
                     if (mod.GetType("<Module>").GetStaticConstructor() == null)
                     {
@@ -830,6 +833,8 @@ namespace Confuser.Core
 
         void MarkModule(ModuleDefinition mod)
         {
+            if (mod.GetType("ConfusedByAttribute") != null)
+                throw new Exception("'" + mod.Name + "' is already obfuscated by Confuser!");
             TypeDefinition att = new TypeDefinition("", "ConfusedByAttribute", TypeAttributes.Class | TypeAttributes.NotPublic, mod.Import(typeof(Attribute)));
             MethodDefinition ctor = new MethodDefinition(".ctor", MethodAttributes.RTSpecialName | MethodAttributes.SpecialName | MethodAttributes.Public, mod.TypeSystem.Void);
             ctor.Parameters.Add(new ParameterDefinition(mod.TypeSystem.String));
