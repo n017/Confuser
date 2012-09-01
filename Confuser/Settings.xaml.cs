@@ -47,7 +47,7 @@ namespace Confuser
         private void SnSel_Click(object sender, RoutedEventArgs e)
         {
             OpenFileDialog ofd = new OpenFileDialog();
-            ofd.Filter = "Strong name key file (*.snk)|*.snk|All Files (*.*)|*.*";
+            ofd.Filter = "Strong name key file (*.snk; *.pfx)|*.snk;*.pfx|All Files (*.*)|*.*";
             if (ofd.ShowDialog() != DialogResult.Cancel)
             {
                 sn.Text = ofd.FileName;

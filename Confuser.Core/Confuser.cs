@@ -9,6 +9,8 @@ using Mono.Cecil.Cil;
 using Mono.Cecil.Metadata;
 using System.Collections.Specialized;
 using Confuser.Core.Project;
+using System.Security.Cryptography.X509Certificates;
+using System.Security.Cryptography;
 
 namespace Confuser.Core
 {
@@ -430,15 +432,43 @@ namespace Confuser.Core
             return BitConverter.ToString(arr).Replace("-", "").ToLower();
         }
 
+        System.Reflection.StrongNameKeyPair GetSNKey(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+                Log("Strong name key not specified.");
+            else if (path.Contains(".pfx|"))
+            {   //http://stackoverflow.com/questions/7556846/how-to-use-strongnamekeypair-with-a-password-protected-keyfile-pfx
+                string fileName = path.Substring(0, path.IndexOf(".pfx|") + 4);
+                string password = path.Substring(path.IndexOf(".pfx|") + 5);
+                if (!File.Exists(fileName))
+                    Log("Strong name key not found. Output assembly will not be signed.");
+                else
+                {
+                    X509Certificate2Collection certs = new X509Certificate2Collection();
+                    certs.Import(fileName, password, X509KeyStorageFlags.Exportable);
+                    if (certs.Count == 0)
+                        throw new ArgumentException(null, "pfxFile");
+
+                    RSACryptoServiceProvider provider = certs[0].PrivateKey as RSACryptoServiceProvider;
+                    if (provider == null) // not a good pfx file
+                        throw new ArgumentException(null, "pfxFile");
+
+                    return new System.Reflection.StrongNameKeyPair(provider.ExportCspBlob(true));
+                }
+            }
+            else
+            {
+                if (!File.Exists(path))
+                    Log("Strong name key not found. Output assembly will not be signed.");
+                else
+                    return new System.Reflection.StrongNameKeyPair(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read));
+            }
+            return null;
+        }
+
         void Initialize()
         {
-            sn = null;
-            if (string.IsNullOrEmpty(param.Project.SNKeyPath))
-                Log("Strong name key not specified.");
-            else if (!File.Exists(param.Project.SNKeyPath))
-                Log("Strong name key not found. Output assembly will not be signed.");
-            else
-                sn = new System.Reflection.StrongNameKeyPair(new FileStream(param.Project.SNKeyPath, FileMode.Open, FileAccess.Read, FileShare.Read));
+            sn = GetSNKey(param.Project.SNKeyPath);
 
             Marker mkr = param.Marker;
 
@@ -508,7 +538,7 @@ namespace Confuser.Core
                 {
                     if (mod.GetType("ConfusedByAttribute") != null)
                         throw new Exception("'" + mod.Name + "' is already obfuscated by Confuser!");
-                    
+
                     //global cctor which used in many confusion
                     if (mod.GetType("<Module>").GetStaticConstructor() == null)
                     {
@@ -924,7 +954,7 @@ namespace Confuser.Core
         void MarkObfuscateHelpers(ModuleSetting mod)
         {
             if (mod.Namespaces.All(_ => _.Members.Length == 0)) return;
-            ObfuscationSettings sets = mod.Namespaces.SelectMany(_=>_.Members).First().Parameters;
+            ObfuscationSettings sets = mod.Namespaces.SelectMany(_ => _.Members).First().Parameters;
             if (sets == null) return;
             ObfuscationSettings sub = new ObfuscationSettings();
             foreach (var i in sets)

@@ -178,7 +178,7 @@ namespace Confuser.Core.Project
         public string Seed { get; set; }
         public bool Debug { get; set; }
         public string OutputPath { get; set; }
-        public string SNKeyPath { get; set; }
+        public string SNKeyPath { get; set; }   //For pfx, use "xxx.pfx|password"
         public Preset DefaultPreset { get; set; }
         public SettingItem<Packer> Packer { get; set; }
 
