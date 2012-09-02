@@ -246,8 +246,8 @@ Stack Trace : {1}", ex.Message, ex.StackTrace), "Confuser", MessageBoxButton.OK,
                 {
                     MessageBox.Show(string.Format(
     @"Invalid project file!
-Message : {1}
-Stack Trace : {2}", ex.Message, ex.StackTrace), "Confuser", MessageBoxButton.OK, MessageBoxImage.Error);
+Message : {0}
+Stack Trace : {1}", ex.Message, ex.StackTrace), "Confuser", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
         }
