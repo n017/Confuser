@@ -97,13 +97,19 @@ namespace Confuser.Core.Confusions
             }
             else if (def is EventDefinition)
             {
-                def.DeclaringType.Events.Remove(def as EventDefinition);
-                Database.AddEntry("MdReduce", def.FullName, "Evt");
+                if (def.DeclaringType != null)
+                {
+                    def.DeclaringType.Events.Remove(def as EventDefinition);
+                    Database.AddEntry("MdReduce", def.FullName, "Evt");
+                }
             }
             else if (def is PropertyDefinition)
             {
-                def.DeclaringType.Properties.Remove(def as PropertyDefinition);
-                Database.AddEntry("MdReduce", def.FullName, "Prop");
+                if (def.DeclaringType != null)
+                {
+                    def.DeclaringType.Properties.Remove(def as PropertyDefinition);
+                    Database.AddEntry("MdReduce", def.FullName, "Prop");
+                }
             }
         }
 
