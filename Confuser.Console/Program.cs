@@ -166,7 +166,7 @@ namespace Confuser.Console
                 WriteLine(new string('*', 15));
                 cr.Confuse(param);
 
-                return 0;
+                return ConsoleLogger.ReturnValue;
             }
             finally
             {

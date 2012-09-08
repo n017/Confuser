@@ -47,7 +47,7 @@ namespace Confuser.Console
             WriteLineWithColor(ConsoleColor.Red, e.Exception.Message);
             WriteLineWithColor(ConsoleColor.Red, e.Exception.StackTrace);
             WriteLineWithColor(ConsoleColor.Red, new string('*', 15));
-            ReturnValue = System.Runtime.InteropServices.Marshal.GetHRForException(e.Exception);
+            ReturnValue = -1;
         }
         static void End(object sender, LogEventArgs e)
         {
