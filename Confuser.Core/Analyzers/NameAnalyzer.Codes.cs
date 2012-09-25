@@ -8,7 +8,7 @@ using Mono.Cecil.Cil;
 
 namespace Confuser.Core.Analyzers
 {
-	partial class NameAnalyzer
+    partial class NameAnalyzer
     {
         void AnalyzeCodes(MethodDefinition mtd)
         {
@@ -40,7 +40,7 @@ namespace Confuser.Core.Analyzers
                         {
                             ReflectionMethod Rmtd = Database.Reflections[id];
                             Instruction memInst;
-                            MemberReference mem = StackTrace(i, mtd.Body.Instructions, Rmtd, mtd.Module, out memInst);
+                            MemberReference mem = StackTrace(i, mtd.Body, Rmtd, mtd.Module, out memInst);
                             if (mem != null)
                                 ((mem as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new ReflectionReference(memInst));
                         }
@@ -59,9 +59,10 @@ namespace Confuser.Core.Analyzers
             }
         }
 
-        MemberReference StackTrace(int idx, Collection<Instruction> insts, ReflectionMethod mtd, ModuleDefinition scope, out Instruction memInst)
+        MemberReference StackTrace(int idx, MethodBody body, ReflectionMethod mtd, ModuleDefinition scope, out Instruction memInst)
         {
             memInst = null;
+            var insts = body.Instructions;
             int count = ((insts[idx].Operand as MethodReference).HasThis ? 1 : 0) + (insts[idx].Operand as MethodReference).Parameters.Count;
             if (insts[idx].OpCode.Code == Code.Newobj)
                 count--;
@@ -114,9 +115,9 @@ namespace Confuser.Core.Analyzers
                 }
             }
 
-            return StackTrace2(idx + 1, count, insts, mtd, scope, out memInst);
+            return StackTrace2(idx + 1, count, body, mtd, scope, out memInst);
         }
-        MemberReference StackTrace2(int idx, int c, Collection<Instruction> insts, ReflectionMethod mtd, ModuleDefinition scope, out Instruction memInst)
+        MemberReference StackTrace2(int idx, int c, MethodBody body, ReflectionMethod mtd, ModuleDefinition scope, out Instruction memInst)
         {
             memInst = null;
             int count = c;
@@ -124,7 +125,7 @@ namespace Confuser.Core.Analyzers
             for (int i = idx; ; i++)
             {
                 if (stack.Count == count) break;
-                Instruction inst = insts[i];
+                Instruction inst = body.Instructions[i];
                 switch (inst.OpCode.Code)
                 {
                     case Code.Ldc_I4:
@@ -180,7 +181,6 @@ namespace Confuser.Core.Analyzers
 
             string mem = null;
             TypeDefinition type = null;
-            int typeIdx;
             Resource res = null;
             for (int i = 0; i < mtd.paramLoc.Length; i++)
             {
@@ -190,25 +190,23 @@ namespace Confuser.Core.Analyzers
                 {
                     case "Target":
                         if ((mem = param as string) == null) return null;
-                        memInst = StackTrace3(idx, c, insts, mtd.paramLoc[i]);
+                        memInst = StackTrace3(idx, c, body.Instructions, mtd.paramLoc[i]);
                         break;
                     case "Type":
                     case "This":
                         if (param as TypeDefinition != null)
-                        {
                             type = param as TypeDefinition;
-                            typeIdx = mtd.paramLoc[i];
-                        }
+                        else
+                            type = body.Method.DeclaringType;
                         break;
                     case "TargetType":
                         if (!(param is string)) return null;
                         type = scope.GetType(param as string);
-                        typeIdx = mtd.paramLoc[i];
                         break;
                     case "TargetResource":
                         if (!(param is string)) return null;
                         res = scope.Resources.FirstOrDefault((r) => (r.Name == param as string + ".resources"));
-                        memInst = StackTrace3(idx, c, insts, mtd.paramLoc[i]);
+                        memInst = StackTrace3(idx, c, body.Instructions, mtd.paramLoc[i]);
                         break;
                 }
             }
@@ -237,7 +235,7 @@ namespace Confuser.Core.Analyzers
             }
             else if (type != null)
             {
-                memInst = StackTrace3(idx, c, insts, mtd.paramLoc[Array.IndexOf(mtd.paramType, "TargetType")]);
+                memInst = StackTrace3(idx, c, body.Instructions, mtd.paramLoc[Array.IndexOf(mtd.paramType, "TargetType")]);
                 return type;
             }
             return null;
@@ -386,5 +384,5 @@ namespace Confuser.Core.Analyzers
                     throw new InvalidOperationException();
             }
         }
-	}
+    }
 }
