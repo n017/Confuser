@@ -226,8 +226,16 @@ namespace Confuser.Core
             {
                 resolver = new ConfuserAssemblyResolver();
                 GlobalAssemblyResolver.Instance = resolver;
+
+                HashSet<string> dirs = new HashSet<string>();
                 foreach (var i in param.Project)
-                    resolver.AddSearchDirectory(Path.GetDirectoryName(i.Path));
+                {
+                    if (dirs.Add(Path.GetDirectoryName(i.Path)))
+                        foreach (var j in Directory.GetDirectories(Path.GetDirectoryName(i.Path), "*", SearchOption.AllDirectories))
+                            dirs.Add(j);
+                }
+                foreach (var i in dirs)
+                    resolver.AddSearchDirectory(i);
 
                 db = new ObfuscationDatabase();
                 db.Module("");

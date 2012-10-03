@@ -475,8 +475,8 @@ namespace Confuser.Core.Analyzers
             }
             if (cc != 0)
                 ((res as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new SaveBamlsReference(mod, resId));
-            else
-                System.Diagnostics.Debugger.Break();
+            //else
+            //    System.Diagnostics.Debugger.Break();
         }
     }
 }

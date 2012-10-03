@@ -184,6 +184,13 @@
       <Name>Confuser.Core.Injections</Name>
     </ProjectReference>
   </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Analyzers\NameAnalyzer.Xaml.cs">
+      <SubType>
+      </SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Compile>
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
