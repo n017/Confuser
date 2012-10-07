@@ -194,7 +194,7 @@ namespace Confuser.Core.Analyzers
         void Analyze(MethodDefinition mtd)
         {
             if (mtd.IsConstructor || (IsTypePublic(mtd.DeclaringType) &&
-                (mtd.IsFamily || mtd.IsAssembly || mtd.IsFamilyAndAssembly || mtd.IsFamilyOrAssembly || mtd.IsPublic)))
+                (mtd.IsFamily || mtd.IsFamilyOrAssembly || mtd.IsPublic)))
             {
                 (mtd as IAnnotationProvider).Annotations[RenOk] = false;
                 Confuser.Database.AddEntry(DB_SRC, mtd.FullName, "Pub method/ctor => Not renamed");
@@ -227,7 +227,7 @@ namespace Confuser.Core.Analyzers
         {
             AnalyzeCustomAttributes(fld);
             if (fld.IsRuntimeSpecialName || fld.DeclaringType.IsEnum || (IsTypePublic(fld.DeclaringType) &&
-                (fld.IsFamily || fld.IsFamilyAndAssembly || fld.IsFamilyOrAssembly || fld.IsPublic)))
+                (fld.IsFamily || fld.IsFamilyOrAssembly || fld.IsPublic)))
             {
                 (fld as IAnnotationProvider).Annotations[RenOk] = false;
                 Confuser.Database.AddEntry(DB_SRC, fld.FullName, "Enum/pub field => Not renamed");
