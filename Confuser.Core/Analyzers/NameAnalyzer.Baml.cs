@@ -403,6 +403,18 @@ namespace Confuser.Core.Analyzers
                             {
                                 ((field as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new BamlAttributeReference(rec));
                             }
+
+                            //Attached property
+                            MethodDefinition getM = types[rec.OwnerTypeId].Methods.SingleOrDefault(p => p.Name == "Get" + rec.Name);
+                            if (getM != null)
+                            {
+                                (getM as IAnnotationProvider).Annotations[RenOk] = false;
+                            }
+                            MethodDefinition setM = types[rec.OwnerTypeId].Methods.SingleOrDefault(p => p.Name == "Set" + rec.Name);
+                            if (setM != null)
+                            {
+                                (setM as IAnnotationProvider).Annotations[RenOk] = false;
+                            }
                         }
                         ps.Add(rec.AttributeId, rec.Name);
                     }
