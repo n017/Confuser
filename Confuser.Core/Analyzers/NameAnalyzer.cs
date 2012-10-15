@@ -199,6 +199,12 @@ namespace Confuser.Core.Analyzers
                 (mtd as IAnnotationProvider).Annotations[RenOk] = false;
                 Confuser.Database.AddEntry(DB_SRC, mtd.FullName, "Pub method/ctor => Not renamed");
             }
+            if (mtd.DeclaringType.IsImport &&
+                !mtd.CustomAttributes.Any(_ => _.AttributeType.FullName == "System.Runtime.InteropServices.DispIdAttribute"))
+            {
+                (mtd as IAnnotationProvider).Annotations[RenOk] = false;
+                Confuser.Database.AddEntry(DB_SRC, mtd.FullName, "ComImport w/o DispId => Not renamed");
+            }
             else if (mtd.DeclaringType.BaseType != null && mtd.DeclaringType.BaseType.Resolve() != null)
             {
                 TypeReference bType = mtd.DeclaringType.BaseType;
@@ -258,7 +264,7 @@ namespace Confuser.Core.Analyzers
                 }
                 else
                     baseType = null;
-            } 
+            }
         }
         void Analyze(EventDefinition evt)
         {
