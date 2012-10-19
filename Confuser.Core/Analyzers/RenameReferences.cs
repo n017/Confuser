@@ -7,6 +7,7 @@ using Mono.Cecil.Cil;
 using Confuser.Core.Analyzers.Baml;
 using System.IO;
 using System.Resources;
+using Confuser.Core.Analyzers.Xaml;
 
 namespace Confuser.Core.Analyzers
 {
@@ -311,9 +312,63 @@ namespace Confuser.Core.Analyzers
             return false;
         }
     }
-    class SaveBamlsReference : IReference
+
+    interface IXamlReference : IReference
     {
-        public SaveBamlsReference(ModuleDefinition mod, int resId) { this.mod = mod; this.resId = resId; }
+        XamlContext Context { get; set; }
+        int Line { get; set; }
+        int Segment { get; set; }
+    }
+    class XamlNameReference : IXamlReference
+    {
+        public XamlContext Context { get; set; }
+        public int Line { get; set; }
+        public int Segment { get; set; }
+        public XamlName Name { get; set; }
+
+        public void UpdateReference(Identifier old, Identifier @new)
+        {
+        }
+        public bool QueryCancellation()
+        {
+            return false;
+        }
+    }
+    class XamlPropertyNameReference : IXamlReference
+    {
+        public XamlContext Context { get; set; }
+        public int Line { get; set; }
+        public int Segment { get; set; }
+        public XamlPropertyName Name { get; set; }
+
+        public void UpdateReference(Identifier old, Identifier @new)
+        {
+        }
+        public bool QueryCancellation()
+        {
+            return false;
+        }
+    }
+    class XamlClrNameReference : IXamlReference
+    {
+        public XamlContext Context { get; set; }
+        public int Line { get; set; }
+        public int Segment { get; set; }
+        public XamlClrName Name { get; set; }
+
+        public void UpdateReference(Identifier old, Identifier @new)
+        {
+        }
+        public bool QueryCancellation()
+        {
+            return false;
+        }
+    }
+
+
+    class SaveWpfResReference : IReference
+    {
+        public SaveWpfResReference(ModuleDefinition mod, int resId) { this.mod = mod; this.resId = resId; }
 
         ModuleDefinition mod;
         int resId;

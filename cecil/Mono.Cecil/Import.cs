@@ -411,7 +411,7 @@ namespace Mono.Cecil {
 
 			for (int i = 0; i < references.Count; i++) {
 				var reference = references [i];
-                if (name_reference.Name != reference.Name || (name_reference.PublicKeyToken != null && !name_reference.PublicKeyToken.Equals<byte>(reference.PublicKeyToken))) // TODO compare field by field
+                if (name_reference.Name != reference.Name)// || (name_reference.PublicKeyToken != null && !name_reference.PublicKeyToken.Equals<byte>(reference.PublicKeyToken))) // TODO compare field by field
                     continue;
 
 				assembly_reference = reference;

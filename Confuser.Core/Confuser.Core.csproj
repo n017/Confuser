@@ -63,6 +63,10 @@
     <Reference Include="System.Core">
       <RequiredTargetFramework>3.5</RequiredTargetFramework>
     </Reference>
+    <Reference Include="System.Xaml, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\System.Xaml.dll</HintPath>
+    </Reference>
     <Reference Include="System.Xml.Linq">
       <RequiredTargetFramework>3.5</RequiredTargetFramework>
     </Reference>
@@ -74,7 +78,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Analyzers\NameAnalyzer.Codes.cs" />
-    <Compile Include="Analyzers\NameAnalyzer.Baml.cs" />
+    <Compile Include="Analyzers\NameAnalyzer.Wpf.cs" />
     <Compile Include="CecilHelper.cs" />
     <Compile Include="Confusions\AntiDumpConfusion.cs" />
     <Compile Include="Confusions\ConstantConfusion.cs" />
@@ -130,20 +134,20 @@
     <Compile Include="Marker.New.cs" />
     <Compile Include="Mutator.cs" />
     <Compile Include="ObfuscationDatabase.cs" />
-    <Compile Include="Packers\Compression\Common\CRC.cs" />
-    <Compile Include="Packers\Compression\Common\InBuffer.cs" />
-    <Compile Include="Packers\Compression\Common\OutBuffer.cs" />
-    <Compile Include="Packers\Compression\Compress\LZMA\LzmaBase.cs" />
-    <Compile Include="Packers\Compression\Compress\LZMA\LzmaDecoder.cs" />
-    <Compile Include="Packers\Compression\Compress\LZMA\LzmaEncoder.cs" />
-    <Compile Include="Packers\Compression\Compress\LZ\IMatchFinder.cs" />
-    <Compile Include="Packers\Compression\Compress\LZ\LzBinTree.cs" />
-    <Compile Include="Packers\Compression\Compress\LZ\LzInWindow.cs" />
-    <Compile Include="Packers\Compression\Compress\LZ\LzOutWindow.cs" />
-    <Compile Include="Packers\Compression\Compress\RangeCoder\RangeCoder.cs" />
-    <Compile Include="Packers\Compression\Compress\RangeCoder\RangeCoderBit.cs" />
-    <Compile Include="Packers\Compression\Compress\RangeCoder\RangeCoderBitTree.cs" />
-    <Compile Include="Packers\Compression\ICoder.cs" />
+    <Compile Include="Compression\Common\CRC.cs" />
+    <Compile Include="Compression\Common\InBuffer.cs" />
+    <Compile Include="Compression\Common\OutBuffer.cs" />
+    <Compile Include="Compression\Compress\LZMA\LzmaBase.cs" />
+    <Compile Include="Compression\Compress\LZMA\LzmaDecoder.cs" />
+    <Compile Include="Compression\Compress\LZMA\LzmaEncoder.cs" />
+    <Compile Include="Compression\Compress\LZ\IMatchFinder.cs" />
+    <Compile Include="Compression\Compress\LZ\LzBinTree.cs" />
+    <Compile Include="Compression\Compress\LZ\LzInWindow.cs" />
+    <Compile Include="Compression\Compress\LZ\LzOutWindow.cs" />
+    <Compile Include="Compression\Compress\RangeCoder\RangeCoder.cs" />
+    <Compile Include="Compression\Compress\RangeCoder\RangeCoderBit.cs" />
+    <Compile Include="Compression\Compress\RangeCoder\RangeCoderBitTree.cs" />
+    <Compile Include="Compression\ICoder.cs" />
     <Compile Include="Poly\ExpressionInverser.cs" />
     <Compile Include="Poly\Expressions\XorExpression.cs" />
     <Compile Include="Poly\Expressions\InvExpression.cs" />
@@ -190,6 +194,8 @@
       </SubType>
       <Generator>MSBuild:Compile</Generator>
     </Compile>
+    <Compile Include="Analyzers\Xaml\XamlContext.cs" />
+    <Compile Include="Analyzers\Xaml\XamlName.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

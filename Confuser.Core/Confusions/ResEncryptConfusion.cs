@@ -62,6 +62,15 @@ namespace Confuser.Core.Confusions
                 AddHelper(txt.reso, HelperAttribute.NoInjection);
                 Database.AddEntry("ResEncrypt", "Resolver", txt.reso.FullName);
 
+                TypeDefinition lzma = mod.GetType("Lzma" + mod.GetHashCode());
+                if (lzma == null)
+                {
+                    lzma = CecilHelper.Inject(mod, i.MainModule.GetType("Lzma"));
+                    lzma.IsNotPublic = true;
+                    lzma.Name = "Lzma" + mod.GetHashCode();
+                    mod.Types.Add(lzma);
+                }
+
                 FieldDefinition datAsm = new FieldDefinition(
                     ObfuscationHelper.GetRandomName(),
                     FieldAttributes.Static | FieldAttributes.CompilerControlled,
@@ -91,7 +100,15 @@ namespace Confuser.Core.Confusions
                         inst.Operand = datAsm;
                     else if (inst.Operand is TypeReference && (inst.Operand as TypeReference).FullName == "System.Exception")
                         inst.Operand = modType;
+                    else if (inst.Operand is MethodReference &&
+                            (inst.Operand as MethodReference).DeclaringType.Name == "LzmaDecoder")
+                        inst.Operand = lzma.NestedTypes
+                            .Single(_ => _.Name == "LzmaDecoder").Methods
+                            .Single(_ => _.Name == (inst.Operand as MethodReference).Name);
                 }
+                foreach (var x in txt.reso.Body.Variables)
+                    if (x.VariableType.Name == "LzmaDecoder")
+                        x.VariableType = lzma.NestedTypes.Single(_ => _.Name == "LzmaDecoder");
 
                 MethodDefinition cctor = mod.GetType("<Module>").GetStaticConstructor();
                 MethodBody bdy = cctor.Body as MethodBody;
@@ -136,14 +153,61 @@ namespace Confuser.Core.Confusions
                 if (txt.dats.Count > 0)
                 {
                     MemoryStream ms = new MemoryStream();
-                    BinaryWriter wtr = new BinaryWriter(new DeflateStream(ms, CompressionMode.Compress, true));
+                    BinaryWriter wtr = new BinaryWriter(ms);
 
                     byte[] dat = GetAsm(mod.TimeStamp, txt.dats);
                     wtr.Write(dat.Length);
                     wtr.Write(dat);
-                    wtr.BaseStream.Dispose();
 
-                    dat = Transform(ms.ToArray(), txt.key0, txt.key1);
+                    ms.Position = 0;
+
+
+                    int dictionary = 1 << 23;
+
+                    Int32 posStateBits = 2;
+                    Int32 litContextBits = 3; // for normal files
+                    // UInt32 litContextBits = 0; // for 32-bit data
+                    Int32 litPosBits = 0;
+                    // UInt32 litPosBits = 2; // for 32-bit data
+                    Int32 algorithm = 2;
+                    Int32 numFastBytes = 128;
+                    string mf = "bt4";
+
+                    SevenZip.CoderPropID[] propIDs = 
+				    {
+					    SevenZip.CoderPropID.DictionarySize,
+					    SevenZip.CoderPropID.PosStateBits,
+					    SevenZip.CoderPropID.LitContextBits,
+					    SevenZip.CoderPropID.LitPosBits,
+					    SevenZip.CoderPropID.Algorithm,
+					    SevenZip.CoderPropID.NumFastBytes,
+					    SevenZip.CoderPropID.MatchFinder,
+					    SevenZip.CoderPropID.EndMarker
+				    };
+                    object[] properties = 
+				    {
+					    (int)dictionary,
+					    (int)posStateBits,
+					    (int)litContextBits,
+					    (int)litPosBits,
+					    (int)algorithm,
+					    (int)numFastBytes,
+					    mf,
+					    false
+				    };
+
+                    MemoryStream x = new MemoryStream();
+                    var encoder = new SevenZip.Compression.LZMA.Encoder();
+                    encoder.SetCoderProperties(propIDs, properties);
+                    encoder.WriteCoderProperties(x);
+                    Int64 fileSize;
+                    fileSize = ms.Length;
+                    for (int i = 0; i < 8; i++)
+                        x.WriteByte((Byte)(fileSize >> (8 * i)));
+                    ms.Position = 0;
+                    encoder.Code(ms, x, -1, -1, null);
+
+                    dat = Transform(x.ToArray(), txt.key0, txt.key1);
 
                     mod.Resources.Add(new EmbeddedResource(txt.resId, ManifestResourceAttributes.Private, dat));
                 }

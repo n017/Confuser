@@ -10,9 +10,9 @@ using System.Security.Cryptography;
 
 static class CompressShell
 {
-    public const uint kNumStates = 12;
+    const uint kNumStates = 12;
 
-    public struct State
+    struct State
     {
         public uint Index;
         public void Init() { Index = 0; }
@@ -28,13 +28,13 @@ static class CompressShell
         public bool IsCharState() { return Index < 7; }
     }
 
-    public const int kNumPosSlotBits = 6;
+    const int kNumPosSlotBits = 6;
 
-    public const uint kNumLenToPosStates = 4;
+    const uint kNumLenToPosStates = 4;
 
-    public const uint kMatchMinLen = 2;
+    const uint kMatchMinLen = 2;
 
-    public static uint GetLenToPosState(uint len)
+    static uint GetLenToPosState(uint len)
     {
         len -= kMatchMinLen;
         if (len < kNumLenToPosStates)
@@ -42,24 +42,24 @@ static class CompressShell
         return unchecked((uint)(kNumLenToPosStates - 1));
     }
 
-    public const int kNumAlignBits = 4;
-    public const uint kAlignTableSize = 1 << kNumAlignBits;
+    const int kNumAlignBits = 4;
+    const uint kAlignTableSize = 1 << kNumAlignBits;
 
-    public const uint kStartPosModelIndex = 4;
-    public const uint kEndPosModelIndex = 14;
+    const uint kStartPosModelIndex = 4;
+    const uint kEndPosModelIndex = 14;
 
-    public const uint kNumFullDistances = 1 << ((int)kEndPosModelIndex / 2);
+    const uint kNumFullDistances = 1 << ((int)kEndPosModelIndex / 2);
 
-    public const int kNumPosStatesBitsMax = 4;
-    public const uint kNumPosStatesMax = (1 << kNumPosStatesBitsMax);
+    const int kNumPosStatesBitsMax = 4;
+    const uint kNumPosStatesMax = (1 << kNumPosStatesBitsMax);
 
-    public const int kNumLowLenBits = 3;
-    public const int kNumMidLenBits = 3;
-    public const int kNumHighLenBits = 8;
-    public const uint kNumLowLenSymbols = 1 << kNumLowLenBits;
-    public const uint kNumMidLenSymbols = 1 << kNumMidLenBits;
+    const int kNumLowLenBits = 3;
+    const int kNumMidLenBits = 3;
+    const int kNumHighLenBits = 8;
+    const uint kNumLowLenSymbols = 1 << kNumLowLenBits;
+    const uint kNumMidLenSymbols = 1 << kNumMidLenBits;
 
-    public class OutWindow
+    class OutWindow
     {
         byte[] _buffer = null;
         uint _pos;
@@ -296,7 +296,7 @@ static class CompressShell
         }
     }
 
-    public class LzmaDecoder
+    class LzmaDecoder
     {
         class LenDecoder
         {

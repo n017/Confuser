@@ -148,6 +148,21 @@ namespace Confuser.Core
         public T3 Item3;
     }
 
+    public struct Tuple<T1, T2, T3, T4>
+    {
+        public Tuple(T1 item1, T2 item2, T3 item3, T4 item4)
+        {
+            Item1 = item1;
+            Item2 = item2;
+            Item3 = item3;
+            Item4 = item4;
+        }
+        public T1 Item1;
+        public T2 Item2;
+        public T3 Item3;
+        public T4 Item4;
+    }
+
     class ConfuserAssemblyResolver : BaseAssemblyResolver
     {
         public readonly IDictionary<string, AssemblyDefinition> AssemblyCache;
@@ -515,6 +530,22 @@ namespace Confuser.Core
             if (mkrSettings.Packer != null && param.Project.Debug)
             {
                 Log("WARNING: When packer is used, debug symbol may not loaded properly into debugger!");
+            }
+            if (BitConverter.ToUInt64(
+                    (mainAsm.Assembly ?? settings[0].Assembly).MainModule.AssemblyReferences.First(
+                    _ => _.Name == "mscorlib").PublicKeyToken, 0) ==
+                0x8e79a7bed785ec7c)
+            {
+                Log("Silverlight assemblies!");
+                var dir = Environment.ExpandEnvironmentVariables("%ProgramFiles%\\Microsoft Silverlight");
+                if (Directory.Exists(dir))
+                {
+                    Log("Silverlight Path detected!");
+                    foreach (var i in Directory.GetDirectories(dir))
+                        resolver.AddSearchDirectory(i);
+                }
+                else
+                    throw new Exception("Could not detect Silverlight installation path!");
             }
 
             Dictionary<string, string> repl = new Dictionary<string, string>();

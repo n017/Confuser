@@ -153,6 +153,15 @@ namespace Confuser.Core.Confusions
                 MethodDefinition method = injection.MainModule.GetType("Encryptions").Methods.FirstOrDefault(mtd => mtd.Name == "Constants");
                 List<Conster> ret = new List<Conster>();
 
+                TypeDefinition lzma = mod.GetType("Lzma" + mod.GetHashCode());
+                if (lzma == null)
+                {
+                    lzma = CecilHelper.Inject(mod, injection.MainModule.GetType("Lzma"));
+                    lzma.IsNotPublic = true;
+                    lzma.Name = "Lzma" + mod.GetHashCode();
+                    mod.Types.Add(lzma);
+                }
+
                 rand.NextBytes(txt.keyBuff);
                 for (int i = 0; i < txt.keyBuff.Length; i++)
                     txt.keyBuff[i] &= 0x7f;
@@ -178,6 +187,7 @@ namespace Confuser.Core.Confusions
                     txt.keyInst = mutator.Delayed0;
                     placeholder = mutator.Placeholder;
                     foreach (Instruction inst in m.Body.Instructions)
+                    {
                         if (inst.Operand is FieldReference)
                         {
                             if ((inst.Operand as FieldReference).Name == "constTbl")
@@ -185,6 +195,15 @@ namespace Confuser.Core.Confusions
                             else if ((inst.Operand as FieldReference).Name == "constBuffer")
                                 inst.Operand = constBuffer;
                         }
+                        else if (inst.Operand is MethodReference &&
+                            (inst.Operand as MethodReference).DeclaringType.Name == "LzmaDecoder")
+                            inst.Operand = lzma.NestedTypes
+                                .Single(_ => _.Name == "LzmaDecoder").Methods
+                                .Single(_ => _.Name == (inst.Operand as MethodReference).Name);
+                    }
+                    foreach (var i in m.Body.Variables)
+                        if (i.VariableType.Name == "LzmaDecoder")
+                            i.VariableType = lzma.NestedTypes.Single(_ => _.Name == "LzmaDecoder");
 
                     if (txt.isNative)
                         CecilHelper.Replace(m.Body, placeholder, new Instruction[]
@@ -313,19 +332,109 @@ namespace Confuser.Core.Confusions
                     byte[] e = Encrypt(buff, txt.exp);
 
                     MemoryStream output = new MemoryStream();
-                    using (var s = new DeflateStream(new CryptoStream(output,
+                    var s = new CryptoStream(output,
                         new RijndaelManaged().CreateEncryptor(txt.keyBuff, MD5.Create().ComputeHash(txt.keyBuff))
-                        , CryptoStreamMode.Write), CompressionMode.Compress))
-                        s.Write(e, 0, e.Length);
-                    final = output.ToArray();
+                        , CryptoStreamMode.Write);
+                    s.Write(e, 0, e.Length);
+
+                    int dictionary = 1 << 23;
+
+                    Int32 posStateBits = 2;
+                    Int32 litContextBits = 3; // for normal files
+                    // UInt32 litContextBits = 0; // for 32-bit data
+                    Int32 litPosBits = 0;
+                    // UInt32 litPosBits = 2; // for 32-bit data
+                    Int32 algorithm = 2;
+                    Int32 numFastBytes = 128;
+                    string mf = "bt4";
+
+                    SevenZip.CoderPropID[] propIDs = 
+				    {
+					    SevenZip.CoderPropID.DictionarySize,
+					    SevenZip.CoderPropID.PosStateBits,
+					    SevenZip.CoderPropID.LitContextBits,
+					    SevenZip.CoderPropID.LitPosBits,
+					    SevenZip.CoderPropID.Algorithm,
+					    SevenZip.CoderPropID.NumFastBytes,
+					    SevenZip.CoderPropID.MatchFinder,
+					    SevenZip.CoderPropID.EndMarker
+				    };
+                    object[] properties = 
+				    {
+					    (int)dictionary,
+					    (int)posStateBits,
+					    (int)litContextBits,
+					    (int)litPosBits,
+					    (int)algorithm,
+					    (int)numFastBytes,
+					    mf,
+					    false
+				    };
+
+                    MemoryStream x = new MemoryStream();
+                    var encoder = new SevenZip.Compression.LZMA.Encoder();
+                    encoder.SetCoderProperties(propIDs, properties);
+                    encoder.WriteCoderProperties(x);
+                    Int64 fileSize;
+                    fileSize = output.Length;
+                    for (int i = 0; i < 8; i++)
+                        x.WriteByte((Byte)(fileSize >> (8 * i)));
+                    output.Position = 0;
+                    encoder.Code(output, x, -1, -1, null);
+
+                    final = x.ToArray();
                 }
                 else
                 {
+                    int dictionary = 1 << 23;
+
+                    Int32 posStateBits = 2;
+                    Int32 litContextBits = 3; // for normal files
+                    // UInt32 litContextBits = 0; // for 32-bit data
+                    Int32 litPosBits = 0;
+                    // UInt32 litPosBits = 2; // for 32-bit data
+                    Int32 algorithm = 2;
+                    Int32 numFastBytes = 128;
+                    string mf = "bt4";
+
+                    SevenZip.CoderPropID[] propIDs = 
+				    {
+					    SevenZip.CoderPropID.DictionarySize,
+					    SevenZip.CoderPropID.PosStateBits,
+					    SevenZip.CoderPropID.LitContextBits,
+					    SevenZip.CoderPropID.LitPosBits,
+					    SevenZip.CoderPropID.Algorithm,
+					    SevenZip.CoderPropID.NumFastBytes,
+					    SevenZip.CoderPropID.MatchFinder,
+					    SevenZip.CoderPropID.EndMarker
+				    };
+                    object[] properties = 
+				    {
+					    (int)dictionary,
+					    (int)posStateBits,
+					    (int)litContextBits,
+					    (int)litPosBits,
+					    (int)algorithm,
+					    (int)numFastBytes,
+					    mf,
+					    false
+				    };
+
+                    MemoryStream x = new MemoryStream();
+                    var encoder = new SevenZip.Compression.LZMA.Encoder();
+                    encoder.SetCoderProperties(propIDs, properties);
+                    encoder.WriteCoderProperties(x);
+                    Int64 fileSize;
+                    fileSize = buff.Length;
+                    for (int i = 0; i < 8; i++)
+                        x.WriteByte((Byte)(fileSize >> (8 * i)));
+                    encoder.Code(new MemoryStream(buff), x, -1, -1, null);
+
                     MemoryStream output = new MemoryStream();
-                    using (var s = new DeflateStream(new CryptoStream(output,
+                    using (var s = new CryptoStream(output,
                         new RijndaelManaged().CreateEncryptor(txt.keyBuff, MD5.Create().ComputeHash(txt.keyBuff))
-                        , CryptoStreamMode.Write), CompressionMode.Compress))
-                        s.Write(buff, 0, buff.Length);
+                        , CryptoStreamMode.Write))
+                        s.Write(x.ToArray(), 0, (int)x.Length);
 
                     final = EncryptSafe(output.ToArray(), BitConverter.ToUInt32(txt.keyBuff, 0xc) * (uint)txt.resKey);
                 }

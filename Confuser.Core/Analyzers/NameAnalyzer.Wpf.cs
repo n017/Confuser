@@ -7,6 +7,7 @@ using Confuser.Core.Analyzers.Baml;
 using System.Resources;
 using System.Collections;
 using System.IO;
+using System.Xml.Linq;
 
 namespace Confuser.Core.Analyzers
 {
@@ -310,185 +311,204 @@ namespace Confuser.Core.Analyzers
                 }
                 else
                     ress.Add(entry.Key as string, entry.Value);
-                if (stream != null && (entry.Key as string).EndsWith(".baml"))
+                if (stream != null)
                 {
-                    cc++;
-                    docName = entry.Key as string;
-                    doc = BamlReader.ReadDocument(stream);
-                    (mod as IAnnotationProvider).Annotations[RenMode] = NameMode.Letters;
-
-                    for (int i = 0; i < doc.Count; i++)
+                    if ((entry.Key as string).EndsWith(".baml"))
                     {
-                        if (doc[i] is LineNumberAndPositionRecord || doc[i] is LinePositionRecord)
-                        {
-                            doc.RemoveAt(i); i--;
-                        }
+                        ProcessBaml(mod, bamls, ref cc, entry, stream);
                     }
-
-                    int asmId = -1;
-                    Dictionary<ushort, AssemblyDefinition> asms = new Dictionary<ushort, AssemblyDefinition>();
-
-                    foreach (var rec in doc.OfType<AssemblyInfoRecord>())
+                    else if ((entry.Key as string).EndsWith(".xaml"))
                     {
-                        AssemblyNameReference nameRef = AssemblyNameReference.Parse(rec.AssemblyFullName);
-                        if (nameRef.Name == mod.Assembly.Name.Name)
-                        {
-                            asmId = rec.AssemblyId;
-                            rec.AssemblyFullName = GetBamlAssemblyFullName(mod.Assembly.Name);
-                            asms.Add(rec.AssemblyId, mod.Assembly);
-                            PopulateMembers(mod.Assembly);
-                            nameRef = null;
-                        }
-                        else
-                        {
-                            bool added = false;
-                            foreach (var i in ivtMap)
-                                if (i.Key.Name.Name == nameRef.Name)
-                                {
-                                    rec.AssemblyFullName = GetBamlAssemblyFullName(i.Key.Name);
-                                    asms.Add(rec.AssemblyId, i.Key);
-                                    PopulateMembers(i.Key);
-                                    nameRef = null;
-                                    added = true;
-                                    break;
-                                }
-                            if (!added)
-                            {
-                                var asmRefDef = GlobalAssemblyResolver.Instance.Resolve(nameRef);
-                                if (asmRefDef != null)
-                                {
-                                    PopulateMembers(asmRefDef);
-                                }
-                            }
-                        }
+                        ProcessXaml(mod, ref cc, entry, stream);
                     }
-
-                    Dictionary<ushort, TypeDefinition> types = new Dictionary<ushort, TypeDefinition>();
-                    foreach (var rec in doc.OfType<TypeInfoRecord>())
-                    {
-                        AssemblyDefinition asm;
-                        if (asms.TryGetValue((ushort)(rec.AssemblyId & 0xfff), out asm))
-                        {
-                            TypeReference type = TypeParser.ParseType(asm.MainModule, rec.TypeFullName);
-                            if (type != null)
-                            {
-                                types.Add(rec.TypeId, type.Resolve());
-                                AddTypeRenRefs(type, type, rec);
-                                rec.TypeFullName = TypeParser.ToParseable(type);
-                            }
-                        }
-                    }
-
-                    Dictionary<string, string> xmlns = new Dictionary<string, string>();
-                    foreach (var rec in doc.OfType<XmlnsPropertyRecord>())
-                        xmlns[rec.Prefix] = rec.XmlNamespace;
-
-                    Dictionary<ushort, string> ps = new Dictionary<ushort, string>();
-                    foreach (var rec in doc.OfType<AttributeInfoRecord>())
-                    {
-                        if (types.ContainsKey(rec.OwnerTypeId))
-                        {
-                            PropertyDefinition prop = types[rec.OwnerTypeId].Properties.SingleOrDefault(p => p.Name == rec.Name);
-                            if (prop != null)
-                            {
-                                ((prop as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new BamlAttributeReference(rec));
-                            }
-                            EventDefinition evt = types[rec.OwnerTypeId].Events.SingleOrDefault(p => p.Name == rec.Name);
-                            if (evt != null)
-                            {
-                                ((evt as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new BamlAttributeReference(rec));
-                            }
-                            FieldDefinition field = types[rec.OwnerTypeId].Fields.SingleOrDefault(p => p.Name == rec.Name);
-                            if (field != null)
-                            {
-                                ((field as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new BamlAttributeReference(rec));
-                            }
-
-                            //Attached property
-                            MethodDefinition getM = types[rec.OwnerTypeId].Methods.SingleOrDefault(p => p.Name == "Get" + rec.Name);
-                            if (getM != null)
-                            {
-                                (getM as IAnnotationProvider).Annotations[RenOk] = false;
-                            }
-                            MethodDefinition setM = types[rec.OwnerTypeId].Methods.SingleOrDefault(p => p.Name == "Set" + rec.Name);
-                            if (setM != null)
-                            {
-                                (setM as IAnnotationProvider).Annotations[RenOk] = false;
-                            }
-                        }
-                        ps.Add(rec.AttributeId, rec.Name);
-                    }
-
-                    foreach (var rec in doc.OfType<PropertyWithConverterRecord>())
-                    {
-                        if (rec.ConverterTypeId == 0xfd4c || ((short)rec.AttributeId > 0 && ps[rec.AttributeId] == "TypeName"))  //TypeExtension
-                        {
-                            string type = rec.Value;
-
-                            string xmlNamespace;
-                            if (type.IndexOf(':') != -1)
-                            {
-                                xmlNamespace = xmlns[type.Substring(0, type.IndexOf(':'))];
-                                type = type.Substring(type.IndexOf(':') + 1, type.Length - type.IndexOf(':') - 1);
-                            }
-                            else
-                            {
-                                xmlNamespace = xmlns[""];
-                            }
-                            TypeDefinition typeDef;
-                            if ((typeDef = ResolveXmlns(xmlNamespace, type, mod.Assembly, asms.Values)) != null)
-                            {
-                                ((typeDef as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new BamlTypeExtReference(rec, doc, typeDef.Module.Assembly.Name.Name));
-                            }
-                        }
-                        if (rec.ConverterTypeId == 0xff77 || rec.ConverterTypeId == 0xfe14 || rec.ConverterTypeId == 0xfd99)
-                        {
-                            ProcessProperty(rec, rec.Value);
-                        }
-                    }
-
-                    for (int i = 1; i < doc.Count; i++)
-                    {
-                        ElementStartRecord binding = doc[i - 1] as ElementStartRecord;
-                        ConstructorParametersStartRecord param = doc[i] as ConstructorParametersStartRecord;
-                        if (binding != null && param != null && binding.TypeId == 0xffec)//Binding
-                        {
-                            TextRecord path = doc[i + 1] as TextRecord;
-                            ProcessProperty(path, path.Value);
-                        }
-                    }
-
-                    var rootRec = doc.OfType<ElementStartRecord>().FirstOrDefault();
-                    if (rootRec != null && types.ContainsKey(rootRec.TypeId))
-                    {
-                        TypeDefinition root = types[rootRec.TypeId];
-                        Dictionary<string, IMemberDefinition> m = new Dictionary<string, IMemberDefinition>();
-                        foreach (PropertyDefinition prop in root.Properties)
-                            m.Add(prop.Name, prop);
-                        foreach (EventDefinition evt in root.Events)
-                            m.Add(evt.Name, evt);
-                        //foreach (MethodDefinition mtd in root.Methods)
-                        //    mems.Add(mtd.Name, mtd);
-
-                        foreach (var rec in doc.OfType<PropertyRecord>())
-                        {
-                            if (!(rec.Value is string)) continue;
-                            if (m.ContainsKey((string)rec.Value))
-                            {
-                                ((m[(string)rec.Value] as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new BamlPropertyReference(rec));
-                            }
-                        }
-                    }
-
-                    bamls.Add(entry.Key as string, doc);
                 }
                 n++;
                 Logger._Progress(n, reses.Length);
             }
             if (cc != 0)
-                ((res as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new SaveBamlsReference(mod, resId));
-            //else
-            //    System.Diagnostics.Debugger.Break();
+                ((res as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new SaveWpfResReference(mod, resId));
         }
+
+        private void ProcessBaml(ModuleDefinition mod, Dictionary<string, BamlDocument> bamls, ref int cc, DictionaryEntry entry, Stream stream)
+        {
+            cc++;
+            docName = entry.Key as string;
+            doc = BamlReader.ReadDocument(stream);
+            (mod as IAnnotationProvider).Annotations[RenMode] = NameMode.Letters;
+
+            for (int i = 0; i < doc.Count; i++)
+            {
+                if (doc[i] is LineNumberAndPositionRecord || doc[i] is LinePositionRecord)
+                {
+                    doc.RemoveAt(i); i--;
+                }
+            }
+
+            int asmId = -1;
+            Dictionary<ushort, AssemblyDefinition> asms = new Dictionary<ushort, AssemblyDefinition>();
+
+            foreach (var rec in doc.OfType<AssemblyInfoRecord>())
+            {
+                AssemblyNameReference nameRef = AssemblyNameReference.Parse(rec.AssemblyFullName);
+                if (nameRef.Name == mod.Assembly.Name.Name)
+                {
+                    asmId = rec.AssemblyId;
+                    rec.AssemblyFullName = GetBamlAssemblyFullName(mod.Assembly.Name);
+                    asms.Add(rec.AssemblyId, mod.Assembly);
+                    PopulateMembers(mod.Assembly);
+                    nameRef = null;
+                }
+                else
+                {
+                    bool added = false;
+                    foreach (var i in ivtMap)
+                        if (i.Key.Name.Name == nameRef.Name)
+                        {
+                            rec.AssemblyFullName = GetBamlAssemblyFullName(i.Key.Name);
+                            asms.Add(rec.AssemblyId, i.Key);
+                            PopulateMembers(i.Key);
+                            nameRef = null;
+                            added = true;
+                            break;
+                        }
+                    if (!added)
+                    {
+                        var asmRefDef = GlobalAssemblyResolver.Instance.Resolve(nameRef);
+                        if (asmRefDef != null)
+                        {
+                            PopulateMembers(asmRefDef);
+                        }
+                    }
+                }
+            }
+
+            Dictionary<ushort, TypeDefinition> types = new Dictionary<ushort, TypeDefinition>();
+            foreach (var rec in doc.OfType<TypeInfoRecord>())
+            {
+                AssemblyDefinition asm;
+                if (asms.TryGetValue((ushort)(rec.AssemblyId & 0xfff), out asm))
+                {
+                    TypeReference type = TypeParser.ParseType(asm.MainModule, rec.TypeFullName);
+                    if (type != null)
+                    {
+                        types.Add(rec.TypeId, type.Resolve());
+                        AddTypeRenRefs(type, type, rec);
+                        rec.TypeFullName = TypeParser.ToParseable(type);
+                    }
+                }
+            }
+
+            Dictionary<string, string> xmlns = new Dictionary<string, string>();
+            foreach (var rec in doc.OfType<XmlnsPropertyRecord>())
+                xmlns[rec.Prefix] = rec.XmlNamespace;
+
+            Dictionary<ushort, string> ps = new Dictionary<ushort, string>();
+            foreach (var rec in doc.OfType<AttributeInfoRecord>())
+            {
+                if (types.ContainsKey(rec.OwnerTypeId))
+                {
+                    PropertyDefinition prop = types[rec.OwnerTypeId].Properties.SingleOrDefault(p => p.Name == rec.Name);
+                    if (prop != null)
+                    {
+                        ((prop as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new BamlAttributeReference(rec));
+                    }
+                    EventDefinition evt = types[rec.OwnerTypeId].Events.SingleOrDefault(p => p.Name == rec.Name);
+                    if (evt != null)
+                    {
+                        ((evt as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new BamlAttributeReference(rec));
+                    }
+                    FieldDefinition field = types[rec.OwnerTypeId].Fields.SingleOrDefault(p => p.Name == rec.Name);
+                    if (field != null)
+                    {
+                        ((field as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new BamlAttributeReference(rec));
+                    }
+
+                    //Attached property
+                    MethodDefinition getM = types[rec.OwnerTypeId].Methods.SingleOrDefault(p => p.Name == "Get" + rec.Name);
+                    if (getM != null)
+                    {
+                        (getM as IAnnotationProvider).Annotations[RenOk] = false;
+                    }
+                    MethodDefinition setM = types[rec.OwnerTypeId].Methods.SingleOrDefault(p => p.Name == "Set" + rec.Name);
+                    if (setM != null)
+                    {
+                        (setM as IAnnotationProvider).Annotations[RenOk] = false;
+                    }
+                }
+                ps.Add(rec.AttributeId, rec.Name);
+            }
+
+            foreach (var rec in doc.OfType<PropertyWithConverterRecord>())
+            {
+                if (rec.ConverterTypeId == 0xfd4c || ((short)rec.AttributeId > 0 && ps[rec.AttributeId] == "TypeName"))  //TypeExtension
+                {
+                    string type = rec.Value;
+
+                    string xmlNamespace;
+                    if (type.IndexOf(':') != -1)
+                    {
+                        xmlNamespace = xmlns[type.Substring(0, type.IndexOf(':'))];
+                        type = type.Substring(type.IndexOf(':') + 1, type.Length - type.IndexOf(':') - 1);
+                    }
+                    else
+                    {
+                        xmlNamespace = xmlns[""];
+                    }
+                    TypeDefinition typeDef;
+                    if ((typeDef = ResolveXmlns(xmlNamespace, type, mod.Assembly, asms.Values)) != null)
+                    {
+                        ((typeDef as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new BamlTypeExtReference(rec, doc, typeDef.Module.Assembly.Name.Name));
+                    }
+                }
+                if (rec.ConverterTypeId == 0xff77 || rec.ConverterTypeId == 0xfe14 || rec.ConverterTypeId == 0xfd99)
+                {
+                    ProcessProperty(rec, rec.Value);
+                }
+            }
+
+            for (int i = 1; i < doc.Count; i++)
+            {
+                ElementStartRecord binding = doc[i - 1] as ElementStartRecord;
+                ConstructorParametersStartRecord param = doc[i] as ConstructorParametersStartRecord;
+                if (binding != null && param != null && binding.TypeId == 0xffec)//Binding
+                {
+                    TextRecord path = doc[i + 1] as TextRecord;
+                    ProcessProperty(path, path.Value);
+                }
+            }
+
+            var rootRec = doc.OfType<ElementStartRecord>().FirstOrDefault();
+            if (rootRec != null && types.ContainsKey(rootRec.TypeId))
+            {
+                TypeDefinition root = types[rootRec.TypeId];
+                Dictionary<string, IMemberDefinition> m = new Dictionary<string, IMemberDefinition>();
+                foreach (PropertyDefinition prop in root.Properties)
+                    m.Add(prop.Name, prop);
+                foreach (EventDefinition evt in root.Events)
+                    m.Add(evt.Name, evt);
+                //foreach (MethodDefinition mtd in root.Methods)
+                //    mems.Add(mtd.Name, mtd);
+
+                foreach (var rec in doc.OfType<PropertyRecord>())
+                {
+                    if (!(rec.Value is string)) continue;
+                    if (m.ContainsKey((string)rec.Value))
+                    {
+                        ((m[(string)rec.Value] as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new BamlPropertyReference(rec));
+                    }
+                }
+            }
+
+            bamls.Add(entry.Key as string, doc);
+        }
+
+        private void ProcessXaml(ModuleDefinition mod, ref int cc, DictionaryEntry entry, Stream stream)
+        {
+            cc++;
+            docName = entry.Key as string;
+            (mod as IAnnotationProvider).Annotations[RenMode] = NameMode.Letters;
+            AnalyzeXaml(mod.Assembly, stream);
+        }
+
     }
 }
