@@ -265,6 +265,12 @@ namespace Confuser.Core.Analyzers
                 else
                     baseType = null;
             }
+
+            if (prop.DeclaringType.Name.Contains("AnonymousType") && prop.IsPublic)
+            {
+                (prop as IAnnotationProvider).Annotations[RenOk] = false;
+                Confuser.Database.AddEntry(DB_SRC, prop.FullName, "Pub anon type prop => Not renamed");
+            }
         }
         void Analyze(EventDefinition evt)
         {
