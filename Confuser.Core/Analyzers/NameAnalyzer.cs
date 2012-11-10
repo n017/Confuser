@@ -119,8 +119,8 @@ namespace Confuser.Core.Analyzers
 
         static bool IsTypePublic(TypeDefinition type)
         {
-            if (type.Module.Kind == ModuleKind.Windows || type.Module.Kind == ModuleKind.Console)
-                return false;
+            //if (type.Module.Kind == ModuleKind.Windows || type.Module.Kind == ModuleKind.Console)
+            //    return false;
             do
             {
                 if (!type.IsPublic && !type.IsNestedFamily && !type.IsNestedFamilyAndAssembly && !type.IsNestedFamilyOrAssembly && !type.IsNestedPublic && !type.IsPublic)
@@ -266,10 +266,10 @@ namespace Confuser.Core.Analyzers
                     baseType = null;
             }
 
-            if (prop.DeclaringType.Name.Contains("AnonymousType") && prop.IsPublic)
+            if (prop.DeclaringType.Name.Contains("AnonymousType"))
             {
                 (prop as IAnnotationProvider).Annotations[RenOk] = false;
-                Confuser.Database.AddEntry(DB_SRC, prop.FullName, "Pub anon type prop => Not renamed");
+                Confuser.Database.AddEntry(DB_SRC, prop.FullName, "Anon type prop => Not renamed");
             }
         }
         void Analyze(EventDefinition evt)
