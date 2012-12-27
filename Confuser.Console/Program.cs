@@ -14,6 +14,29 @@ namespace Confuser.Console
         static int ParseCommandLine(string[] args, out ConfuserProject proj)
         {
             proj = new ConfuserProject();
+
+            if (args.Length == 1 && !args[0].StartsWith("-"))   //shortcut for -project
+            {
+                if (!File.Exists(args[0]))
+                {
+                    WriteLineWithColor(ConsoleColor.Red, string.Format("Error: File '{0}' not exist!", args[0]));
+                    return 2;
+                }
+                XmlDocument xmlDoc = new XmlDocument();
+                xmlDoc.Load(args[0]);
+                try
+                {
+                    proj.Load(xmlDoc);
+                }
+                catch (Exception e)
+                {
+                    WriteLineWithColor(ConsoleColor.Red, string.Format("Error: Invalid project format! Message : {0}", e.Message));
+                    return 4;
+                }
+                return 0;
+            }
+
+            bool? state = null;
             for (int i = 0; i < args.Length; i++)
             {
                 string action = args[i].ToLower();
@@ -27,6 +50,11 @@ namespace Confuser.Console
                 {
                     case "project":
                         {
+                            if (state == true)
+                            {
+                                WriteLineWithColor(ConsoleColor.Red, string.Format("Error: Invalid combination!"));
+                                return 3;
+                            }
                             if (!File.Exists(args[i + 1]))
                             {
                                 WriteLineWithColor(ConsoleColor.Red, string.Format("Error: File '{0}' not exist!", args[i + 1]));
@@ -34,15 +62,33 @@ namespace Confuser.Console
                             }
                             XmlDocument xmlDoc = new XmlDocument();
                             xmlDoc.Load(args[i + 1]);
-                            proj.Load(xmlDoc);
+                            try
+                            {
+                                proj.Load(xmlDoc);
+                            }
+                            catch (Exception e)
+                            {
+                                WriteLineWithColor(ConsoleColor.Red, string.Format("Error: Invalid project format! Message : {0}", e.Message));
+                                return 4;
+                            }
+                            state = false;
                             i += 1;
                         } break;
                     case "preset":
                         {
+                            if (state == false)
+                            {
+                                WriteLineWithColor(ConsoleColor.Red, string.Format("Error: Invalid combination!"));
+                                return 3;
+                            }
                             try
                             {
-                                proj.DefaultPreset = (Preset)Enum.Parse(typeof(Preset), args[i + 1], true);
+                                Rule rule = new Rule();
+                                rule.Preset = (Preset)Enum.Parse(typeof(Preset), args[i + 1], true);
+                                rule.Pattern = ".*";
+                                proj.Rules.Add(rule);
                                 i += 1;
+                                state = true;
                             }
                             catch
                             {
@@ -52,6 +98,11 @@ namespace Confuser.Console
                         } break;
                     case "input":
                         {
+                            if (state == false)
+                            {
+                                WriteLineWithColor(ConsoleColor.Red, string.Format("Error: Invalid combination!"));
+                                return 3;
+                            }
                             int parameterCounter = i + 1;
 
                             for (int j = i + 1; j < args.Length && !args[j].StartsWith("-"); j++)
@@ -73,8 +124,11 @@ namespace Confuser.Console
                                     }
                                     else if (fileList.Length == 1)
                                     {
-                                        proj.Add(new ProjectAssembly() { Path = fileList[0],
-                                                                         IsMain = j == i + 1 && filename.Contains('?') == false && filename.Contains('*') == false});
+                                        proj.Add(new ProjectAssembly()
+                                        {
+                                            Path = fileList[0],
+                                            IsMain = j == i + 1 && filename.Contains('?') == false && filename.Contains('*') == false
+                                        });
                                     }
                                     else
                                     {
@@ -90,16 +144,23 @@ namespace Confuser.Console
                                     return 2;
                                 }
                             }
+                            state = true;
                             i = parameterCounter;
                         } break;
                     case "output":
                         {
+                            if (state == false)
+                            {
+                                WriteLineWithColor(ConsoleColor.Red, string.Format("Error: Invalid combination!"));
+                                return 3;
+                            }
                             if (!Directory.Exists(args[i + 1]))
                             {
                                 WriteLineWithColor(ConsoleColor.Red, string.Format("Error: Directory '{0}' not exist!", args[i + 1]));
                                 return 2;
                             }
                             proj.OutputPath = args[i + 1];
+                            state = true;
                             i += 1;
                         } break;
                     case "snkey":
@@ -110,6 +171,7 @@ namespace Confuser.Console
                                 return 2;
                             }
                             proj.SNKeyPath = args[i + 1];
+                            state = true;
                             i += 1;
                         } break;
                 }
@@ -145,7 +207,7 @@ namespace Confuser.Console
 
             try
             {
-                if (args.Length < 2 || args[0] == "-help")
+                if (args.Length == 0 || args[0] == "-help")
                 {
                     PrintUsage();
                     return 0;

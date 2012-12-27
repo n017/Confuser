@@ -153,7 +153,6 @@
     <Compile Include="Poly\Expressions\InvExpression.cs" />
     <Compile Include="Poly\Visitors\x86Visitor.cs" />
     <Compile Include="Project\ConfuserProject.cs" />
-    <Compile Include="Project\ObjectModel.cs" />
     <Compile Include="Rocks.cs" />
     <Content Include="Note.txt" />
   </ItemGroup>

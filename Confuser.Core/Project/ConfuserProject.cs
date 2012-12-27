@@ -5,9 +5,54 @@ using System.Text;
 using System.Xml;
 using System.Collections.Specialized;
 using System.Xml.Schema;
+using Mono.Cecil;
 
 namespace Confuser.Core.Project
 {
+    public class ProjectAssembly
+    {
+        public string Path { get; set; }
+        public bool IsMain { get; set; }
+
+        public void Import(AssemblyDefinition assembly)
+        {
+            this.Path = assembly.MainModule.FullyQualifiedName;
+        }
+        public AssemblyDefinition Resolve()
+        {
+            return AssemblyDefinition.ReadAssembly(Path, new ReaderParameters(ReadingMode.Immediate));
+        }
+
+        public XmlElement Save(XmlDocument xmlDoc)
+        {
+            XmlElement elem = xmlDoc.CreateElement("assembly", ConfuserProject.Namespace);
+
+            XmlAttribute nameAttr = xmlDoc.CreateAttribute("path");
+            nameAttr.Value = Path;
+            elem.Attributes.Append(nameAttr);
+
+            if (IsMain != false)
+            {
+                XmlAttribute mainAttr = xmlDoc.CreateAttribute("isMain");
+                mainAttr.Value = IsMain.ToString().ToLower();
+                elem.Attributes.Append(mainAttr);
+            }
+
+            return elem;
+        }
+        public void Load(XmlElement elem)
+        {
+            this.Path = elem.Attributes["path"].Value;
+            if (elem.Attributes["isMain"] != null)
+                this.IsMain = bool.Parse(elem.Attributes["isMain"].Value);
+        }
+
+        public override string ToString()
+        {
+            return Path;
+        }
+    }
+
     public enum SettingItemAction
     {
         Add,
@@ -61,24 +106,32 @@ namespace Confuser.Core.Project
                 this.Add(i.Attributes["name"].Value, i.Attributes["value"].Value);
         }
     }
-    public class ObfSettings : List<SettingItem<IConfusion>>
+    public class Rule : List<SettingItem<IConfusion>>
     {
-        public string Name { get; set; }
+        public string Pattern { get; set; }
         public Preset Preset { get; set; }
+        public bool Inherit { get; set; }
 
         public XmlElement Save(XmlDocument xmlDoc)
         {
-            XmlElement elem = xmlDoc.CreateElement("settings", ConfuserProject.Namespace);
+            XmlElement elem = xmlDoc.CreateElement("rule", ConfuserProject.Namespace);
 
-            XmlAttribute nAttr = xmlDoc.CreateAttribute("name");
-            nAttr.Value = Name;
-            elem.Attributes.Append(nAttr);
+            XmlAttribute ruleAttr = xmlDoc.CreateAttribute("pattern");
+            ruleAttr.Value = Pattern;
+            elem.Attributes.Append(ruleAttr);
 
             if (Preset != Preset.None)
             {
                 XmlAttribute pAttr = xmlDoc.CreateAttribute("preset");
                 pAttr.Value = Preset.ToString().ToLower();
                 elem.Attributes.Append(pAttr);
+            }
+
+            if (Inherit != true)
+            {
+                XmlAttribute attr = xmlDoc.CreateAttribute("inherit");
+                attr.Value = Inherit.ToString().ToLower();
+                elem.Attributes.Append(attr);
             }
 
             foreach (var i in this)
@@ -89,11 +142,18 @@ namespace Confuser.Core.Project
 
         public void Load(XmlElement elem)
         {
-            this.Name = elem.Attributes["name"].Value;
+            this.Pattern = elem.Attributes["pattern"].Value;
+
             if (elem.Attributes["preset"] != null)
                 this.Preset = (Preset)Enum.Parse(typeof(Preset), elem.Attributes["preset"].Value, true);
             else
                 this.Preset = Preset.None;
+
+            if (elem.Attributes["inherit"] != null)
+                this.Inherit = bool.Parse(elem.Attributes["inherit"].Value);
+            else
+                this.Inherit = true;
+
             foreach (XmlElement i in elem.ChildNodes.OfType<XmlElement>())
             {
                 var x = new SettingItem<IConfusion>();
@@ -102,11 +162,12 @@ namespace Confuser.Core.Project
             }
         }
 
-        public ObfSettings Clone()
+        public Rule Clone()
         {
-            ObfSettings ret = new ObfSettings();
+            Rule ret = new Rule();
             ret.Preset = this.Preset;
-            ret.Name = this.Name;
+            ret.Pattern = this.Pattern;
+            ret.Inherit = this.Inherit;
             foreach (var i in this)
             {
                 var item = new SettingItem<IConfusion>();
@@ -119,67 +180,20 @@ namespace Confuser.Core.Project
             return ret;
         }
     }
-    public class ObfConfig
-    {
-        public string Id { get; set; }
-        public bool ApplyToMembers { get; set; }
-        public bool Inherit { get; set; }
-
-        public XmlElement Save(XmlDocument xmlDoc)
-        {
-            XmlElement elem = xmlDoc.CreateElement("config", ConfuserProject.Namespace);
-
-            XmlAttribute idAttr = xmlDoc.CreateAttribute("id");
-            idAttr.Value = Id;
-            elem.Attributes.Append(idAttr);
-
-            if (ApplyToMembers != false)
-            {
-                XmlAttribute attr = xmlDoc.CreateAttribute("applytomembers");
-                attr.Value = ApplyToMembers.ToString().ToLower();
-                elem.Attributes.Append(attr);
-            }
-
-            if (Inherit != false)
-            {
-                XmlAttribute attr = xmlDoc.CreateAttribute("inherit");
-                attr.Value = Inherit.ToString().ToLower();
-                elem.Attributes.Append(attr);
-            }
-
-            return elem;
-        }
-
-        public void Load(XmlElement elem)
-        {
-            this.Id = elem.Attributes["id"].Value;
-
-            if (elem.Attributes["applytomembers"] != null)
-                this.ApplyToMembers = bool.Parse(elem.Attributes["applytomembers"].Value);
-            else
-                this.ApplyToMembers = false;
-            
-            if (elem.Attributes["inherit"] != null)
-                this.Inherit = bool.Parse(elem.Attributes["inherit"].Value);
-            else
-                this.Inherit = false;
-        }
-    }
 
     public class ConfuserProject : List<ProjectAssembly>
     {
         public ConfuserProject()
         {
             Plugins = new List<string>();
-            Settings = new List<ObfSettings>();
+            Rules = new List<Rule>();
         }
         public IList<string> Plugins { get; private set; }
-        public IList<ObfSettings> Settings { get; private set; }
+        public IList<Rule> Rules { get; private set; }
         public string Seed { get; set; }
         public bool Debug { get; set; }
         public string OutputPath { get; set; }
         public string SNKeyPath { get; set; }   //For pfx, use "xxx.pfx|password"
-        public Preset DefaultPreset { get; set; }
         public SettingItem<Packer> Packer { get; set; }
 
         public static readonly XmlSchema Schema = XmlSchema.Read(typeof(ConfuserProject).Assembly.GetManifestResourceStream("Confuser.Core.ConfuserPrj.xsd"), null);
@@ -198,13 +212,6 @@ namespace Confuser.Core.Project
             XmlAttribute snAttr = xmlDoc.CreateAttribute("snKey");
             snAttr.Value = SNKeyPath;
             elem.Attributes.Append(snAttr);
-
-            if (DefaultPreset != Preset.None)
-            {
-                XmlAttribute presetAttr = xmlDoc.CreateAttribute("preset");
-                presetAttr.Value = DefaultPreset.ToString().ToLower();
-                elem.Attributes.Append(presetAttr);
-            }
 
             if (Seed != null)
             {
@@ -231,7 +238,7 @@ namespace Confuser.Core.Project
                 elem.AppendChild(plug);
             }
 
-            foreach (var i in Settings)
+            foreach (var i in Rules)
                 elem.AppendChild(i.Save(xmlDoc));
 
             if (Packer != null)
@@ -253,11 +260,6 @@ namespace Confuser.Core.Project
             this.OutputPath = docElem.Attributes["outputDir"].Value;
             this.SNKeyPath = docElem.Attributes["snKey"].Value;
 
-            if (docElem.Attributes["preset"] != null)
-                this.DefaultPreset = (Preset)Enum.Parse(typeof(Preset), docElem.Attributes["preset"].Value, true);
-            else
-                this.DefaultPreset = Preset.None;
-
             if (docElem.Attributes["seed"] != null)
                 this.Seed = docElem.Attributes["seed"].Value;
             else
@@ -274,11 +276,11 @@ namespace Confuser.Core.Project
                 {
                     Plugins.Add(i.Attributes["path"].Value);
                 }
-                else if (i.Name == "settings")
+                else if (i.Name == "rule")
                 {
-                    ObfSettings settings = new ObfSettings();
+                    Rule settings = new Rule();
                     settings.Load(i);
-                    Settings.Add(settings);
+                    Rules.Add(settings);
                 }
                 else if (i.Name == "packer")
                 {

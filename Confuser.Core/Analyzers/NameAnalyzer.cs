@@ -151,11 +151,16 @@ namespace Confuser.Core.Analyzers
                 (type as IAnnotationProvider).Annotations[RenOk] = false;
                 Confuser.Database.AddEntry(DB_SRC, type.FullName, "Pub/Global type => Not renamed");
             }
+            if (type.IsImport)
+            {
+                (type as IAnnotationProvider).Annotations[RenOk] = false;
+                Confuser.Database.AddEntry(DB_SRC, type.FullName, "ComImport type => Not renamed");
+            }
             foreach (Resource res in (type.Scope as ModuleDefinition).Resources)
                 if (res.Name == type.FullName + ".resources")
                     ((type as IAnnotationProvider).Annotations[RenRef] as List<IReference>).Add(new ResourceReference(res));
 
-            bool exclude = AnalyzeCustomAttributes(type);
+            bool exclude = type.IsImport || AnalyzeCustomAttributes(type);
             if (type.HasGenericParameters)
                 foreach (var i in type.GenericParameters)
                     AnalyzeCustomAttributes(i);

@@ -37,14 +37,13 @@ namespace Confuser.Core
             this.Assembly = asm;
             GlobalParameters = null;
             Modules = Mono.Empty<ModuleSetting>.Array;
-            ApplyToMember = IsMain = false;
+            IsMain = false;
         }
 
         public AssemblyDefinition Assembly;
         public ObfuscationSettings GlobalParameters;
         public ModuleSetting[] Modules;
         public bool IsMain;
-        public bool ApplyToMember;
     }
     public struct ModuleSetting
     {
@@ -52,31 +51,12 @@ namespace Confuser.Core
         {
             this.Module = mod;
             Parameters = null;
-            Namespaces = Mono.Empty<NamespaceSetting>.Array;
-            ApplyToMember = false;
+            Types = Mono.Empty<MemberSetting>.Array;
         }
 
         public ModuleDefinition Module;
         public ObfuscationSettings Parameters;
-        public NamespaceSetting[] Namespaces;
-        public bool ApplyToMember;
-    }
-    public struct NamespaceSetting
-    {
-        public NamespaceSetting(ModuleDefinition mod, string name)
-        {
-            this.Module = mod;
-            this.Name = name;
-            Parameters = null;
-            Members = Mono.Empty<MemberSetting>.Array;
-            ApplyToMember = false;
-        }
-
-        public ModuleDefinition Module;
-        public string Name;
-        public ObfuscationSettings Parameters;
-        public MemberSetting[] Members;
-        public bool ApplyToMember;
+        public MemberSetting[] Types;
     }
     public struct MemberSetting
     {
@@ -85,12 +65,10 @@ namespace Confuser.Core
             this.Object = obj;
             Parameters = null;
             Members = Mono.Empty<MemberSetting>.Array;
-            ApplyToMember = false;
         }
         public IMemberDefinition Object;
         public ObfuscationSettings Parameters;
         public MemberSetting[] Members;
-        public bool ApplyToMember;
     }
 
     public class Marker
@@ -99,38 +77,33 @@ namespace Confuser.Core
         {
             public Marking()
             {
-                inheritStack = new Tuple<ObfuscationSettings, bool>[0x10];
+                inheritStack = new ObfuscationSettings[0x10];
                 count = 0;
                 CurrentConfusions = new ObfuscationSettings();
-                ApplyToMember = false;
             }
 
-            Tuple<ObfuscationSettings, bool>[] inheritStack;
+            ObfuscationSettings[] inheritStack;
             int count;
             public ObfuscationSettings CurrentConfusions { get; private set; }
-            public bool ApplyToMember { get; set; }
 
             struct LevelHolder : IDisposable
             {
                 Marking m;
                 public LevelHolder(Marking m)
                 {
-                    m.inheritStack[m.count] = new Tuple<ObfuscationSettings, bool>(m.CurrentConfusions, m.ApplyToMember);
+                    m.inheritStack[m.count] = m.CurrentConfusions;
                     m.count++;
                     if (m.count > 0)
                     {
                         int i = m.count - 1;
                         while (i > 0)
                         {
-                            if (m.inheritStack[i].Item2)    //ApplyToMember
-                                break;
                             i--;
                         }
-                        m.CurrentConfusions = new ObfuscationSettings(m.inheritStack[i].Item1);
+                        m.CurrentConfusions = new ObfuscationSettings(m.inheritStack[i]);
                     }
                     else
                         m.CurrentConfusions = new ObfuscationSettings();
-                    m.ApplyToMember = false;
 
                     this.m = m;
                 }
@@ -138,11 +111,10 @@ namespace Confuser.Core
                 public void Dispose()
                 {
                     m.count--;
-                    m.inheritStack[m.count] = default(Tuple<ObfuscationSettings, bool>);
+                    m.inheritStack[m.count] = null;
                     if (m.count > 0)
                     {
-                        m.CurrentConfusions = m.inheritStack[m.count - 1].Item1;
-                        m.ApplyToMember = m.inheritStack[m.count - 1].Item2;
+                        m.CurrentConfusions = m.inheritStack[m.count - 1];
                     }
                 }
             }
@@ -188,15 +160,15 @@ namespace Confuser.Core
             MarkerSetting ret = new MarkerSetting();
             ret.Assemblies = new AssemblySetting[proj.Count];
 
+            InitRules();
+
             Marking setting = new Marking();
-            FillPreset(proj.DefaultPreset, setting.CurrentConfusions);
-            setting.ApplyToMember = true;
             using (setting.Level())
             {
                 for (int i = 0; i < proj.Count; i++)
                 {
                     using (setting.Level())
-                        ret.Assemblies[i] = MarkAssembly(proj[i], setting);
+                        ret.Assemblies[i] = _MarkAssembly(proj[i], setting);
                     logger._Progress(i + 1, proj.Count);
                 }
                 if (proj.Packer != null)
@@ -213,7 +185,6 @@ namespace Confuser.Core
         {
             AssemblySetting ret = new AssemblySetting(asm);
             ret.GlobalParameters = new ObfuscationSettings(settings);
-            ret.ApplyToMember = true;
 
             ret.Modules = asm.Modules.Select(_ => new ModuleSetting(_) { Parameters = new ObfuscationSettings() }).ToArray();
             foreach (var mod in asm.Modules)
@@ -229,142 +200,55 @@ namespace Confuser.Core
 
             cr.settings.Add(ret);
         }
-        private AssemblySetting MarkAssembly(ProjectAssembly asm, Marking mark)
+        private AssemblySetting _MarkAssembly(ProjectAssembly asm, Marking mark)
         {
-            bool applyToMember;
-            AssemblySetting ret = MarkAssembly(asm, mark, out applyToMember);
+            AssemblySetting ret = MarkAssembly(asm, mark);
             ret.GlobalParameters = mark.CurrentConfusions;
-            mark.ApplyToMember = applyToMember;
 
             using (mark.Level())
             {
                 List<ModuleSetting> modSettings = new List<ModuleSetting>();
                 foreach (var m in ret.Assembly.Modules)
                     using (mark.Level())
-                    {
-                        ProjectModule mod = asm.SingleOrDefault(_ => _.Name == m.Name) ??
-                                            new ProjectModule() { Name = m.Name };
-                        MarkModule(ret, mod, mark, modSettings);
-                    }
+                        MarkModule(ret, m, mark, modSettings);
                 ret.Modules = modSettings.ToArray();
                 return ret;
             }
         }
-        protected virtual AssemblySetting MarkAssembly(ProjectAssembly asm, Marking mark, out bool applyToMember)
+        protected virtual AssemblySetting MarkAssembly(ProjectAssembly asm, Marking mark)
         {
             AssemblySetting ret = new AssemblySetting(asm.Resolve());
-            ret.ApplyToMember = applyToMember = false;
             ret.IsMain = asm.IsMain;
-            if (asm.Config != null)
-            {
-                ret.ApplyToMember = applyToMember = asm.Config.ApplyToMembers;
-                if (!asm.Config.Inherit)
-                    mark.CurrentConfusions.Clear();
-                var settings = proj.Settings.Single(_ => _.Name == asm.Config.Id);
-                FillPreset(settings.Preset, mark.CurrentConfusions);
-                foreach (var i in settings)
-                {
-                    if (i.Action == SettingItemAction.Add)
-                        mark.CurrentConfusions[Confusions[i.Id]] = Clone(i);
-                    else
-                        mark.CurrentConfusions.Remove(Confusions[i.Id]);
-                }
-            }
+            ApplyRules(ret.Assembly, mark);
             return ret;
         }
 
-        private void MarkModule(AssemblySetting parent, ProjectModule mod, Marking mark, List<ModuleSetting> settings)
+        private void MarkModule(AssemblySetting parent, ModuleDefinition mod, Marking mark, List<ModuleSetting> settings)
         {
-            bool applyToMember;
-            ModuleSetting ret = MarkModule(parent, mod, mark, out applyToMember);
+            ModuleSetting ret = MarkModule(parent, mod, mark);
             ret.Parameters = mark.CurrentConfusions;
-            mark.ApplyToMember = applyToMember;
 
             using (mark.Level())
             {
-                List<NamespaceSetting> nsSettings = new List<NamespaceSetting>();
-                foreach (var t in ret.Module.Types.Select(_ => _.Namespace).Distinct())
+                List<MemberSetting> typeSettings = new List<MemberSetting>();
+                foreach (var t in ret.Module.Types)
                     using (mark.Level())
-                    {
-                        ProjectNamespace ns = mod.SingleOrDefault(_ => _.Name == t) ??
-                                            new ProjectNamespace() { Name = t };
-                        MarkNamespace(ret, ns, mark, nsSettings);
-                    }
-                ret.Namespaces = nsSettings.ToArray();
+                        MarkType(mod, t, mark, typeSettings);
+                ret.Types = typeSettings.ToArray();
             }
             settings.Add(ret);
         }
-        protected virtual ModuleSetting MarkModule(AssemblySetting parent, ProjectModule mod, Marking mark, out bool applyToMember)
+        protected virtual ModuleSetting MarkModule(AssemblySetting parent, ModuleDefinition mod, Marking mark)
         {
-            ModuleSetting ret = new ModuleSetting(mod.Resolve(parent.Assembly));
-            ret.ApplyToMember = applyToMember = false;
-            if (mod.Config != null)
-            {
-                ret.ApplyToMember = applyToMember = mod.Config.ApplyToMembers;
-                if (!mod.Config.Inherit)
-                    mark.CurrentConfusions.Clear();
-                var settings = proj.Settings.Single(_ => _.Name == mod.Config.Id);
-                FillPreset(settings.Preset, mark.CurrentConfusions);
-                foreach (var i in settings)
-                {
-                    if (i.Action == SettingItemAction.Add)
-                        mark.CurrentConfusions[Confusions[i.Id]] = Clone(i);
-                    else
-                        mark.CurrentConfusions.Remove(Confusions[i.Id]);
-                }
-            }
+            ModuleSetting ret = new ModuleSetting(mod);
+            ApplyRules(mod, mark);
             return ret;
         }
 
-        private void MarkNamespace(ModuleSetting parent, ProjectNamespace ns, Marking mark, List<NamespaceSetting> settings)
+        private void MarkType(ModuleDefinition mod, TypeDefinition type, Marking mark, List<MemberSetting> settings)
         {
-            bool applyToMember;
-            NamespaceSetting ret = MarkNamespace(parent, ns, mark, out applyToMember);
+            MemberSetting ret = MarkType(mod, type, mark);
             ret.Parameters = mark.CurrentConfusions;
-            mark.ApplyToMember = applyToMember;
-
-            using (mark.Level())
-            {
-                List<MemberSetting> memSettings = new List<MemberSetting>();
-                foreach (var t in ret.Module.Types.Where(_ => _.Namespace == ns.Name))
-                    using (mark.Level())
-                    {
-                        ProjectType type = ns.SingleOrDefault(_ => _.Name == t.Name) ??
-                                           ns.Import(t);
-                        MarkType(ret.Module, type, mark, memSettings);
-                    }
-                ret.Members = memSettings.ToArray();
-            }
-            settings.Add(ret);
-        }
-        protected virtual NamespaceSetting MarkNamespace(ModuleSetting parent, ProjectNamespace ns, Marking mark, out bool applyToMember)
-        {
-            NamespaceSetting ret = new NamespaceSetting(parent.Module, ns.Name);
-            ret.ApplyToMember = applyToMember = false;
-            if (ns.Config != null)
-            {
-                ret.ApplyToMember = applyToMember = ns.Config.ApplyToMembers;
-                if (!ns.Config.Inherit)
-                    mark.CurrentConfusions.Clear();
-                var settings = proj.Settings.Single(_ => _.Name == ns.Config.Id);
-                FillPreset(settings.Preset, mark.CurrentConfusions);
-                foreach (var i in settings)
-                {
-                    if (i.Action == SettingItemAction.Add)
-                        mark.CurrentConfusions[Confusions[i.Id]] = Clone(i);
-                    else
-                        mark.CurrentConfusions.Remove(Confusions[i.Id]);
-                }
-            }
-            return ret;
-        }
-
-        private void MarkType(ModuleDefinition mod, ProjectType type, Marking mark, List<MemberSetting> settings)
-        {
-            bool applyToMember;
-            MemberSetting ret = MarkType(mod, type, mark, out applyToMember);
-            ret.Parameters = mark.CurrentConfusions;
-            mark.ApplyToMember = applyToMember;
 
             using (mark.Level())
             {
@@ -374,82 +258,158 @@ namespace Confuser.Core
                                   typeDef.Fields.OfType<IMemberDefinition>()).Concat(
                                   typeDef.Properties.OfType<IMemberDefinition>()).Concat(
                                   typeDef.Events.OfType<IMemberDefinition>()));
-                foreach (ProjectMember mem in type)
-                    using (mark.Level())
-                        MarkMember(ret, mem, mark, memSettings);
-                foreach (var i in memSettings)
-                    mems.Remove(i.Object);
                 foreach (var i in mems)
                     using (mark.Level())
-                    {
-                        ProjectMember mem = new ProjectMember();
-                        mem.Import(i);
-                        MarkMember(ret, mem, mark, memSettings);
-                    }
+                        MarkMember(ret, i, mark, memSettings);
 
                 foreach (var i in typeDef.NestedTypes)
                     using (mark.Level())
-                    {
-                        ProjectType t = type.NestedTypes.SingleOrDefault(_ => _.Name == i.Name) ??
-                                           type.Import(i);
-                        MarkType(mod, t, mark, memSettings);
-                    }
+                        MarkType(mod, i, mark, memSettings);
 
                 ret.Members = memSettings.ToArray();
             }
             settings.Add(ret);
         }
-        protected virtual MemberSetting MarkType(ModuleDefinition mod, ProjectType type, Marking mark, out bool applyToMember)
+        protected virtual MemberSetting MarkType(ModuleDefinition mod, TypeDefinition type, Marking mark)
         {
-            MemberSetting ret = new MemberSetting(type.Resolve(mod));
-            ret.ApplyToMember = applyToMember = false;
-            if (type.Config != null)
-            {
-                ret.ApplyToMember = applyToMember = type.Config.ApplyToMembers;
-                if (!type.Config.Inherit)
-                    mark.CurrentConfusions.Clear();
-                var settings = proj.Settings.Single(_ => _.Name == type.Config.Id);
-                FillPreset(settings.Preset, mark.CurrentConfusions);
-                foreach (var i in settings)
-                {
-                    if (i.Action == SettingItemAction.Add)
-                        mark.CurrentConfusions[Confusions[i.Id]] = Clone(i);
-                    else
-                        mark.CurrentConfusions.Remove(Confusions[i.Id]);
-                }
-            }
+            MemberSetting ret = new MemberSetting(type);
+            ApplyRules(type, mark);
             return ret;
         }
 
-        private void MarkMember(MemberSetting parent, ProjectMember mem, Marking mark, List<MemberSetting> settings)
+        private void MarkMember(MemberSetting parent, IMemberDefinition mem, Marking mark, List<MemberSetting> settings)
         {
-            bool applyToMember;
-            MemberSetting ret = MarkMember(parent, mem, mark, out applyToMember);
+            MemberSetting ret = MarkMember(parent, mem, mark);
             ret.Parameters = mark.CurrentConfusions;
-            mark.ApplyToMember = applyToMember;
             settings.Add(ret);
         }
-        protected virtual MemberSetting MarkMember(MemberSetting parent, ProjectMember mem, Marking mark, out bool applyToMember)
+        protected virtual MemberSetting MarkMember(MemberSetting parent, IMemberDefinition mem, Marking mark)
         {
-            MemberSetting ret = new MemberSetting(mem.Resolve(parent.Object as TypeDefinition));
-            ret.ApplyToMember = applyToMember = false;
-            if (mem.Config != null)
-            {
-                ret.ApplyToMember = applyToMember = mem.Config.ApplyToMembers;
-                if (!mem.Config.Inherit)
-                    mark.CurrentConfusions.Clear();
-                var settings = proj.Settings.Single(_ => _.Name == mem.Config.Id);
-                FillPreset(settings.Preset, mark.CurrentConfusions);
-                foreach (var i in settings)
-                {
-                    if (i.Action == SettingItemAction.Add)
-                        mark.CurrentConfusions[Confusions[i.Id]] = Clone(i);
-                    else
-                        mark.CurrentConfusions.Remove(Confusions[i.Id]);
-                }
-            }
+            MemberSetting ret = new MemberSetting(mem);
+            ApplyRules(mem, mark);
             return ret;
         }
 
+
+
+        static string ToSignature(object obj)
+        {
+            if (obj is AssemblyDefinition)
+                return (obj as AssemblyDefinition).Name.Name;
+            else if (obj is ModuleDefinition)
+                return (obj as ModuleDefinition).Name;
+            else if (obj is TypeDefinition)
+            {
+                TypeDefinition typeDef = obj as TypeDefinition;
+                if (typeDef.DeclaringType != null)
+                    return string.Format("{0}.{1}",
+                        ToSignature(typeDef.DeclaringType), typeDef.Name);
+                else
+                    return string.Format("{0}!{1}.{2}",
+                        typeDef.Module.Assembly.Name.Name, typeDef.Namespace, typeDef.Name);
+            }
+            else if (obj is MethodDefinition)
+            {
+                MethodDefinition methodDef = obj as MethodDefinition;
+                StringBuilder ret = new StringBuilder();
+                ret.AppendFormat("{0}.{1}(",
+                    ToSignature(methodDef.DeclaringType),
+                    methodDef.Name);
+                for (int i = 0; i < methodDef.Parameters.Count; i++)
+                {
+                    if (i != 0)
+                        ret.AppendFormat(", {0}", methodDef.Parameters[i].ParameterType.Name);
+                    else
+                        ret.Append(methodDef.Parameters[i].ParameterType.Name);
+                }
+                if (methodDef.ReturnType.MetadataType == MetadataType.Void)
+                    ret.Append(")");
+                else
+                    ret.AppendFormat(") : {0}", methodDef.ReturnType.Name);
+                return ret.ToString();
+            }
+            else if (obj is FieldDefinition)
+            {
+                FieldDefinition fieldDef = obj as FieldDefinition;
+                StringBuilder ret = new StringBuilder();
+                ret.AppendFormat("{0}.{1} : {2}",
+                    ToSignature(fieldDef.DeclaringType),
+                    fieldDef.Name, fieldDef.FieldType.Name);
+                return ret.ToString();
+            }
+            else if (obj is PropertyDefinition)
+            {
+                PropertyDefinition propertyDef = obj as PropertyDefinition;
+                StringBuilder ret = new StringBuilder();
+                ret.AppendFormat("{0}.{1}",
+                    ToSignature(propertyDef.DeclaringType),
+                    propertyDef.Name);
+                if (propertyDef.Parameters.Count > 0)
+                {
+                    for (int i = 0; i < propertyDef.Parameters.Count; i++)
+                    {
+                        if (i != 0)
+                            ret.AppendFormat(", {0}", propertyDef.Parameters[i].ParameterType.Name);
+                        else
+                            ret.AppendFormat("({0}", propertyDef.Parameters[i].ParameterType.Name);
+                    }
+                    ret.AppendFormat(") : {0}", propertyDef.PropertyType.Name);
+                }
+                else
+                    ret.AppendFormat(" : {0}", propertyDef.PropertyType.Name);
+                return ret.ToString();
+            }
+            else if (obj is EventDefinition)
+            {
+                EventDefinition eventDef = obj as EventDefinition;
+                StringBuilder ret = new StringBuilder();
+                ret.AppendFormat("{0}.{1} : {2}",
+                    ToSignature(eventDef.DeclaringType),
+                    eventDef.Name, eventDef.EventType.Name);
+                return ret.ToString();
+            }
+            else
+                throw new NotSupportedException();
+        }
+
+        Tuple<Regex, Rule>[] rules;
+        void InitRules()
+        {
+            List<Tuple<Regex, Rule>> r = new List<Tuple<Regex, Rule>>();
+            foreach (var i in proj.Rules)
+            {
+                try
+                {
+                    Regex regex = new Regex(i.Pattern);
+                    r.Add(new Tuple<Regex, Rule>(regex, i));
+                }
+                catch (Exception ex)
+                {
+                    throw new ArgumentException("Invalid rule!", ex);
+                }
+            }
+            rules = r.ToArray();
+        }
+
+        void ApplyRules(object obj, Marking mark)
+        {
+            string sig = ToSignature(obj);
+            foreach (var i in rules)
+            {
+                if (!i.Item1.IsMatch(sig)) continue;
+
+                if (!i.Item2.Inherit)
+                    mark.CurrentConfusions.Clear();
+
+                FillPreset(i.Item2.Preset, mark.CurrentConfusions);
+                foreach (var j in i.Item2)
+                {
+                    if (j.Action == SettingItemAction.Add)
+                        mark.CurrentConfusions[Confusions[j.Id]] = Clone(j);
+                    else
+                        mark.CurrentConfusions.Remove(Confusions[j.Id]);
+                }
+            }
+        }
     }
 }

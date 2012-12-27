@@ -214,7 +214,7 @@ namespace Confuser.Core.Confusions
 
                     MethodDefinition invoke = new MethodDefinition("Invoke", 0, mod.Import(MtdRef.ReturnType));
                     TypeReference retType = invoke.ReturnType.GetElementType();
-                    retType.IsValueType = (retType.Resolve() ?? retType).IsValueType;
+                    retType.IsValueType = ((retType.Resolve() ?? retType) ?? invoke.ReturnType).IsValueType;
 
                     invoke.IsRuntime = true;
                     invoke.HasThis = true;

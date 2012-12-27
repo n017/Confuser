@@ -18,10 +18,6 @@ namespace Confuser
         INotifyChildrenChanged Parent { get; }
         void OnChildChanged();
     }
-    public interface IProjObject : INotifyChildrenChanged
-    {
-        PrjSettings Settings { get; set; }
-    }
 
     public class PrjArgument
     {
@@ -65,11 +61,23 @@ namespace Confuser
         public INotifyChildrenChanged Parent { get { return parent; } }
         public PrjConfig(T obj, INotifyChildrenChanged parent)
         {
-            this.Object = obj;
+            this.obj = obj;
             this.parent = parent;
         }
 
-        public T Object { get; private set; }
+        T obj;
+        public T Object
+        {
+            get { return obj; }
+            set
+            {
+                if (!object.ReferenceEquals(obj, value))
+                {
+                    obj = value;
+                    OnPropertyChanged(new PropertyChangedEventArgs("Object"));
+                }
+            }
+        }
 
         SettingItemAction action;
         public SettingItemAction Action
@@ -107,38 +115,23 @@ namespace Confuser
                 ret.Add(i.Name, i.Value);
             return ret;
         }
-
-        public override bool Equals(object obj)
-        {
-            PrjConfig<T> cfg = obj as PrjConfig<T>;
-            if (cfg == null) return false;
-            if (!cfg.Object.Equals(this.Object)) return false;
-            if (cfg.Count != this.Count) return false;
-            if (cfg.action != this.action) return false;
-            for (int i = 0; i < this.Count; i++)
-                if (cfg[i].Name != this[i].Name ||
-                    cfg[i].Value != this[i].Value) return false;
-            return true;
-        }
-
-        public override int GetHashCode()
-        {
-            int ret = Object.GetHashCode() ^ (int)action;
-            for (int i = 0; i < this.Count; i++)
-                ret ^= this[i].Name.GetHashCode() ^ this[i].Value.GetHashCode();
-            return ret;
-        }
     }
-    public class PrjSettings : ObservableCollection<PrjConfig<IConfusion>>, INotifyChildrenChanged
+
+    public class PrjConfusionCfg : PrjConfig<IConfusion>   //Wrapper for XAML
+    {
+        public PrjConfusionCfg(IConfusion obj, INotifyChildrenChanged parent) : base(obj, parent) { }
+    }
+
+    public class PrjRule : ObservableCollection<PrjConfusionCfg>, INotifyChildrenChanged
     {
         INotifyChildrenChanged parent;
         public INotifyChildrenChanged Parent { get { return parent; } }
-        public PrjSettings(INotifyChildrenChanged parent)
+        public PrjRule(INotifyChildrenChanged parent)
         {
             this.parent = parent;
         }
 
-        Preset preset;
+        Preset preset = Preset.None;
         public Preset Preset
         {
             get { return preset; }
@@ -152,21 +145,21 @@ namespace Confuser
             }
         }
 
-        bool apply;
-        public bool ApplyToMembers
+        string pattern = ".*";
+        public string Pattern
         {
-            get { return apply; }
+            get { return pattern; }
             set
             {
-                if (apply != value)
+                if (pattern != value)
                 {
-                    apply = value;
-                    OnPropertyChanged(new PropertyChangedEventArgs("ApplyToMembers"));
+                    pattern = value;
+                    OnPropertyChanged(new PropertyChangedEventArgs("Pattern"));
                 }
             }
         }
 
-        bool inherit;
+        bool inherit = true;
         public bool Inherit
         {
             get { return inherit; }
@@ -180,8 +173,6 @@ namespace Confuser
             }
         }
 
-        internal string name;
-
         protected override void OnPropertyChanged(PropertyChangedEventArgs e)
         {
             if (parent != null) parent.OnChildChanged();
@@ -189,18 +180,19 @@ namespace Confuser
         }
         public void OnChildChanged()
         {
-            parent.OnChildChanged();
+            if (parent != null)
+                parent.OnChildChanged();
         }
 
-        public PrjSettings Clone(INotifyChildrenChanged parent)
+        public PrjRule Clone(INotifyChildrenChanged parent)
         {
-            PrjSettings ret = new PrjSettings(parent);
-            ret.apply = apply;
+            PrjRule ret = new PrjRule(parent);
             ret.inherit = inherit;
             ret.preset = preset;
-            foreach (PrjConfig<IConfusion> i in this)
+            ret.pattern = pattern;
+            foreach (PrjConfusionCfg i in this)
             {
-                PrjConfig<IConfusion> n = new PrjConfig<IConfusion>(i.Object, ret);
+                PrjConfusionCfg n = new PrjConfusionCfg(i.Object, ret);
                 n.Action = i.Action;
                 foreach (var j in i)
                     n.Add(new PrjArgument(n) { Name = j.Name, Value = j.Value });
@@ -209,58 +201,32 @@ namespace Confuser
             return ret;
         }
 
-        public ObfSettings ToCrSettings()
+        public Rule ToCrRule()
         {
-            ObfSettings ret = new ObfSettings();
-            ret.Name = name;
-            ret.Preset = Preset;
+            Rule ret = new Rule();
+            ret.Preset = preset;
+            ret.Pattern = pattern;
+            ret.Inherit = inherit;
             foreach (var i in this)
                 ret.Add(i.ToCrConfig());
             return ret;
         }
-        public void FromCrSettings(Prj prj, ObfSettings settings)
+        public void FromCrRule(Prj prj, Rule rule)
         {
-            name = settings.Name;
-            preset = settings.Preset;
-            foreach (var i in settings)
+            pattern = rule.Pattern;
+            preset = rule.Preset;
+            inherit = rule.Inherit;
+            foreach (var i in rule)
             {
-                PrjConfig<IConfusion> cfg = new PrjConfig<IConfusion>(prj.Confusions.Single(_ => _.ID == i.Id), this);
+                PrjConfusionCfg cfg = new PrjConfusionCfg(prj.Confusions.Single(_ => _.ID == i.Id), this);
                 cfg.Action = i.Action;
                 foreach (var j in i.AllKeys)
                     cfg.Add(new PrjArgument(this) { Name = j, Value = i[j] });
                 this.Add(cfg);
             }
         }
-
-        public ObfConfig ToCrConfig()
-        {
-            ObfConfig ret = new ObfConfig();
-            ret.ApplyToMembers = apply;
-            ret.Inherit = inherit;
-            ret.Id = name;
-            return ret;
-        }
-
-        public override bool Equals(object obj)
-        {
-            PrjSettings settings = obj as PrjSettings;
-            if (settings == null) return false; //Don't compare ApplyToMember/Inherit
-            if (settings.Count != this.Count) return false;
-            if (settings.Preset != this.Preset) return false;
-            for (int i = 0; i < this.Count; i++)
-                if (!settings[i].Equals(this[i])) return false;
-            return true;
-        }
-
-        public override int GetHashCode()
-        {
-            int ret = (int)Preset;
-            for (int i = 0; i < this.Count; i++)
-                ret ^= this[i].GetHashCode();
-            return ret;
-        }
     }
-    public class PrjAssembly : ObservableCollection<PrjModule>, IProjObject
+    public class PrjAssembly : INotifyPropertyChanged
     {
         INotifyChildrenChanged parent;
         public INotifyChildrenChanged Parent { get { return parent; } }
@@ -311,28 +277,12 @@ namespace Confuser
 
         public bool IsExecutable { get; set; }
 
-        PrjSettings settings;
-        public PrjSettings Settings
-        {
-            get { return settings; }
-            set
-            {
-                if (settings != value)
-                {
-                    settings = value;
-                    OnPropertyChanged(new PropertyChangedEventArgs("Settings"));
-                }
-            }
-        }
-
-        protected override void OnPropertyChanged(PropertyChangedEventArgs e)
+        public event PropertyChangedEventHandler PropertyChanged;
+        void OnPropertyChanged(PropertyChangedEventArgs e)
         {
             if (parent != null) parent.OnChildChanged();
-            base.OnPropertyChanged(e);
-        }
-        public void OnChildChanged()
-        {
-            parent.OnChildChanged();
+            if (PropertyChanged != null)
+                PropertyChanged(this, e);
         }
 
         public ProjectAssembly ToCrAssembly()
@@ -340,343 +290,16 @@ namespace Confuser
             ProjectAssembly ret = new ProjectAssembly();
             ret.Path = path;
             ret.IsMain = isMain;
-            if (settings != null)
-                ret.Config = settings.ToCrConfig();
-            foreach (var i in this)
-                ret.Add(i.ToCrModule());
             return ret;
         }
-        public void FromCrAssembly(Prj prj, Dictionary<string, PrjSettings> settings, ProjectAssembly asm)
+        public void FromCrAssembly(Prj prj, ProjectAssembly asm)
         {
             this.path = asm.Path;
             this.asmDef = AssemblyDefinition.ReadAssembly(this.path);
             this.IsExecutable = this.asmDef.MainModule.EntryPoint != null;
             this.isMain = asm.IsMain;
-            if (asm.Config != null)
-            {
-                this.settings = settings[asm.Config.Id].Clone(this);
-                this.settings.ApplyToMembers = asm.Config.ApplyToMembers;
-                this.settings.Inherit = asm.Config.Inherit;
-            }
-            foreach (var i in asm)
-            {
-                PrjModule mod = new PrjModule(this);
-                mod.FromCrModule(prj, settings, i);
-                this.Add(mod);
-            }
         }
 
-        internal void GetSettings(List<PrjSettings> x)
-        {
-            if (settings != null)
-                x.Add(settings);
-            foreach (var i in this)
-                i.GetSettings(x);
-        }
-    }
-    public class PrjModule : ObservableCollection<PrjNamespace>, IProjObject
-    {
-        INotifyChildrenChanged parent;
-        public INotifyChildrenChanged Parent { get { return parent; } }
-        public PrjModule(INotifyChildrenChanged parent)
-        {
-            this.parent = parent;
-        }
-
-        string name;
-        public string Name
-        {
-            get { return name; }
-            set
-            {
-                if (name != value)
-                {
-                    name = value;
-                    OnPropertyChanged(new PropertyChangedEventArgs("Name"));
-                }
-            }
-        }
-        PrjSettings settings;
-        public PrjSettings Settings
-        {
-            get { return settings; }
-            set
-            {
-                if (settings != value)
-                {
-                    settings = value;
-                    OnPropertyChanged(new PropertyChangedEventArgs("Settings"));
-                }
-            }
-        }
-
-        protected override void OnPropertyChanged(PropertyChangedEventArgs e)
-        {
-            if (parent != null) parent.OnChildChanged();
-            base.OnPropertyChanged(e);
-        }
-        public void OnChildChanged()
-        {
-            parent.OnChildChanged();
-        }
-
-        public ProjectModule ToCrModule()
-        {
-            ProjectModule ret = new ProjectModule();
-            ret.Name = name;
-            if (settings != null)
-                ret.Config = settings.ToCrConfig();
-            foreach (var i in this)
-                ret.Add(i.ToCrNamespace());
-            return ret;
-        }
-        public void FromCrModule(Prj prj, Dictionary<string, PrjSettings> settings, ProjectModule mod)
-        {
-            this.Name = mod.Name;
-            if (mod.Config != null)
-            {
-                this.settings = settings[mod.Config.Id].Clone(this);
-                this.settings.ApplyToMembers = mod.Config.ApplyToMembers;
-                this.settings.Inherit = mod.Config.Inherit;
-            }
-            foreach (var i in mod)
-            {
-                PrjNamespace ns = new PrjNamespace(this);
-                ns.FromCrNamespace(prj, settings, i);
-                this.Add(ns);
-            }
-        }
-
-        internal void GetSettings(List<PrjSettings> x)
-        {
-            if (settings != null)
-                x.Add(settings);
-            foreach (var i in this)
-                i.GetSettings(x);
-        }
-    }
-    public class PrjNamespace : ObservableCollection<PrjMember>, IProjObject
-    {
-        INotifyChildrenChanged parent;
-        public INotifyChildrenChanged Parent { get { return parent; } }
-        public PrjNamespace(INotifyChildrenChanged parent)
-        {
-            this.parent = parent;
-        }
-
-        string name;
-        public string Name
-        {
-            get { return name; }
-            set
-            {
-                if (name != value)
-                {
-                    name = value;
-                    OnPropertyChanged(new PropertyChangedEventArgs("Name"));
-                }
-            }
-        }
-        PrjSettings settings;
-        public PrjSettings Settings
-        {
-            get { return settings; }
-            set
-            {
-                if (settings != value)
-                {
-                    settings = value;
-                    OnPropertyChanged(new PropertyChangedEventArgs("Settings"));
-                }
-            }
-        }
-
-        protected override void OnPropertyChanged(PropertyChangedEventArgs e)
-        {
-            if (parent != null) parent.OnChildChanged();
-            base.OnPropertyChanged(e);
-        }
-        public void OnChildChanged()
-        {
-            parent.OnChildChanged();
-        }
-
-        public ProjectNamespace ToCrNamespace()
-        {
-            ProjectNamespace ret = new ProjectNamespace();
-            ret.Name = name;
-            if (settings != null)
-                ret.Config = settings.ToCrConfig();
-            foreach (var i in this)
-                ret.Add(i.ToCrType(ret));
-            return ret;
-        }
-        public void FromCrNamespace(Prj prj, Dictionary<string, PrjSettings> settings, ProjectNamespace ns)
-        {
-            this.Name = ns.Name;
-            if (ns.Config != null)
-            {
-                this.settings = settings[ns.Config.Id].Clone(this);
-                this.settings.ApplyToMembers = ns.Config.ApplyToMembers;
-                this.settings.Inherit = ns.Config.Inherit;
-            }
-            foreach (var i in ns)
-            {
-                PrjMember mem = new PrjMember(this);
-                mem.FromCrType(prj, settings, i);
-                this.Add(mem);
-            }
-        }
-
-        internal void GetSettings(List<PrjSettings> x)
-        {
-            if (settings != null)
-                x.Add(settings);
-            foreach (var i in this)
-                i.GetSettings(x);
-        }
-    }
-    public class PrjMember : ObservableCollection<PrjMember>, IProjObject
-    {
-        INotifyChildrenChanged parent;
-        public INotifyChildrenChanged Parent { get { return parent; } }
-        public PrjMember(INotifyChildrenChanged parent)
-        {
-            this.parent = parent;
-        }
-
-        IMemberDefinition mem;
-        public IMemberDefinition Member
-        {
-            get { return mem; }
-            set
-            {
-                if (mem != value)
-                {
-                    mem = value;
-                    OnPropertyChanged(new PropertyChangedEventArgs("Member"));
-                }
-            }
-        }
-        PrjSettings settings;
-        public PrjSettings Settings
-        {
-            get { return settings; }
-            set
-            {
-                if (settings != value)
-                {
-                    settings = value;
-                    OnPropertyChanged(new PropertyChangedEventArgs("Settings"));
-                }
-            }
-        }
-
-        protected override void OnPropertyChanged(PropertyChangedEventArgs e)
-        {
-            if (parent != null) parent.OnChildChanged();
-            base.OnPropertyChanged(e);
-        }
-        public void OnChildChanged()
-        {
-            if (parent != null) parent.OnChildChanged();
-        }
-
-        public ProjectType ToCrType(ProjectNamespace parent)
-        {
-            ProjectType ret = parent.Import(mem as TypeDefinition);
-            ret.Name = mem.Name;
-            if (settings != null)
-                ret.Config = settings.ToCrConfig();
-            foreach (var i in this)
-            {
-                if (i.Member is TypeDefinition)
-                    ret.NestedTypes.Add(i.ToCrType(ret));
-                else
-                    ret.Add(i.ToCrMember());
-            }
-            return ret;
-        }
-        public ProjectType ToCrType(ProjectType parent)
-        {
-            ProjectType ret = parent.Import(mem as TypeDefinition);
-            ret.Name = mem.Name;
-            if (settings != null)
-                ret.Config = settings.ToCrConfig();
-            foreach (var i in this)
-            {
-                if (i.Member is TypeDefinition)
-                    ret.NestedTypes.Add(i.ToCrType(ret));
-                else
-                    ret.Add(i.ToCrMember());
-            }
-            return ret;
-        }
-        public ProjectMember ToCrMember()
-        {
-            ProjectMember ret = new ProjectMember();
-            ret.Import(mem);
-            if (settings != null)
-                ret.Config = settings.ToCrConfig();
-            return ret;
-        }
-
-        public void FromCrType(Prj prj, Dictionary<string, PrjSettings> settings, ProjectType type)
-        {
-            INotifyChildrenChanged obj = parent;
-            PrjAssembly asm = null;
-            PrjModule mod = null;
-            while (obj != null)
-            {
-                if (obj is PrjAssembly) asm = obj as PrjAssembly;
-                else if (obj is PrjModule) mod = obj as PrjModule;
-                obj = obj.Parent;
-            }
-            ModuleDefinition modDef = asm.Assembly.Modules.Single(_ => _.Name == mod.Name);
-
-            mem = type.Resolve(modDef);
-            if (type.Config != null)
-            {
-                this.settings = settings[type.Config.Id].Clone(this);
-                this.settings.ApplyToMembers = type.Config.ApplyToMembers;
-                this.settings.Inherit = type.Config.Inherit;
-            }
-
-            foreach (var i in type.NestedTypes)
-            {
-                PrjMember nested = new PrjMember(this);
-                nested.FromCrType(prj, settings, i);
-                this.Add(nested);
-            }
-        }
-        public void FromCrMember(Prj prj, Dictionary<string, PrjSettings> settings, ProjectMember member)
-        {
-            INotifyChildrenChanged obj = parent;
-            PrjAssembly asm = null;
-            PrjModule mod = null;
-            while (obj != null)
-            {
-                if (obj is PrjAssembly) asm = obj as PrjAssembly;
-                else if (obj is PrjModule) mod = obj as PrjModule;
-            }
-            ModuleDefinition modDef = asm.Assembly.Modules.Single(_ => _.Name == mod.Name);
-
-            mem = member.Resolve((parent as PrjMember).mem as TypeDefinition);
-            if (member.Config != null)
-            {
-                this.settings = settings[member.Config.Id].Clone(this);
-                this.settings.ApplyToMembers = member.Config.ApplyToMembers;
-                this.settings.Inherit = member.Config.Inherit;
-            }
-        }
-
-        internal void GetSettings(List<PrjSettings> x)
-        {
-            if (settings != null)
-                x.Add(settings);
-            foreach (var i in this)
-                i.GetSettings(x);
-        }
     }
 
     public enum PrjPreset
@@ -730,6 +353,8 @@ namespace Confuser
             Plugins.CollectionChanged += (sender, e) => OnChildChanged();
             Assemblies = new ObservableCollection<PrjAssembly>();
             Assemblies.CollectionChanged += (sender, e) => OnChildChanged();
+            Rules = new ObservableCollection<PrjRule>();
+            Rules.CollectionChanged += (sender, e) => OnChildChanged();
         }
 
         public ObservableCollection<IConfusion> Confusions { get; private set; }
@@ -864,19 +489,6 @@ namespace Confuser
                     }
         }
 
-        PrjPreset preset = PrjPreset.Normal;
-        public PrjPreset DefaultPreset
-        {
-            get { return preset; }
-            set
-            {
-                if (preset != value)
-                {
-                    preset = value;
-                    OnPropertyChanged(new PropertyChangedEventArgs("DefaultPreset"));
-                }
-            }
-        }
         PrjConfig<Packer> packer;
         public PrjConfig<Packer> Packer
         {
@@ -891,6 +503,7 @@ namespace Confuser
             }
         }
         public ObservableCollection<PrjAssembly> Assemblies { get; private set; }
+        public ObservableCollection<PrjRule> Rules { get; private set; }
         public ObservableCollection<string> Plugins { get; private set; }
 
         void OnPropertyChanged(PropertyChangedEventArgs e)
@@ -916,32 +529,15 @@ namespace Confuser
             ret.Seed = seed;
             ret.Debug = dbg;
 
-
-            List<PrjSettings> s = new List<PrjSettings>();
-            foreach (var i in Assemblies)
-                i.GetSettings(s);
-            int idx = 0;
-            Dictionary<PrjSettings, string> settingsName = new Dictionary<PrjSettings, string>();
-            foreach (var i in s.Distinct())
-            {
-                idx++;
-                settingsName[i] = i.name = "settings" + idx;
-                ret.Settings.Add(i.ToCrSettings());
-            }
-            foreach (var i in s)
-            {
-                i.name = settingsName[i];
-            }
-
             if (packer != null)
                 ret.Packer = packer.ToCrConfig();
-            if (preset != PrjPreset.Undefined)
-                ret.DefaultPreset = (Preset)preset;
             foreach (string i in Plugins)
                 ret.Plugins.Add(i);
 
             foreach (var i in Assemblies)
                 ret.Add(i.ToCrAssembly());
+            foreach (var i in Rules)
+                ret.Rules.Add(i.ToCrRule());
             return ret;
         }
         public void FromConfuserProject(ConfuserProject prj)
@@ -950,16 +546,8 @@ namespace Confuser
             snKey = prj.SNKeyPath;
             seed = prj.Seed;
             dbg = prj.Debug;
-            preset = (PrjPreset)prj.DefaultPreset;
             foreach (var i in prj.Plugins)
                 LoadAssembly(Assembly.LoadFrom(i), false);
-            Dictionary<string, PrjSettings> map = new Dictionary<string, PrjSettings>();
-            foreach (var i in prj.Settings)
-            {
-                PrjSettings x = new PrjSettings(this);
-                x.FromCrSettings(this, i);
-                map[x.name] = x;
-            }
             if (prj.Packer != null)
             {
                 this.packer = new PrjConfig<Packer>(Packers.Single(_ => _.ID == prj.Packer.Id), this);
@@ -969,10 +557,14 @@ namespace Confuser
             foreach (var i in prj)
             {
                 PrjAssembly asm = new PrjAssembly(this);
-                asm.FromCrAssembly(this, map, i);
-                if (asm.Count != 0 || asm.Settings != null)
-                    preset = PrjPreset.Undefined;
+                asm.FromCrAssembly(this, i);
                 Assemblies.Add(asm);
+            }
+            foreach (var i in prj.Rules)
+            {
+                PrjRule rule = new PrjRule(this);
+                rule.FromCrRule(this, i);
+                Rules.Add(rule);
             }
         }
     }

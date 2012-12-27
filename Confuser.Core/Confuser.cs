@@ -927,7 +927,7 @@ namespace Confuser.Core
             {
                 mems.Add(new Tuple<IAnnotationProvider, NameValueCollection>(mod.Module, mod.Parameters[cion]));
             }
-            foreach (MemberSetting _mem in mod.Namespaces.SelectMany(_ => _.Members))
+            foreach (MemberSetting _mem in mod.Types)
                 GetTargets(_mem, mems, cion);
             foreach (MemberSetting _mem in newAdded.Where(_ => _.Object.Module == mod.Module))
                 GetTargets(_mem, mems, cion);
@@ -965,7 +965,7 @@ namespace Confuser.Core
                     if (j.Module != mem.Module) continue;
                     TypeDefinition root = mem is TypeDefinition ? mem as TypeDefinition : mem.DeclaringType;
                     while (root.DeclaringType != null) root = root.DeclaringType;
-                    foreach (var k in j.Namespaces.Single(_ => _.Name == root.Namespace).Members)
+                    foreach (var k in j.Types)
                     {
                         if (k.Object == root)
                             return GetSetting(k, mem);
@@ -992,8 +992,8 @@ namespace Confuser.Core
         internal Dictionary<IMemberDefinition, HelperAttribute> helpers;
         void MarkObfuscateHelpers(ModuleSetting mod)
         {
-            if (mod.Namespaces.All(_ => _.Members.Length == 0)) return;
-            ObfuscationSettings sets = mod.Namespaces.SelectMany(_ => _.Members).First().Parameters;
+            if (mod.Types.Length == 0) return;
+            ObfuscationSettings sets = mod.Types[0].Parameters;
             if (sets == null) return;
             ObfuscationSettings sub = new ObfuscationSettings();
             foreach (var i in sets)

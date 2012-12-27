@@ -1149,24 +1149,27 @@ static class Encryptions
         ulong dat = hash ^ b;
         uint pos = (uint)(dat >> 32);
         uint len = (uint)dat;
-        if (!constTbl.TryGetValue(pos, out ret))
+        lock (constTbl)
         {
-            byte[] bs = new byte[len];
-            Array.Copy(constBuffer, (int)pos, bs, 0, len);
-            var method = MethodBase.GetCurrentMethod();
-            byte[] key = BitConverter.GetBytes(method.MetadataToken ^ Mutation.Key0Delayed);
-            for (int i = 0; i < bs.Length; i++)
-                bs[i] ^= key[(pos + i) % 4];
-
-            if (typeof(T) == typeof(string))
-                ret = Encoding.UTF8.GetString(bs);
-            else
+            if (!constTbl.TryGetValue(pos, out ret))
             {
-                var t = new T[1];
-                Buffer.BlockCopy(bs, 0, t, 0, Marshal.SizeOf(default(T)));
-                ret = t[0];
+                byte[] bs = new byte[len];
+                Array.Copy(constBuffer, (int)pos, bs, 0, len);
+                var method = MethodBase.GetCurrentMethod();
+                byte[] key = BitConverter.GetBytes(method.MetadataToken ^ Mutation.Key0Delayed);
+                for (int i = 0; i < bs.Length; i++)
+                    bs[i] ^= key[(pos + i) % 4];
+
+                if (typeof(T) == typeof(string))
+                    ret = Encoding.UTF8.GetString(bs);
+                else
+                {
+                    var t = new T[1];
+                    Buffer.BlockCopy(bs, 0, t, 0, Marshal.SizeOf(default(T)));
+                    ret = t[0];
+                }
+                constTbl[pos] = ret;
             }
-            constTbl[pos] = ret;
         }
         return (T)ret;
     }

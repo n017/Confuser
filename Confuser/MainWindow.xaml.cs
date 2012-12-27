@@ -53,11 +53,7 @@ namespace Confuser
             page.Init(this);
             Tab.Items.Add(page);
 
-            page = new Simple();
-            page.Init(this);
-            Tab.Items.Add(page);
-
-            page = new AdvSelection();
+            page = new Rules();
             page.Init(this);
             Tab.Items.Add(page);
 
