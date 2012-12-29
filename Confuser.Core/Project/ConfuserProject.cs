@@ -18,9 +18,15 @@ namespace Confuser.Core.Project
         {
             this.Path = assembly.MainModule.FullyQualifiedName;
         }
-        public AssemblyDefinition Resolve()
+        public AssemblyDefinition Resolve(string basePath)
         {
-            return AssemblyDefinition.ReadAssembly(Path, new ReaderParameters(ReadingMode.Immediate));
+            if (basePath == null)
+                return AssemblyDefinition.ReadAssembly(Path,
+                    new ReaderParameters(ReadingMode.Immediate));
+            else
+                return AssemblyDefinition.ReadAssembly(
+                    System.IO.Path.GetFullPath(System.IO.Path.Combine(basePath, Path)),
+                    new ReaderParameters(ReadingMode.Immediate));
         }
 
         public XmlElement Save(XmlDocument xmlDoc)
@@ -193,6 +199,7 @@ namespace Confuser.Core.Project
         public string Seed { get; set; }
         public bool Debug { get; set; }
         public string OutputPath { get; set; }
+        public string BasePath { get; set; }
         public string SNKeyPath { get; set; }   //For pfx, use "xxx.pfx|password"
         public SettingItem<Packer> Packer { get; set; }
 

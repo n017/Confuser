@@ -217,7 +217,7 @@ namespace Confuser.Core
         }
         protected virtual AssemblySetting MarkAssembly(ProjectAssembly asm, Marking mark)
         {
-            AssemblySetting ret = new AssemblySetting(asm.Resolve());
+            AssemblySetting ret = new AssemblySetting(asm.Resolve(cr.param.Project.BasePath));
             ret.IsMain = asm.IsMain;
             ApplyRules(ret.Assembly, mark);
             return ret;

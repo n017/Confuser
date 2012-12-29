@@ -60,11 +60,12 @@ namespace Confuser.Console
                                 WriteLineWithColor(ConsoleColor.Red, string.Format("Error: File '{0}' not exist!", args[i + 1]));
                                 return 2;
                             }
-                            XmlDocument xmlDoc = new XmlDocument();
-                            xmlDoc.Load(args[i + 1]);
                             try
                             {
+                                XmlDocument xmlDoc = new XmlDocument();
+                                xmlDoc.Load(args[i + 1]);
                                 proj.Load(xmlDoc);
+                                proj.BasePath = Path.GetDirectoryName(args[i + 1]);
                             }
                             catch (Exception e)
                             {

@@ -147,8 +147,8 @@ namespace Confuser
                 proj.Load(xmlDoc);
 
                 Prj prj = new Prj();
-                prj.FromConfuserProject(proj);
                 prj.FileName = path;
+                prj.FromConfuserProject(proj);
 
                 Project = prj;
                 foreach (ConfuserTab i in Tab.Items)

@@ -242,16 +242,6 @@ namespace Confuser.Core
                 resolver = new ConfuserAssemblyResolver();
                 GlobalAssemblyResolver.Instance = resolver;
 
-                HashSet<string> dirs = new HashSet<string>();
-                foreach (var i in param.Project)
-                {
-                    if (dirs.Add(Path.GetDirectoryName(i.Path)))
-                        foreach (var j in Directory.GetDirectories(Path.GetDirectoryName(i.Path), "*", SearchOption.AllDirectories))
-                            dirs.Add(j);
-                }
-                foreach (var i in dirs)
-                    resolver.AddSearchDirectory(i);
-
                 db = new ObfuscationDatabase();
                 db.Module("");
 
@@ -263,6 +253,19 @@ namespace Confuser.Core
                 Log("Loading...");
 
                 Initialize();
+
+                HashSet<string> dirs = new HashSet<string>();
+                if (param.Project.BasePath != null)
+                    dirs.Add(param.Project.BasePath);
+                foreach (var i in mkrSettings.Assemblies)
+                {
+                    string path = Path.GetDirectoryName(i.Assembly.MainModule.FullyQualifiedName);
+                    if (dirs.Add(path))
+                        foreach (var j in Directory.GetDirectories(path, "*", SearchOption.AllDirectories))
+                            dirs.Add(j);
+                }
+                foreach (var i in dirs)
+                    resolver.AddSearchDirectory(i);
 
                 List<Phase> phases = new List<Phase>();
                 foreach (IConfusion cion in confusions)
@@ -343,7 +346,13 @@ namespace Confuser.Core
                 param.Logger._Finish("Ended at " + t.ToShortTimeString() + ".");
 
                 //Ya, finally done it. Now save the db
-                using (BinaryWriter wtr = new BinaryWriter(File.OpenWrite(Path.Combine(param.Project.OutputPath, "report.crdb"))))
+                using (BinaryWriter wtr = new BinaryWriter(File.OpenWrite(
+                    Path.Combine(
+                        param.Project.BasePath == null ?
+                            param.Project.OutputPath :
+                            Path.Combine(param.Project.BasePath, param.Project.OutputPath)
+                        , "report.crdb")
+                    )))
                     Database.Serialize(wtr);
             }
             catch (Exception ex)
@@ -848,10 +857,14 @@ namespace Confuser.Core
         {
             param.Logger._BeginPhase("Finalizing...");
             Packer packer = mkrSettings.Packer;
+
+            string output = param.Project.BasePath == null ?
+                param.Project.OutputPath :
+                Path.Combine(param.Project.BasePath, param.Project.OutputPath);
             if (packer != null)
             {
-                if (!Directory.Exists(param.Project.OutputPath))
-                    Directory.CreateDirectory(param.Project.OutputPath);
+                if (!Directory.Exists(output))
+                    Directory.CreateDirectory(output);
 
                 Log("Packing output assemblies...");
                 packer.Confuser = this;
@@ -862,9 +875,9 @@ namespace Confuser.Core
                 string[] final = packer.Pack(param, pParam);
                 for (int i = 0; i < final.Length; i++)
                 {
-                    string path = Path.Combine(param.Project.OutputPath, Path.GetFileName(final[i]));
+                    string path = Path.Combine(output, Path.GetFileName(final[i]));
                     if (File.Exists(path)) File.Delete(path);
-                    File.Move(final[i], Path.Combine(param.Project.OutputPath, Path.GetFileName(final[i])));
+                    File.Move(final[i], Path.Combine(output, Path.GetFileName(final[i])));
                 }
             }
             else
@@ -875,7 +888,7 @@ namespace Confuser.Core
                     string filename = Path.GetFileName(mods[i].FullyQualifiedName);
                     if (string.IsNullOrEmpty(filename)) filename = mods[i].Name;
 
-                    string dest = Path.Combine(param.Project.OutputPath, filename);
+                    string dest = Path.Combine(output, filename);
                     if (!Directory.Exists(Path.GetDirectoryName(dest)))
                         Directory.CreateDirectory(Path.GetDirectoryName(dest));
                     Stream dstStream = new FileStream(dest, FileMode.Create, FileAccess.Write);
@@ -894,7 +907,7 @@ namespace Confuser.Core
             {
                 Log("Writing symbols...");
                 for (int i = 0; i < mods.Length; i++)
-                    File.WriteAllBytes(Path.Combine(param.Project.OutputPath, Path.ChangeExtension(mods[i].Name, "pdb")), syms[i]);
+                    File.WriteAllBytes(Path.Combine(output, Path.ChangeExtension(mods[i].Name, "pdb")), syms[i]);
             }
         }
 

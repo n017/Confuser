@@ -295,7 +295,7 @@ namespace Confuser
         public void FromCrAssembly(Prj prj, ProjectAssembly asm)
         {
             this.path = asm.Path;
-            this.asmDef = AssemblyDefinition.ReadAssembly(this.path);
+            this.asmDef = asm.Resolve(prj.GetBasePath());
             this.IsExecutable = this.asmDef.MainModule.EntryPoint != null;
             this.isMain = asm.IsMain;
         }
@@ -521,6 +521,11 @@ namespace Confuser
 
         public INotifyChildrenChanged Parent { get { return null; } }
 
+        internal string GetBasePath()
+        {
+            return FileName == null ? null : System.IO.Path.GetDirectoryName(FileName);
+        }
+
         public ConfuserProject ToCrProj()
         {
             ConfuserProject ret = new ConfuserProject();
@@ -528,6 +533,7 @@ namespace Confuser
             ret.SNKeyPath = snKey;
             ret.Seed = seed;
             ret.Debug = dbg;
+            ret.BasePath = GetBasePath();
 
             if (packer != null)
                 ret.Packer = packer.ToCrConfig();
