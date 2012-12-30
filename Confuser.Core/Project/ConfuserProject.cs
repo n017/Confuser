@@ -187,6 +187,16 @@ namespace Confuser.Core.Project
         }
     }
 
+    public class ProjectValidationException : Exception
+    {
+        internal ProjectValidationException(List<Tuple<string, XmlSchemaException>> exceptions)
+            : base(exceptions[0].Item1)
+        {
+            Errors = exceptions;
+        }
+        public IList<Tuple<string, XmlSchemaException>> Errors { get; private set; }
+    }
+
     public class ConfuserProject : List<ProjectAssembly>
     {
         public ConfuserProject()
@@ -260,7 +270,16 @@ namespace Confuser.Core.Project
         public void Load(XmlDocument doc)
         {
             doc.Schemas.Add(Schema);
-            doc.Validate(null);
+            List<Tuple<string, XmlSchemaException>> exceptions = new List<Tuple<string, XmlSchemaException>>();
+            doc.Validate((sender, e) =>
+            {
+                if (e.Severity != XmlSeverityType.Error) return;
+                exceptions.Add(new Tuple<string, XmlSchemaException>(e.Message, e.Exception));
+            });
+            if (exceptions.Count > 0)
+            {
+                throw new ProjectValidationException(exceptions);
+            }
 
             XmlElement docElem = doc.DocumentElement;
 

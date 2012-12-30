@@ -135,7 +135,7 @@ namespace Confuser
                 e.Exception is IOException)
             {
                 log.AppendText("\r\n\r\n\r\n");
-                log.AppendText("Oops... Confuser crushed...\r\n");
+                log.AppendText("Oops... Confuser crashed...\r\n");
                 log.AppendText("\r\n");
                 log.AppendText(e.Exception.GetType().FullName + "\r\n");
                 log.AppendText("Message : " + e.Exception.Message + "\r\n");
@@ -147,7 +147,7 @@ namespace Confuser
             else
             {
                 log.AppendText("\r\n\r\n\r\n");
-                log.AppendText("Oops... Confuser crushed...\r\n");
+                log.AppendText("Oops... Confuser crashed...\r\n");
                 log.AppendText("\r\n");
                 log.AppendText(e.Exception.GetType().FullName + "\r\n");
                 log.AppendText("Message : " + e.Exception.Message + "\r\n");
