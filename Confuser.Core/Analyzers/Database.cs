@@ -128,6 +128,13 @@ RegisterReadOnly[0:Target,2:Type]
 System.ServiceModel.OperationContractAttribute
 System.Data.Services.Common.DataServiceKeyAttribute
 System.Data.Services.Common.EntitySetAttribute
+Microsoft.SqlServer.Server.SqlFacetAttribute
+Microsoft.SqlServer.Server.SqlFunctionAttribute
+Microsoft.SqlServer.Server.SqlMethodAttribute
+Microsoft.SqlServer.Server.SqlProcedureAttribute
+Microsoft.SqlServer.Server.SqlTriggerAttribute
+Microsoft.SqlServer.Server.SqlUserDefinedAggregateAttribute
+Microsoft.SqlServer.Server.SqlUserDefinedTypeAttribute
 =";
     }
 }
