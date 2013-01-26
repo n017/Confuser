@@ -192,12 +192,14 @@ namespace Confuser.Core.Confusions
                 for (int i = 0; i < body.Instructions.Count; i++)
                 {
                     if (sI < s.Length &&
-                        body.Instructions[i] == s[sI] &&
-                        insts.Count > 0)
+                        body.Instructions[i] == s[sI])
                     {
                         sI++;
-                        scopes.Add(new Scope() { Instructions = insts.ToArray() });
-                        insts.Clear();
+                        if (insts.Count > 0)
+                        {
+                            scopes.Add(new Scope() { Instructions = insts.ToArray() });
+                            insts.Clear();
+                        }
                     }
                     insts.Add(body.Instructions[i]);
                 }
