@@ -29,7 +29,7 @@ static class AntiDebugger
     {
         if (Environment.GetEnvironmentVariable("COR_ENABLE_PROFILING") != null ||
             Environment.GetEnvironmentVariable("COR_PROFILER") != null)
-            Environment.FailFast("Profiler detected");
+            Environment.FailFast("");
 
         Thread thread = new Thread(AntiDebug);
         thread.IsBackground = true;
@@ -49,20 +49,20 @@ static class AntiDebugger
         {
             //Managed
             if (Debugger.IsAttached || Debugger.IsLogging())
-                Environment.FailFast("Debugger detected (Managed)");
+                Environment.FailFast("");
 
             //IsDebuggerPresent
             if (IsDebuggerPresent())
-                Environment.FailFast("=_=");
+                Environment.FailFast("");
 
             //Open process
             IntPtr ps = Process.GetCurrentProcess().Handle;
             if (ps == IntPtr.Zero)
-                Environment.FailFast("Cannot open process");
+                Environment.FailFast("");
 
             //OutputDebugString
-            if (OutputDebugString("=_=") > IntPtr.Size)
-                Environment.FailFast("Debugger detected");
+            if (OutputDebugString("") > IntPtr.Size)
+                Environment.FailFast("");
 
             //Close
             try
@@ -71,11 +71,11 @@ static class AntiDebugger
             }
             catch
             {
-                Environment.FailFast("Debugger detected");
+                Environment.FailFast("");
             }
 
             if (!th.IsAlive)
-                Environment.FailFast("Loop broken");
+                Environment.FailFast("");
 
             Thread.Sleep(1000);
         }
@@ -86,7 +86,7 @@ static class AntiDebugger
         string x = "COR_";
         if (Environment.GetEnvironmentVariable(x + "PROFILER") != null ||
             Environment.GetEnvironmentVariable(x + "ENABLE_PROFILING") != null)
-            Environment.FailFast("Profiler detected");
+            Environment.FailFast("");
 
         Thread thread = new Thread(AntiDebugSafe);
         thread.IsBackground = true;
@@ -105,10 +105,10 @@ static class AntiDebugger
         while (true)
         {
             if (Debugger.IsAttached || Debugger.IsLogging())
-                Environment.FailFast("Debugger is detected (Managed)");
+                Environment.FailFast("");
 
             if (!th.IsAlive)
-                Environment.FailFast("Loop broken");
+                Environment.FailFast("");
 
             Thread.Sleep(1000);
         }
@@ -141,11 +141,19 @@ static class Proxies
             dm = new DynamicMethod("", mtd.DeclaringType, arg, fld.DeclaringType, true);
         else
             dm = new DynamicMethod("", mtd.DeclaringType, arg, mtd.DeclaringType, true);
-        var gen = dm.GetILGenerator();
+
+        var info = dm.GetDynamicILInfo();
+        info.SetLocalSignature(new byte[] { 0x7, 0x0 });
+        byte[] y = new byte[2 * arg.Length + 6];
         for (int i = 0; i < arg.Length; i++)
-            gen.Emit(System.Reflection.Emit.OpCodes.Ldarg_S, i);
-        gen.Emit(System.Reflection.Emit.OpCodes.Newobj, mtd);
-        gen.Emit(System.Reflection.Emit.OpCodes.Ret);
+        {
+            y[i * 2] = 0x0e;
+            y[i * 2 + 1] = (byte)i;
+        }
+        y[arg.Length * 2] = 0x73;
+        Buffer.BlockCopy(BitConverter.GetBytes(info.GetTokenFor(mtd.MethodHandle)), 0, y, arg.Length * 2 + 1, 4);
+        y[y.Length - 1] = 0x2a;
+        info.SetCode(y, arg.Length + 1);
 
         fld.SetValue(null, dm.CreateDelegate(fld.FieldType));
     }
@@ -182,17 +190,27 @@ static class Proxies
                 dm = new DynamicMethod("", mtd.ReturnType, arg, decl2, true);
             else
                 dm = new DynamicMethod("", mtd.ReturnType, arg, decl, true);
-            var gen = dm.GetILGenerator();
+
+            var info = dm.GetDynamicILInfo();
+            info.SetLocalSignature(new byte[] { 0x7, 0x0 });
+            byte[] y = new byte[2 * arg.Length + 11];
+            int idx = 0;
             for (int i = 0; i < arg.Length; i++)
             {
-                gen.Emit(OpCodes.Ldarg, i);
-                if (i == 0) gen.Emit(OpCodes.Castclass, decl);
+                y[idx++] = 0x0e;
+                y[idx++] = (byte)i;
+                if (i == 0)
+                {
+                    y[idx++] = 0x74;
+                    Buffer.BlockCopy(BitConverter.GetBytes(info.GetTokenFor(decl.TypeHandle)), 0, y, idx, 4);
+                    idx += 4;
+                }
             }
-            if (n[0] == Mutation.Key0I)
-                gen.Emit(OpCodes.Callvirt, mtd);
-            else
-                gen.Emit(OpCodes.Call, mtd);
-            gen.Emit(OpCodes.Ret);
+            y[idx++] = (byte)((n[0] == Mutation.Key0I) ? 0x6f : 0x28);
+            Buffer.BlockCopy(BitConverter.GetBytes(info.GetTokenFor(mtd.MethodHandle)), 0, y, idx, 4);
+            idx += 4;
+            y[idx] = 0x2a;
+            info.SetCode(y, arg.Length + 1);
 
             fld.SetValue(null, dm.CreateDelegate(fld.FieldType));
         }
@@ -1128,6 +1146,10 @@ static class Encryptions
     }
     static T Constants<T>(uint a, ulong b)
     {
+        StackFrame frame = new StackFrame(1);
+        if (frame.GetMethod().DeclaringType.Assembly != Type.GetTypeFromHandle(Mutation.DeclaringType()).Assembly)
+            Environment.FailFast(null);
+
         object ret;
         uint x = (uint)(Type.GetTypeFromHandle(Mutation.DeclaringType()).MetadataToken * a);
         ulong h = (ulong)Mutation.Key0L * x;

@@ -116,6 +116,14 @@ namespace Confuser.Core
                         i.OpCode = OpCodes.Ldtoken;
                         i.Operand = body.Method.DeclaringType;
                     }
+                    else if (method.Name == "Method")
+                    {
+                        var str = (string)i.Previous.Operand;
+                        i.OpCode = OpCodes.Ldtoken;
+                        i.Operand = body.Method.DeclaringType.Methods.Single(m => m.Name == str);
+                        i.Previous.OpCode = OpCodes.Nop;
+                        i.Previous.Operand = null;
+                    }
                 }
             }
 
