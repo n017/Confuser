@@ -7,7 +7,6 @@ using Mono.Cecil;
 using Confuser.Core.Analyzers.Xaml;
 using System.IO;
 using System.Xml;
-using System.Xaml;
 
 namespace Confuser.Core.Analyzers
 {
