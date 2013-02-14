@@ -277,6 +277,7 @@ namespace Confuser.Core.Confusions
         }
         class Statement
         {
+            public int BeginStack;
             public StatementType Type;
             public Instruction[] Instructions;
             public int Key;
@@ -417,13 +418,15 @@ namespace Confuser.Core.Confusions
                 scopes.Add(scope);
 
                 //Split statements when stack = empty
+                //First statement maybe have non-empty stack because of handlers/filter
                 List<Statement> sts = new List<Statement>();
                 foreach (var i in SplitStatements(body, scope.Instructions, stacks))
                     sts.Add(new Statement()
                     {
                         Instructions = i,
                         Type = StatementType.Normal,
-                        Key = 0
+                        Key = 0,
+                        BeginStack = stacks[i[0].Index]
                     });
 
                 //Constructor fix
@@ -445,12 +448,12 @@ namespace Confuser.Core.Confusions
                     sts.Insert(0, init);
                 }
 
-                if (sts.Count == 1) continue;
+                if (sts.Count == 1 || sts.All(st => st.BeginStack != 0)) continue;
 
                 //Merge statements for level
                 for (int i = 0; i < sts.Count - 1; i++)
                 {
-                    if (Random.Next(1, 10) > level)
+                    if (Random.Next(1, 10) > level || sts[i + 1].BeginStack != 0)
                     {
                         Statement newSt = new Statement();
                         newSt.Type = sts[i + 1].Type;
@@ -597,7 +600,8 @@ namespace Confuser.Core.Confusions
                         insts.AddRange(stInsts.ToArray());
                         insts.AddRange(ldloc);
                         insts.Add(swit);
-                        targets.Add(stInsts[0]);
+                        if (st.BeginStack == 0)
+                            targets.Add(stInsts[0]);
                         firstSt = false;
                     }
                 }
@@ -691,7 +695,7 @@ namespace Confuser.Core.Confusions
         }
         static void SetLvHandler(Scope scope, MethodBody body, IList<Instruction> block)
         {
-            foreach(var i in scope.Type.Scopes)
+            foreach (var i in scope.Type.Scopes)
             {
                 if (i.Item1 == null) return;
                 switch (i.Item2)
