@@ -457,6 +457,7 @@ namespace Confuser.Core.Confusions
                     {
                         Statement newSt = new Statement();
                         newSt.Type = sts[i + 1].Type;
+                        newSt.BeginStack = sts[i].BeginStack;
                         newSt.Instructions = new Instruction[sts[i].Instructions.Length + sts[i + 1].Instructions.Length];
                         Array.Copy(sts[i].Instructions, 0, newSt.Instructions, 0, sts[i].Instructions.Length);
                         Array.Copy(sts[i + 1].Instructions, 0, newSt.Instructions, sts[i].Instructions.Length, sts[i + 1].Instructions.Length);
@@ -1001,7 +1002,10 @@ namespace Confuser.Core.Confusions
             if (type.Methods.Count > 0 && Random.Next() % 2 == 0)
                 yield return Instruction.Create(OpCodes.Ldtoken, type.Methods[Random.Next(0, type.Methods.Count)]);
             else if (type.Fields.Count > 0)
-                yield return Instruction.Create(OpCodes.Ldtoken, type.Fields[Random.Next(0, type.Fields.Count)]);
+            {
+                var fields = type.Fields.Where(f => !f.IsLiteral).ToArray();
+                yield return Instruction.Create(OpCodes.Ldtoken, fields[Random.Next(0, fields.Length)]);
+            }
             else
                 yield return Instruction.Create(OpCodes.Ldtoken, type);
             if (genJunk)
