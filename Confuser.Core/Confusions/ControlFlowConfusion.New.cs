@@ -496,9 +496,13 @@ namespace Confuser.Core.Confusions
                 Database.AddEntry("CtrlFlow", method.FullName, sb);
 
                 Instruction[] stHdrs = new Instruction[sts.Count];
+                k = 0;
                 for (int i = 0; i < sts.Count; i++)
                 {
-                    sts[i].Key = i;
+                    sts[i].Key = k;
+                    if (sts[i].BeginStack == 0)
+                        k++;
+
                     if (sts[i].Instructions.Length > 0)
                         stHdrs[i] = sts[i].Instructions[0];
                 }
