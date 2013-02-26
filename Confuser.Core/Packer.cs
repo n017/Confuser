@@ -97,7 +97,7 @@ namespace Confuser.Core
             ConfuserProject proj = new ConfuserProject();
             proj.Seed = Random.Next().ToString();
             proj.Debug = this.cr.param.Project.Debug;
-            foreach (var i in cr.param.Project.Rules)
+            foreach (var i in this.cr.param.Project.Rules)
                 proj.Rules.Add(i);
             proj.Add(new ProjectAssembly()
             {
