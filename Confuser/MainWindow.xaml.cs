@@ -257,6 +257,7 @@ Stack Trace : {1}", ex.Message, ex.StackTrace), "Confuser", MessageBoxButton.OK,
                 {
                     ConfuserProject proj = Project.ToCrProj();
                     XmlWriterSettings wtrSettings = new XmlWriterSettings();
+                    wtrSettings.Indent = true;
                     XmlWriter writer = XmlWriter.Create(sfd.FileName, wtrSettings);
                     proj.Save().Save(writer);
                     Project.IsModified = false;

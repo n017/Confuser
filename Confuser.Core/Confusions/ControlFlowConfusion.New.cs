@@ -181,7 +181,8 @@ namespace Confuser.Core.Confusions
                     split.Add(i.TryStart);
                     split.Add(i.TryEnd);
                     split.Add(i.HandlerStart);
-                    split.Add(i.HandlerEnd);
+                    if (i.HandlerEnd != null)
+                        split.Add(i.HandlerEnd);
                     if (i.FilterStart != null)
                         split.Add(i.FilterStart);
                 }
@@ -388,9 +389,9 @@ namespace Confuser.Core.Confusions
             }
 
             fakeBranch = false;
-            if (Array.IndexOf(parameter.Parameters.AllKeys, "fakeBranch") != -1)
+            if (Array.IndexOf(parameter.Parameters.AllKeys, "fakebranch") != -1)
             {
-                if (!bool.TryParse(parameter.Parameters["fakeBranch"], out fakeBranch))
+                if (!bool.TryParse(parameter.Parameters["fakebranch"], out fakeBranch))
                 {
                     Log("Invalid fake branch parameter, fake branch would not be generated.");
                     fakeBranch = false;
@@ -534,16 +535,14 @@ namespace Confuser.Core.Confusions
                         {
                             int index = stInsts.Count - 1;
                             stInsts.RemoveAt(index);
-                            if (fakeBranch)
+                            Statement targetSt = resolveHdr(last.Operand);
+                            Statement fallSt;
+                            if (fakeBranch && (fallSt = resolveHdr(last.Next)) != null)
                             {
-                                Statement targetSt = resolveHdr(last.Operand);
-                                Statement fallSt = resolveHdr(last.Next);
-
                                 ReplTbl[last] = GenFakeBranch(st, targetSt, fallSt, stInsts, stateVar, begin);
                             }
                             else
                             {
-                                Statement targetSt = resolveHdr(last.Operand);
                                 ReplTbl[last] = EncryptNum(st.Key, stateVar, targetSt.Key, stInsts);
                                 stInsts.Add(Instruction.Create(OpCodes.Br, begin));
                                 stInsts.AddRange(GetJunk(stateVar));
@@ -615,37 +614,48 @@ namespace Confuser.Core.Confusions
 
 
                 //fix peverify
-                if (scope.Type.Scopes.Any(_ =>
-                        ScopeDetector.IsFilter(_.Item2) &&
-                        (ScopeDetector.IsOnly(_.Item2) || ScopeDetector.IsEnd(_.Item2))
-                   ))
+                foreach (var i in scope.Type.Scopes)
                 {
-                    insts.Add(Instruction.Create(OpCodes.Ldc_I4, Random.Next()));
-                    insts.Add(Instruction.Create(OpCodes.Endfilter));
-                }
-                else if (scope.Type.Scopes.Any(_ =>
-                            ScopeDetector.IsTry(_.Item2) &&
-                            (ScopeDetector.IsOnly(_.Item2) || ScopeDetector.IsEnd(_.Item2))
-                        ))
-                {
-                    var handler = scope.Type.Scopes.First(_ => ScopeDetector.IsTry(_.Item2));
-                    Instruction last = scope.Instructions[scope.Instructions.Length - 1];
-                    insts.Add(Instruction.Create(OpCodes.Leave, last.OpCode != OpCodes.Leave ? handler.Item1.HandlerEnd : last.Operand as Instruction));
-                }
-                else if (scope.Type.Scopes.Any(_ =>
-                            ScopeDetector.IsHandler(_.Item2) &&
-                            (ScopeDetector.IsOnly(_.Item2) || ScopeDetector.IsEnd(_.Item2))
-                        ))
-                {
-                    //it must either finally/fault or catch, not both
-                    var handler = scope.Type.Scopes.First(_ => ScopeDetector.IsHandler(_.Item2));
-                    if (handler.Item1.HandlerType == ExceptionHandlerType.Finally ||
-                        handler.Item1.HandlerType == ExceptionHandlerType.Fault)
-                        insts.Add(Instruction.Create(OpCodes.Endfinally));
-                    else
+                    if (ScopeDetector.IsFilter(i.Item2) &&
+                        (ScopeDetector.IsOnly(i.Item2) || ScopeDetector.IsEnd(i.Item2)))
                     {
-                        Instruction last = scope.Instructions[scope.Instructions.Length - 1];
-                        insts.Add(Instruction.Create(OpCodes.Leave, last.OpCode != OpCodes.Leave ? handler.Item1.HandlerEnd : last.Operand as Instruction));
+                        insts.Add(Instruction.Create(OpCodes.Ldc_I4, Random.Next()));
+                        insts.Add(Instruction.Create(OpCodes.Endfilter));
+                        break;
+                    }
+                    else if (ScopeDetector.IsTry(i.Item2) &&
+                             (ScopeDetector.IsOnly(i.Item2) || ScopeDetector.IsEnd(i.Item2)))
+                    {
+                        if (i.Item1.HandlerEnd == null)
+                        {
+                            insts.Add(Instruction.Create(OpCodes.Ldnull));
+                            insts.Add(Instruction.Create(OpCodes.Throw));
+                        }
+                        else
+                        {
+                            Instruction last = scope.Instructions[scope.Instructions.Length - 1];
+                            insts.Add(Instruction.Create(OpCodes.Leave, last.OpCode != OpCodes.Leave ? i.Item1.HandlerEnd : last.Operand as Instruction));
+                        }
+                        break;
+                    }
+                    else if (ScopeDetector.IsHandler(i.Item2) &&
+                             (ScopeDetector.IsOnly(i.Item2) || ScopeDetector.IsEnd(i.Item2)))
+                    {
+                        //it must either finally/fault or catch, not both
+                        if (i.Item1.HandlerType == ExceptionHandlerType.Finally ||
+                            i.Item1.HandlerType == ExceptionHandlerType.Fault)
+                            insts.Add(Instruction.Create(OpCodes.Endfinally));
+                        else if (i.Item1.HandlerEnd == null)
+                        {
+                            insts.Add(Instruction.Create(OpCodes.Ldnull));
+                            insts.Add(Instruction.Create(OpCodes.Throw));
+                        }
+                        else
+                        {
+                            Instruction last = i.Item1.TryEnd.Previous;
+                            insts.Add(Instruction.Create(OpCodes.Leave, last.OpCode != OpCodes.Leave ? i.Item1.HandlerEnd : last.Operand as Instruction));
+                        }
+                        break;
                     }
                 }
 
@@ -1003,13 +1013,11 @@ namespace Confuser.Core.Confusions
         IEnumerable<Instruction> GetJunk_(VariableDefinition stateVar)
         {
             TypeDefinition type = method.DeclaringType;
+            var fields = type.Fields.Where(f => !f.IsLiteral).ToArray();
             if (type.Methods.Count > 0 && Random.Next() % 2 == 0)
                 yield return Instruction.Create(OpCodes.Ldtoken, type.Methods[Random.Next(0, type.Methods.Count)]);
-            else if (type.Fields.Count > 0)
-            {
-                var fields = type.Fields.Where(f => !f.IsLiteral).ToArray();
+            else if (fields.Length > 0 && Random.Next() % 2 == 0)
                 yield return Instruction.Create(OpCodes.Ldtoken, fields[Random.Next(0, fields.Length)]);
-            }
             else
                 yield return Instruction.Create(OpCodes.Ldtoken, type);
             if (genJunk)
