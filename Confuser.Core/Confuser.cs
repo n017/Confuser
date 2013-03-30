@@ -184,6 +184,8 @@ namespace Confuser.Core
             assembly = base.Resolve(name);
             if (assembly != null)
                 AssemblyCache[name.GetVersionName()] = assembly;
+            else
+                throw new Exception("Cannot resolve '" + name.FullName + "'!");
 
             return assembly;
         }
