@@ -124,6 +124,11 @@ namespace Confuser.Core
                         i.Previous.OpCode = OpCodes.Nop;
                         i.Previous.Operand = null;
                     }
+                    else if (method.Name == "Break")
+                    {
+                        i.OpCode = OpCodes.Break;
+                        i.Operand = null;
+                    }
                 }
             }
 

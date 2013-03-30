@@ -141,10 +141,11 @@ static class Proxies
             dm = new DynamicMethod("", mtd.DeclaringType, arg, fld.DeclaringType, true);
         else
             dm = new DynamicMethod("", mtd.DeclaringType, arg, mtd.DeclaringType, true);
-
+        Console.WriteLine(mtd.DeclaringType);
+        Console.WriteLine(mtd.Name);
         var info = dm.GetDynamicILInfo();
         info.SetLocalSignature(new byte[] { 0x7, 0x0 });
-        byte[] y = new byte[2 * arg.Length + 6];
+        byte[] y = new byte[2 * arg.Length + 6 + 5];
         for (int i = 0; i < arg.Length; i++)
         {
             y[i * 2] = 0x0e;
@@ -152,9 +153,11 @@ static class Proxies
         }
         y[arg.Length * 2] = 0x73;
         Buffer.BlockCopy(BitConverter.GetBytes(info.GetTokenFor(mtd.MethodHandle)), 0, y, arg.Length * 2 + 1, 4);
+        y[arg.Length * 2 + 5] = 0x74;
+        Buffer.BlockCopy(BitConverter.GetBytes(info.GetTokenFor(mtd.DeclaringType.TypeHandle)), 0, y, arg.Length * 2 + 6, 4);
         y[y.Length - 1] = 0x2a;
         info.SetCode(y, arg.Length + 1);
-
+        //Mutation.Break();
         fld.SetValue(null, dm.CreateDelegate(fld.FieldType));
     }
     private static void MtdProxy(RuntimeFieldHandle f)

@@ -29,4 +29,5 @@ class Mutation
     public static RuntimeTypeHandle DeclaringType() { throw new Exception(); }
     public static RuntimeMethodHandle Method(string s) { throw new Exception(); }
     public static int Placeholder(int x) { throw new Exception(); }
+    public static void Break() { }
 }

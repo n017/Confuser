@@ -139,6 +139,7 @@ namespace Confuser.Core.Confusions
                         if (inst.OpCode.Code == Code.Newobj &&
                             (!onlyExternal || !(inst.Operand is MethodDefinition)) &&
                             !((inst.Operand as MethodReference).DeclaringType is GenericInstanceType) &&
+                            !((inst.Operand as MethodReference).DeclaringType is ArrayType) &&  //avoid array
                             !(inst.Operand is GenericInstanceMethod))
                         {
                             CreateDelegate(mtd.Body, inst, inst.Operand as MethodReference, mod);
