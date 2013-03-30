@@ -1149,9 +1149,9 @@ static class Encryptions
     }
     static T Constants<T>(uint a, ulong b)
     {
-        StackFrame frame = new StackFrame(1);
-        if (frame.GetMethod().DeclaringType.Assembly != Type.GetTypeFromHandle(Mutation.DeclaringType()).Assembly)
-            Environment.FailFast(null);
+        //StackFrame frame = new StackFrame(1);
+        //if (frame.GetMethod().DeclaringType.Assembly != Type.GetTypeFromHandle(Mutation.DeclaringType()).Assembly)
+        //    Environment.FailFast(null);
 
         object ret;
         uint x = (uint)(Type.GetTypeFromHandle(Mutation.DeclaringType()).MetadataToken * a);
