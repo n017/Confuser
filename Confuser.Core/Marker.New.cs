@@ -11,6 +11,7 @@ using System.Xml;
 using Confuser.Core.Project;
 using System.Collections;
 using Mono.Cecil.Cil;
+using Ref=System.Reflection;
 
 namespace Confuser.Core
 {
@@ -290,7 +291,35 @@ namespace Confuser.Core
             return ret;
         }
 
+        
+        static IEnumerable<Ref.ObfuscationAttribute> GetObfuscationAttributes(object obj)
+        {
+            // resolve ApplyToMembers
+            var memberDef = obj as IMemberDefinition;
+            if (memberDef != null)
+            {
+                var parent = memberDef.DeclaringType;
+                var parentAttributes = GetObfuscationAttributes(parent);
+                if (parentAttributes != null)
+                    foreach (var x in parentAttributes)
+                        if (x.ApplyToMembers)
+                            yield return x;
+            }
 
+            var attProv = obj as ICustomAttributeProvider;
+            if (attProv != null)
+            {
+                foreach (var x in attProv.CustomAttributes)
+                    if ( x.AttributeType.Name == "ObfuscationAttribute")
+                        yield return new Ref.ObfuscationAttribute()
+                             {
+                                 ApplyToMembers = (from p in x.Properties where p.Name == "ApplyToMembers" select (bool)p.Argument.Value).FirstOrDefault(),
+                                 Exclude = (from p in x.Properties where p.Name == "Exclude" select (bool)p.Argument.Value).FirstOrDefault(),
+                                 Feature = (from p in x.Properties where p.Name == "Feature" select (string)p.Argument.Value).FirstOrDefault(),
+                                 StripAfterObfuscation = (from p in x.Properties where p.Name == "StripAfterObfuscation" select (bool)p.Argument.Value).FirstOrDefault(),
+                             };
+            }
+        }
 
         static string ToSignature(object obj)
         {
@@ -410,6 +439,27 @@ namespace Confuser.Core
                         mark.CurrentConfusions.Remove(Confusions[j.Id]);
                 }
             }
+
+            var obf = GetObfuscationAttributes(obj);
+            if (obf != null)
+                foreach (var i in obf)
+                {
+                    // Feature empty => all confusions
+                    if (String.IsNullOrEmpty(i.Feature))
+                    {
+                        if (i.Exclude)
+                            mark.CurrentConfusions.Clear();
+                    }
+                    else
+                    {
+                        var confusion = Confusions[i.Feature];
+                        if (confusion != null)
+                            if (!i.Exclude)
+                                mark.CurrentConfusions[confusion] = new SettingItem<IConfusion>() { Id = i.Feature };
+                            else
+                                mark.CurrentConfusions.Remove(confusion);
+                    }
+                }
         }
     }
 }
