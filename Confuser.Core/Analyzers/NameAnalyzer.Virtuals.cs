@@ -288,20 +288,14 @@ namespace Confuser.Core.Analyzers
                 if (!i.IsVirtual || !i.IsNewSlot) continue;
                 for (int j = 0; j < ret.Table.Count; j++)
                     if (ret.Table[j].Current == null && Match(i, ret.Table[j].Root))
-                    {
                         ret.Table[j].ReplaceCurrent(analyzer, i);
-                        break;
-                    }
             }
             foreach (var i in typeDef.Methods)  //Interface virtual
             {
                 if (!i.IsVirtual) continue;
                 for (int j = 0; j < ret.Table.Count; j++)
                     if (ret.Table[j].Current == null && Match(i, ret.Table[j].Root))
-                    {
                         ret.Table[j].ReplaceCurrent(analyzer, i);
-                        break;
-                    }
             }
             foreach (var i in typeDef.Methods)  //Base newslot
             {
@@ -311,7 +305,6 @@ namespace Confuser.Core.Analyzers
                     {
                         ret.Table[j].Root = i;
                         ret.Table[j].ReplaceCurrent(analyzer, i);
-                        break;
                     }
             }
             foreach (var i in typeDef.Methods)  //Base virtual
@@ -321,7 +314,6 @@ namespace Confuser.Core.Analyzers
                     if (i != ret.Table[j].Current && Match(i, ret.Table[j].Current))
                     {
                         ret.Table[j].ReplaceCurrent(analyzer, i);
-                        break;
                     }
             }
             foreach (var i in typeDef.Methods)  //Remaining
