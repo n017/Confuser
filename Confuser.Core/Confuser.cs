@@ -256,19 +256,6 @@ namespace Confuser.Core
 
                 Initialize();
 
-                HashSet<string> dirs = new HashSet<string>();
-                if (param.Project.BasePath != null)
-                    dirs.Add(param.Project.BasePath);
-                foreach (var i in mkrSettings.Assemblies)
-                {
-                    string path = Path.GetDirectoryName(i.Assembly.MainModule.FullyQualifiedName);
-                    if (dirs.Add(path))
-                        foreach (var j in Directory.GetDirectories(path, "*", SearchOption.AllDirectories))
-                            dirs.Add(j);
-                }
-                foreach (var i in dirs)
-                    resolver.AddSearchDirectory(i);
-
                 List<Phase> phases = new List<Phase>();
                 foreach (IConfusion cion in confusions)
                     foreach (Phase phase in cion.Phases)
@@ -558,6 +545,19 @@ namespace Confuser.Core
                 else
                     throw new Exception("Could not detect Silverlight installation path!");
             }
+
+            HashSet<string> dirs = new HashSet<string>();
+            if (param.Project.BasePath != null)
+                dirs.Add(param.Project.BasePath);
+            foreach (var i in mkrSettings.Assemblies)
+            {
+                string path = Path.GetDirectoryName(i.Assembly.MainModule.FullyQualifiedName);
+                if (dirs.Add(path))
+                    foreach (var j in Directory.GetDirectories(path, "*", SearchOption.AllDirectories))
+                        dirs.Add(j);
+            }
+            foreach (var i in dirs)
+                ((ConfuserAssemblyResolver)GlobalAssemblyResolver.Instance).AddSearchDirectory(i);
 
             Dictionary<string, string> repl = new Dictionary<string, string>();
             foreach (var i in settings)
