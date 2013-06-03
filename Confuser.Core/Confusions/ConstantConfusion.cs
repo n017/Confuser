@@ -166,7 +166,8 @@ namespace Confuser.Core.Confusions
                 for (int i = 0; i < txt.keyBuff.Length; i++)
                     txt.keyBuff[i] &= 0x7f;
                 txt.keyBuff[0] = 7; txt.keyBuff[1] = 0;
-                txt.resKey = rand.Next();
+                txt.resKey = (rand.Next(0x20, 0x80) << 24) | (rand.Next(0x20, 0x80) << 32) |
+                             (rand.Next(0x20, 0x80) << 16) | (rand.Next(0x20, 0x80) << 0 );
                 txt.resId = Encoding.UTF8.GetString(BitConverter.GetBytes(txt.resKey));
                 txt.key = (uint)rand.Next();
 

@@ -75,10 +75,21 @@ namespace Confuser.Core
             BitArray xor = new BitArray(xorB);
 
             BitArray result = arr.Xor(xor);
-            byte[] ret = new byte[result.Length / 8];
-            result.CopyTo(ret, 0);
+            byte[] buff = new byte[result.Length / 8];
+            result.CopyTo(buff, 0);
 
-            return Encoding.Unicode.GetString(ret).Replace("\0", "").Replace(".", "").Replace("/", "");
+            StringBuilder ret = new StringBuilder();
+            int m = 0;
+            for (int i = 0; i < buff.Length; i++)
+            {
+                m = (m << 8) + buff[i];
+                while (m > 32)
+                {
+                    ret.Append((char)(m % 32 + 1));
+                    m /= 32;
+                }
+            }
+            return ret.ToString();
         }
         string RenameASCII(string originalName)
         {

@@ -294,8 +294,6 @@ namespace Confuser.Core
 
                 param.Logger._BeginPhase("Obfuscating Phase 2...");
 
-                var provider = new Mono.Cecil.Pdb.PdbWriterProvider();
-
                 List<byte[]> pes = new List<byte[]>();
                 List<byte[]> syms = new List<byte[]>();
                 List<ModuleDefinition> mods = new List<ModuleDefinition>();
@@ -315,7 +313,6 @@ namespace Confuser.Core
                             if (param.Project.Debug)
                             {
                                 writerParams.WriteSymbols = true;
-                                writerParams.SymbolWriterProvider = provider;
                                 writerParams.SymbolStream = symbol;
                             }
 
@@ -510,7 +507,11 @@ namespace Confuser.Core
                 for (int i = 0; i < mkrSettings.Assemblies.Length; i++)
                 {
                     foreach (var mod in mkrSettings.Assemblies[i].Assembly.Modules)
-                        mod.ReadSymbols(provider.GetSymbolReader(mod, mod.FullyQualifiedName));
+                        try
+                        {
+                            mod.ReadSymbols(provider.GetSymbolReader(mod, mod.FullyQualifiedName));
+                        }
+                        catch { }
                     param.Logger._Progress(i + 1, mkrSettings.Assemblies.Length);
                 }
             }
@@ -908,8 +909,9 @@ namespace Confuser.Core
             if (param.Project.Debug)
             {
                 Log("Writing symbols...");
+                string ext = Type.GetType ("Mono.Runtime") != null ? "mdb" : "pdb";
                 for (int i = 0; i < mods.Length; i++)
-                    File.WriteAllBytes(Path.Combine(output, Path.ChangeExtension(mods[i].Name, "pdb")), syms[i]);
+                    File.WriteAllBytes(Path.Combine(output, Path.ChangeExtension(mods[i].Name, ext)), syms[i]);
             }
         }
 
