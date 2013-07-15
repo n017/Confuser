@@ -70,8 +70,19 @@ namespace Confuser.Core.Confusions
         public override void Process(ConfusionParameter parameter)
         {
             IMemberDefinition mem = parameter.Target as IMemberDefinition;
-            if (GetCancel(mem)) 
+            if (GetCancel(mem))
                 return;
+
+            var mode = (NameMode)(mem.Module as IAnnotationProvider).Annotations[NameAnalyzer.RenMode];
+            NameMode? specMode = null;
+            try
+            {
+                specMode = (NameMode)Enum.Parse(typeof(NameMode), parameter.GlobalParameters["type"], true);
+            }
+            catch { }
+            if (specMode != null && specMode.Value > mode)
+                mode = specMode.Value;
+
 
             if (mem is TypeDefinition)
             {
@@ -80,7 +91,7 @@ namespace Confuser.Core.Confusions
                 {
                     string originalName = type.Name;
                     string originalFName = TypeParser.ToParseable(type);
-                    var mode = (NameMode)(mem.Module as IAnnotationProvider).Annotations[NameAnalyzer.RenMode];
+
                     type.Name = ObfuscationHelper.GetNewName(originalFName, mode);
                     switch (mode)
                     {
@@ -105,11 +116,11 @@ namespace Confuser.Core.Confusions
             else if (mem is MethodDefinition)
             {
                 MethodDefinition mtd = mem as MethodDefinition;
-                PerformMethod(mtd);
+                PerformMethod(mtd, mode);
             }
             else if (GetRenOk(mem as IAnnotationProvider))
             {
-                mem.Name = ObfuscationHelper.GetNewName(mem.Name, (NameMode)(mem.Module as IAnnotationProvider).Annotations[NameAnalyzer.RenMode]);
+                mem.Name = ObfuscationHelper.GetNewName(mem.Name, mode);
                 Identifier id = (Identifier)(mem as IAnnotationProvider).Annotations[NameAnalyzer.RenId];
                 Identifier n = id;
                 n.scope = mem.DeclaringType.FullName;
@@ -121,9 +132,8 @@ namespace Confuser.Core.Confusions
             }
         }
 
-        void PerformMethod(MethodDefinition mtd)
+        void PerformMethod(MethodDefinition mtd, NameMode mode)
         {
-            var mode = (NameMode)(mtd.Module as IAnnotationProvider).Annotations[NameAnalyzer.RenMode];
             if (GetRenOk(mtd))
             {
                 mtd.Name = ObfuscationHelper.GetNewName(mtd.Name, mode);
