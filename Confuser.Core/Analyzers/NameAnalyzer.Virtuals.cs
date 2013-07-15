@@ -75,6 +75,10 @@ namespace Confuser.Core.Analyzers
         static bool Match(MethodReference method, MethodReference target, bool checkName)
         {
             if (target == null) return false;
+            if (method.DeclaringType is GenericInstanceType)
+                method = Resolve(method, method.DeclaringType as GenericInstanceType);
+            if (target.DeclaringType is GenericInstanceType)
+                target = Resolve(target, target.DeclaringType as GenericInstanceType);
 
             if (method is MethodDefinition && (method as MethodDefinition).HasOverrides)
             {

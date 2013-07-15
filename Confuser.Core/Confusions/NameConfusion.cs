@@ -67,6 +67,18 @@ namespace Confuser.Core.Confusions
             return false;
         }
 
+        //http://stackoverflow.com/questions/15017151/implementation-of-enum-tryparse-in-net-3-5
+        static bool TryParse<TEnum>(string value, out TEnum result) where TEnum : struct, IConvertible
+        {
+            var retValue = value == null ?
+                        false :
+                        Enum.IsDefined(typeof(TEnum), value);
+            result = retValue ?
+                        (TEnum)Enum.Parse(typeof(TEnum), value) :
+                        default(TEnum);
+            return retValue;
+        }
+
         public override void Process(ConfusionParameter parameter)
         {
             IMemberDefinition mem = parameter.Target as IMemberDefinition;
@@ -74,15 +86,9 @@ namespace Confuser.Core.Confusions
                 return;
 
             var mode = (NameMode)(mem.Module as IAnnotationProvider).Annotations[NameAnalyzer.RenMode];
-            NameMode? specMode = null;
-            try
-            {
-                specMode = (NameMode)Enum.Parse(typeof(NameMode), parameter.GlobalParameters["type"], true);
-            }
-            catch { }
-            if (specMode != null && specMode.Value > mode)
-                mode = specMode.Value;
-
+            NameMode specMode;
+            if (TryParse<NameMode>(parameter.GlobalParameters["type"], out specMode) && specMode > mode)
+                mode = specMode;
 
             if (mem is TypeDefinition)
             {
