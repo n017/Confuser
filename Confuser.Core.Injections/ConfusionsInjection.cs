@@ -1034,7 +1034,8 @@ static class Encryptions
         var x = asm.GetManifestResourceStream(Encoding.UTF8.GetString(BitConverter.GetBytes(Mutation.Key0I)));
 
         var method = MethodBase.GetCurrentMethod();
-        var key = method.Module.ResolveSignature((int)(Mutation.Key0Delayed ^ method.MetadataToken));
+        int q = Mutation.Key0Delayed ^ method.MetadataToken;
+        var key = method.Module.ResolveSignature(q);
 
         var str = new CryptoStream(x,
             new RijndaelManaged().CreateDecryptor(key, MD5.Create().ComputeHash(key)), CryptoStreamMode.Read);
@@ -1049,6 +1050,7 @@ static class Encryptions
             while (read != 0);
         }
         str.Dispose();
+        s.Position = 0;
 
         Lzma.LzmaDecoder decoder = new Lzma.LzmaDecoder();
         byte[] prop = new byte[5];

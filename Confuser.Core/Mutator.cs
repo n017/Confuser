@@ -157,113 +157,113 @@ namespace Confuser.Core
                 Instruction inst = body.Instructions[idx];
                 switch (inst.OpCode.Code)
                 {
-                    case Code.Beq:
-                        CecilHelper.Replace(body, inst, new Instruction[]
-                        {
-                            Instruction.Create(OpCodes.Ceq),
-                            Instruction.Create(OpCodes.Brtrue, (Instruction)inst.Operand)
-                        });
-                        modified = true; break;
-                    case Code.Bgt:
-                        CecilHelper.Replace(body, inst, new Instruction[]
-                        {
-                            Instruction.Create(OpCodes.Cgt),
-                            Instruction.Create(OpCodes.Brtrue, (Instruction)inst.Operand)
-                        });
-                        modified = true; break;
-                    case Code.Bgt_Un:
-                        CecilHelper.Replace(body, inst, new Instruction[]
-                        {
-                            Instruction.Create(OpCodes.Cgt_Un),
-                            Instruction.Create(OpCodes.Brtrue, (Instruction)inst.Operand)
-                        });
-                        modified = true; break;
-                    case Code.Blt:
-                        CecilHelper.Replace(body, inst, new Instruction[]
-                        {
-                            Instruction.Create(OpCodes.Clt),
-                            Instruction.Create(OpCodes.Brtrue, (Instruction)inst.Operand)
-                        });
-                        modified = true; break;
-                    case Code.Blt_Un:
-                        CecilHelper.Replace(body, inst, new Instruction[]
-                        {
-                            Instruction.Create(OpCodes.Clt_Un),
-                            Instruction.Create(OpCodes.Brtrue, (Instruction)inst.Operand)
-                        });
-                        modified = true; break;
-                    case Code.Ldc_I4:
-                        {
-                            int x = (int)inst.Operand;
-                            if (x > 0x10)
-                            {
-                                int y = rand.Next();
-                                switch (rand.Next(0, 3))
-                                {
-                                    case 0:
-                                        x = x - y;
-                                        CecilHelper.Replace(body, inst, new Instruction[]
-                                        {
-                                            Instruction.Create(OpCodes.Ldc_I4, x),
-                                            Instruction.Create(OpCodes.Ldc_I4, y),
-                                            Instruction.Create(OpCodes.Add)
-                                        }); break;
-                                    case 1:
-                                        x = x + y;
-                                        CecilHelper.Replace(body, inst, new Instruction[]
-                                        {
-                                            Instruction.Create(OpCodes.Ldc_I4, x),
-                                            Instruction.Create(OpCodes.Ldc_I4, y),
-                                            Instruction.Create(OpCodes.Sub)
-                                        }); break;
-                                    case 2:
-                                        x = x ^ y;
-                                        CecilHelper.Replace(body, inst, new Instruction[]
-                                        {
-                                            Instruction.Create(OpCodes.Ldc_I4, x),
-                                            Instruction.Create(OpCodes.Ldc_I4, y),
-                                            Instruction.Create(OpCodes.Xor)
-                                        }); break;
-                                }
-                                modified = true;
-                            }
-                        } break;
-                    case Code.Ldc_I8:
-                        {
-                            long x = (long)inst.Operand;
-                            if (x > 0x10)
-                            {
-                                long y = rand.Next() * rand.Next();
-                                switch (rand.Next(0, 3))
-                                {
-                                    case 0:
-                                        x = x - y;
-                                        CecilHelper.Replace(body, inst, new Instruction[]
-                                        {
-                                            Instruction.Create(OpCodes.Ldc_I8, x),
-                                            Instruction.Create(OpCodes.Ldc_I8, y),
-                                            Instruction.Create(OpCodes.Add)
-                                        }); break;
-                                    case 1:
-                                        x = x + y;
-                                        CecilHelper.Replace(body, inst, new Instruction[]
-                                        {
-                                            Instruction.Create(OpCodes.Ldc_I8, x),
-                                            Instruction.Create(OpCodes.Ldc_I8, y),
-                                            Instruction.Create(OpCodes.Sub)
-                                        }); break;
-                                    case 2:
-                                        x = x ^ y;
-                                        CecilHelper.Replace(body, inst, new Instruction[]
-                                        {
-                                            Instruction.Create(OpCodes.Ldc_I8, x),
-                                            Instruction.Create(OpCodes.Ldc_I8, y),
-                                            Instruction.Create(OpCodes.Xor)
-                                        }); break;
-                                }
-                                modified = true;
-                            }
-                        } break;
+                    //case Code.Beq:
+                    //    CecilHelper.Replace(body, inst, new Instruction[]
+                    //    {
+                    //        Instruction.Create(OpCodes.Ceq),
+                    //        Instruction.Create(OpCodes.Brtrue, (Instruction)inst.Operand)
+                    //    });
+                    //    modified = true; break;
+                    //case Code.Bgt:
+                    //    CecilHelper.Replace(body, inst, new Instruction[]
+                    //    {
+                    //        Instruction.Create(OpCodes.Cgt),
+                    //        Instruction.Create(OpCodes.Brtrue, (Instruction)inst.Operand)
+                    //    });
+                    //    modified = true; break;
+                    //case Code.Bgt_Un:
+                    //    CecilHelper.Replace(body, inst, new Instruction[]
+                    //    {
+                    //        Instruction.Create(OpCodes.Cgt_Un),
+                    //        Instruction.Create(OpCodes.Brtrue, (Instruction)inst.Operand)
+                    //    });
+                    //    modified = true; break;
+                    //case Code.Blt:
+                    //    CecilHelper.Replace(body, inst, new Instruction[]
+                    //    {
+                    //        Instruction.Create(OpCodes.Clt),
+                    //        Instruction.Create(OpCodes.Brtrue, (Instruction)inst.Operand)
+                    //    });
+                    //    modified = true; break;
+                    //case Code.Blt_Un:
+                    //    CecilHelper.Replace(body, inst, new Instruction[]
+                    //    {
+                    //        Instruction.Create(OpCodes.Clt_Un),
+                    //        Instruction.Create(OpCodes.Brtrue, (Instruction)inst.Operand)
+                    //    });
+                    //    modified = true; break;
+                    //case Code.Ldc_I4:
+                    //    {
+                    //        int x = (int)inst.Operand;
+                    //        if (x > 0x10)
+                    //        {
+                    //            int y = rand.Next();
+                    //            switch (rand.Next(0, 3))
+                    //            {
+                    //                case 0:
+                    //                    x = x - y;
+                    //                    CecilHelper.Replace(body, inst, new Instruction[]
+                    //                    {
+                    //                        Instruction.Create(OpCodes.Ldc_I4, x),
+                    //                        Instruction.Create(OpCodes.Ldc_I4, y),
+                    //                        Instruction.Create(OpCodes.Add)
+                    //                    }); break;
+                    //                case 1:
+                    //                    x = x + y;
+                    //                    CecilHelper.Replace(body, inst, new Instruction[]
+                    //                    {
+                    //                        Instruction.Create(OpCodes.Ldc_I4, x),
+                    //                        Instruction.Create(OpCodes.Ldc_I4, y),
+                    //                        Instruction.Create(OpCodes.Sub)
+                    //                    }); break;
+                    //                case 2:
+                    //                    x = x ^ y;
+                    //                    CecilHelper.Replace(body, inst, new Instruction[]
+                    //                    {
+                    //                        Instruction.Create(OpCodes.Ldc_I4, x),
+                    //                        Instruction.Create(OpCodes.Ldc_I4, y),
+                    //                        Instruction.Create(OpCodes.Xor)
+                    //                    }); break;
+                    //            }
+                    //            modified = true;
+                    //        }
+                    //    } break;
+                    //case Code.Ldc_I8:
+                    //    {
+                    //        long x = (long)inst.Operand;
+                    //        if (x > 0x10)
+                    //        {
+                    //            long y = rand.Next() * rand.Next();
+                    //            switch (rand.Next(0, 3))
+                    //            {
+                    //                case 0:
+                    //                    x = x - y;
+                    //                    CecilHelper.Replace(body, inst, new Instruction[]
+                    //                    {
+                    //                        Instruction.Create(OpCodes.Ldc_I8, x),
+                    //                        Instruction.Create(OpCodes.Ldc_I8, y),
+                    //                        Instruction.Create(OpCodes.Add)
+                    //                    }); break;
+                    //                case 1:
+                    //                    x = x + y;
+                    //                    CecilHelper.Replace(body, inst, new Instruction[]
+                    //                    {
+                    //                        Instruction.Create(OpCodes.Ldc_I8, x),
+                    //                        Instruction.Create(OpCodes.Ldc_I8, y),
+                    //                        Instruction.Create(OpCodes.Sub)
+                    //                    }); break;
+                    //                case 2:
+                    //                    x = x ^ y;
+                    //                    CecilHelper.Replace(body, inst, new Instruction[]
+                    //                    {
+                    //                        Instruction.Create(OpCodes.Ldc_I8, x),
+                    //                        Instruction.Create(OpCodes.Ldc_I8, y),
+                    //                        Instruction.Create(OpCodes.Xor)
+                    //                    }); break;
+                    //            }
+                    //            modified = true;
+                    //        }
+                    //    } break;
                 }
                 i--;
             } while (!modified && i > 0);

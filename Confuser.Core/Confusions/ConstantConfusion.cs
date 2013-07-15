@@ -332,12 +332,6 @@ namespace Confuser.Core.Confusions
                 {
                     byte[] e = Encrypt(buff, txt.exp);
 
-                    MemoryStream output = new MemoryStream();
-                    var s = new CryptoStream(output,
-                        new RijndaelManaged().CreateEncryptor(txt.keyBuff, MD5.Create().ComputeHash(txt.keyBuff))
-                        , CryptoStreamMode.Write);
-                    s.Write(e, 0, e.Length);
-
                     int dictionary = 1 << 23;
 
                     Int32 posStateBits = 2;
@@ -377,13 +371,19 @@ namespace Confuser.Core.Confusions
                     encoder.SetCoderProperties(propIDs, properties);
                     encoder.WriteCoderProperties(x);
                     Int64 fileSize;
-                    fileSize = output.Length;
+                    MemoryStream output = new MemoryStream();
+                    fileSize = e.Length;
                     for (int i = 0; i < 8; i++)
                         x.WriteByte((Byte)(fileSize >> (8 * i)));
-                    output.Position = 0;
-                    encoder.Code(output, x, -1, -1, null);
+                    encoder.Code(new MemoryStream(e), x, -1, -1, null);
 
-                    final = x.ToArray();
+
+                    using (var s = new CryptoStream(output,
+                        new RijndaelManaged().CreateEncryptor(txt.keyBuff, MD5.Create().ComputeHash(txt.keyBuff))
+                        , CryptoStreamMode.Write))
+                        s.Write(x.ToArray(), 0, (int)x.Length);
+
+                    final = output.ToArray();
                 }
                 else
                 {
