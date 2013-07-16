@@ -364,7 +364,7 @@ namespace Confuser.Core.Confusions
         public override void Process(ConfusionParameter parameter)
         {
             method = parameter.Target as MethodDefinition;
-            if (!method.HasBody) return;
+            if (!method.HasBody || method.Body.Instructions.Count == 0) return;
 
             level = 5;
             if (Array.IndexOf(parameter.Parameters.AllKeys, "level") != -1)
