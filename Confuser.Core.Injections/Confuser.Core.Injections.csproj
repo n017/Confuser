@@ -41,6 +41,9 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="..\GlobalAssemblyInfo.cs">
+      <Link>Properties\GlobalAssemblyInfo.cs</Link>
+    </Compile>
     <Compile Include="AntiTampers.cs" />
     <Compile Include="ConfusionsInjection.cs" />
     <Compile Include="Iid.cs" />
